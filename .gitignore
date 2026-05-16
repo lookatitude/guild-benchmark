@@ -1,0 +1,22 @@
+# Node
+node_modules/
+ui/node_modules/
+*.log
+
+# Build output
+ui/dist/
+*.tsbuildinfo
+
+# Test / runtime artifacts
+runs/
+reports/internal/
+coverage/
+ui/coverage/
+
+# Guild runtime state (project-local) — keep fixture .guild dirs
+.guild/
+!fixtures/**/.guild/
+!fixtures/**/.guild/**
+
+# OS
+.DS_Store
