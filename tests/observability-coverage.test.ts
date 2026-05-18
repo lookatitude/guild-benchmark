@@ -40,8 +40,8 @@ import {
   TOOL_CALL_TOOL_VALUES as VALIDATOR_TOOLS,
   HOOK_EVENT_NAMES as VALIDATOR_HOOKS,
   EVENT_TYPES as VALIDATOR_EVENTS,
-} from "../../scripts/v1.4-log-validator.js";
-import { regenerateSummary } from "../../scripts/v1.4-summary-md-regen.js";
+} from "../../plugin/scripts/v1.4-log-validator.js";
+import { regenerateSummary } from "../../plugin/scripts/v1.4-summary-md-regen.js";
 
 const TS = "2026-04-27T07:35:00.123Z";
 const RUN_ID = "run-2026-04-27-observability-test";
