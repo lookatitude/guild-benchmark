@@ -2,11 +2,11 @@ import { existsSync } from "node:fs";
 import { copyFile, cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import {
-  liveLogPath,
-  readAllEvents,
-  type JsonlEvent,
-} from "./log-jsonl.js";
+import { liveLogPath, readAllEvents } from "./log-jsonl.js";
+// Consume the recorded-run event schema by FORMAT through the named mirror
+// (telemetry split — the on-disk artifact is the contract). The reader fns
+// above stay on the vendored recorder (execution plan §2, option B).
+import type { JsonlEvent } from "./run-events-schema.js";
 import type {
   EventLine,
   ReceiptSummary,
