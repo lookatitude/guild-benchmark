@@ -13,8 +13,46 @@ reports/internal/
 coverage/
 ui/coverage/
 
-# Guild runtime state (project-local) — keep fixture .guild dirs
-.guild/
+# .guild/ — share-dot-guild policy (see docs/knowledge/decisions/guild-boundary-config-and-tracking.md Decision E)
+.guild
+!.guild/
+!.guild/wiki/
+!.guild/wiki/**
+!.guild/initiatives/
+!.guild/initiatives/**
+!.guild/spec/
+!.guild/spec/**
+!.guild/plan/
+!.guild/plan/**
+!.guild/prd/
+!.guild/prd/**
+!.guild/team/
+!.guild/team/**
+!.guild/reflections/
+!.guild/reflections/**
+!.guild/evolve/
+!.guild/evolve/**
+!.guild/indexes/
+!.guild/indexes/**
+!.guild/workspace.json
+!.guild/settings.json
+!.guild/runs/
+!.guild/runs/*/
+!.guild/runs/*/handoffs/
+!.guild/runs/*/handoffs/**
+!.guild/runs/*/verify.md
+!.guild/runs/*/review.md
+!.guild/runs/*/provenance.json
+!.guild/runs/*/summary.md
+!.guild/runs/*/share-payloads.flag
+
+# Re-deny operator-private / local-only sub-paths (D-SHR-4 + Decision G)
+.guild/settings.local.json
+.guild/hosts/
+.guild/runs/*/events.ndjson
+.guild/runs/*/logs/
+
+# Benchmark fixture .guild dirs — static test data, not live runtime state
 !fixtures/**/.guild/
 !fixtures/**/.guild/**
 
