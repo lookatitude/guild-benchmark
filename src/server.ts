@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
@@ -19,6 +19,7 @@ import type {
   AuditLogImportResponse,
   LifecycleImportRequest,
   LifecycleImportResponse,
+  LifecycleRunRecord,
   Case,
   CaseSummary,
   CasesListResponse,
@@ -29,11 +30,12 @@ import type {
   RunOptions,
   RunPostRequest,
   RunPostResponse,
+  RunRecord,
   RunsListResponse,
   RunsListRow,
   Score,
 } from "./types.js";
-import { EXPECTED_GATES } from "./types.js";
+import { EXPECTED_GATES, SCHEMA_VERSION } from "./types.js";
 
 export interface ServerOpts {
   runsDir: string;
@@ -333,6 +335,10 @@ export function createApp(opts: ServerOpts): Hono {
         runsDir,
         ...(parseResult.value.run_id ? { runId: parseResult.value.run_id } : {}),
       });
+      // FIX 2: materialize run.json/metrics.json/score.json so that the
+      // existing GET /api/runs/:id handler + list endpoint resolve the run.
+      // The handler requires all three; without them the Location 404s.
+      await persistLifecycleArtifacts(imported.runDir, imported.record);
       const responseBody: LifecycleImportResponse = {
         run_id: imported.record.run_id,
         location: `/api/runs/${imported.record.run_id}`,
@@ -614,6 +620,73 @@ function makeAuditImportCase(record: Awaited<ReturnType<typeof loadRunRecord>>):
     expected_stage_order: EXPECTED_GATES,
     acceptance_commands: [],
   };
+}
+
+/**
+ * FIX 2: Materialize run.json + metrics.json + score.json from a lifecycle
+ * record so the existing GET /api/runs/:id handler resolves the returned
+ * Location and the runs list includes the imported run.
+ *
+ * The lifecycle record does not carry all RunJson fields verbatim, so we
+ * synthesize them: RunJson.status is derived from the lifecycle record status
+ * (closed => "pass"; open/partial => "fail"); model_ref and plugin_ref carry
+ * sentinel values that flag this as a lifecycle import. The scorer produces
+ * a zero-scored RunRecord (no events.ndjson) with run_kind="raw_model" which
+ * is the correct interpretation — lifecycle runs are not scored by the
+ * event-driven scorer.
+ */
+async function persistLifecycleArtifacts(
+  runDir: string,
+  record: LifecycleRunRecord,
+): Promise<void> {
+  // Map lifecycle status to RunJson.status (the closed enum).
+  const runStatus: RunJson["status"] =
+    record.status === "closed" && !record.partial ? "pass" : "fail";
+
+  const runJson: RunJson = {
+    schema_version: SCHEMA_VERSION,
+    run_id: record.run_id,
+    case_slug: `lifecycle-${record.run_type}`,
+    plugin_ref: "lifecycle-import",
+    model_ref: { default: "guild-lifecycle" },
+    started_at: record.started_at || new Date().toISOString(),
+    completed_at: record.closed_at ?? new Date().toISOString(),
+    status: runStatus,
+  };
+  await writeFile(join(runDir, "run.json"), JSON.stringify(runJson, null, 2) + "\n");
+
+  // Build a minimal RunRecord for the scorer. No events = raw_model scoring
+  // (all lifecycle-dependent components score 0, which is correct since this
+  // is a lifecycle run not a benchmark run).
+  const minimalRunRecord: RunRecord = {
+    run: runJson,
+    events: [],
+    v14_events: [],
+    runDir,
+    artifactsRoot: join(runDir, "artifacts", ".guild"),
+    receipts: [],
+    hasReview: false,
+    hasAssumptions: false,
+    hasReflection: false,
+    partial: record.partial,
+    missing_artifacts: record.missing_artifacts,
+  };
+
+  const lifecycleCase: Case = {
+    schema_version: SCHEMA_VERSION,
+    id: `lifecycle-${record.run_type}`,
+    title: `Lifecycle import — ${record.run_type}`,
+    timeout_seconds: 0,
+    repetitions: 1,
+    fixture: "",
+    prompt: "",
+    expected_specialists: [],
+    expected_stage_order: EXPECTED_GATES,
+    acceptance_commands: [],
+  };
+
+  const { score, metrics } = scoreRun(minimalRunRecord, lifecycleCase);
+  await persistScore(runDir, score, metrics);
 }
 
 function resolveRunDir(runsDir: string, runId: string): string | null {

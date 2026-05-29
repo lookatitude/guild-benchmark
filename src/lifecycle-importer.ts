@@ -25,7 +25,7 @@ import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 
-import { readAllEvents } from "./log-jsonl.js";
+import { listArchives, readAllEvents, readArchive } from "./log-jsonl.js";
 import { liveLogPath } from "./log-jsonl.js";
 import type { JsonlEvent } from "./run-events-schema.js";
 import {
@@ -187,32 +187,56 @@ async function readYamlLoose<T>(path: string): Promise<T | null> {
 // These are appended raw by the plugin's run-trace hook and are NOT members of
 // the 12-type closed union, so readAllEvents (which validates strictly) skips
 // them. We do a loose line-scan for them here. Deterministic; no wall-clock.
+//
+// FIX 1: scan the SAME sources as readAllEvents — archives (N-ascending) then
+// the live log — so that run_closed markers written before a rotation are not
+// dropped on long runs. Archives are immutable post-rotation; we read them
+// without a lock (mirrors readAllEvents's reader path).
 async function readLifecycleMarkers(runDir: string): Promise<LifecycleTraceMarker[]> {
   const out: LifecycleTraceMarker[] = [];
-  const live = liveLogPath(runDir);
-  if (!existsSync(live)) return out;
-  let text: string;
-  try {
-    text = await readFile(live, "utf8");
-  } catch {
-    return out;
+
+  // Helper: scan one block of text for lifecycle marker lines.
+  function scanText(text: string): void {
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        continue;
+      }
+      if (parsed === null || typeof parsed !== "object") continue;
+      const obj = parsed as LifecycleTraceMarker;
+      const name = obj.event_name ?? obj.event;
+      if (name === "run_started" || name === "run_closed") {
+        out.push(obj);
+      }
+    }
   }
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
-    let parsed: unknown;
+
+  // Archives first (N-ascending), matching readAllEvents source-priority order.
+  for (const archivePath of listArchives(runDir)) {
     try {
-      parsed = JSON.parse(trimmed);
+      const text = await readArchive(archivePath);
+      scanText(text);
     } catch {
+      // Treat unreadable archive as absent (mirrors readAllEvents behaviour).
       continue;
     }
-    if (parsed === null || typeof parsed !== "object") continue;
-    const obj = parsed as LifecycleTraceMarker;
-    const name = obj.event_name ?? obj.event;
-    if (name === "run_started" || name === "run_closed") {
-      out.push(obj);
+  }
+
+  // Live log last (if it exists).
+  const live = liveLogPath(runDir);
+  if (existsSync(live)) {
+    try {
+      const text = await readFile(live, "utf8");
+      scanText(text);
+    } catch {
+      // Treat unreadable live log as absent.
     }
   }
+
   return out;
 }
 
@@ -420,6 +444,14 @@ export async function importLifecycleRun(
 
   // ---- Copy artifacts (mirror importAuditRun on-disk capture) -----------
   const runDir = resolve(opts.runsDir, runId);
+  // FIX 3: refuse collision — mirrors importAuditRun's existing-run-dir check.
+  // A pre-existing runDir means a previous import (or a live run) already
+  // claimed this id. Reusing it would leave old run.json/score.json in place
+  // while overwriting lifecycle-record.json, producing a mixed-artifact state
+  // that makes GET /api/runs/:id return stale data.
+  if (existsSync(runDir)) {
+    throw new Error(`run already exists: ${runId}`);
+  }
   await mkdir(runDir, { recursive: true });
   const capturedRunDir = join(runDir, "artifacts", ".guild", "runs", sourceRunId);
   if (!existsSync(capturedRunDir)) {

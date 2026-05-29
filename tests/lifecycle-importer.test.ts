@@ -326,6 +326,42 @@ describe("lifecycle-importer / importLifecycleRun", () => {
     expect(dirs).toHaveLength(1);
     expect(dirs[0].endsWith("run-learn-001")).toBe(true);
   });
+
+  // ---- Fix 1: rotated archives — run_closed marker still found ----------
+  it("Fix 1: finds run_closed marker when it lives in a rotated archive (not the live log)", async () => {
+    // learn-run-rotated has the run_closed event in archive/v1.4-events.1.jsonl.gz,
+    // and an empty live log (simulating a post-rotation state). The importer
+    // must scan archives in addition to the live log so timeline + replay_completeness
+    // are not degraded on long runs whose close marker was captured before rotation.
+    const root = await stageFixture(workDir, "learn-run-rotated");
+    const sourceRunDir = join(root, ".guild", "runs", "run-learn-rotated-001");
+    const { record } = await importLifecycleRun({ sourceRunDir, runsDir });
+
+    // run_closed must be in the timeline even though the live log is empty.
+    const kinds = record.timeline.map((t) => t.kind);
+    expect(kinds).toContain("run_started");
+    expect(kinds).toContain("run_closed");
+
+    // replay_completeness depends on run_closed being found.
+    expect(record.metrics.replay_completeness).toBe("full");
+
+    // phase_end was in the archive too — phase duration should be extracted.
+    expect(record.metrics.phase_durations_ms).toEqual({ learn: 299000 });
+  });
+
+  // ---- Fix 3: run-id collision is refused --------------------------------
+  it("Fix 3: refuses to import when the target run-id already exists in runsDir", async () => {
+    const root = await stageFixture(workDir, "learn-run");
+    const sourceRunDir = join(root, ".guild", "runs", "run-learn-001");
+
+    // First import succeeds.
+    await importLifecycleRun({ sourceRunDir, runsDir, runId: "collision-test" });
+
+    // Second import with the same run-id must be refused, not silently mixed.
+    await expect(
+      importLifecycleRun({ sourceRunDir, runsDir, runId: "collision-test" }),
+    ).rejects.toThrow(/run already exists/);
+  });
 });
 
 describe("lifecycle-timeline / renderTimeline (unit)", () => {

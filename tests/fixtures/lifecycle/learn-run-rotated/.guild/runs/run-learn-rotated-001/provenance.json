@@ -1,0 +1,11 @@
+{
+  "schema_version": "guild.provenance.v1",
+  "run_id": "run-learn-rotated-001",
+  "closed_at": "2026-05-29T08:10:00Z",
+  "status": "closed",
+  "run_class": "full",
+  "coverage": {
+    "files": 20,
+    "skipped": 1
+  }
+}
