@@ -1,0 +1,27 @@
+{
+  "schema_version": "guild.provenance.v1",
+  "run_id": "run-ideate-001",
+  "command": "/guild:ideate",
+  "initiative": "my-initiative",
+  "retention_class": "until-archive",
+  "started_at": "2026-05-29T10:00:00Z",
+  "closed_at": "2026-05-29T10:05:00Z",
+  "status": "closed",
+  "run_class": "full",
+  "terminal_trace_event": {
+    "event_id": "evt-close-ideate-001",
+    "event_name": "run_closed",
+    "at": "2026-05-29T10:05:00Z",
+    "log_ref": ".guild/runs/run-ideate-001/logs/v1.4-events.jsonl"
+  },
+  "final_learning_checkpoint": null,
+  "gates": {
+    "G-spec": { "posture": "auto-approved", "outcome": "approved", "codex_review": "SKIPPED" }
+  },
+  "touched": {
+    "tasks": [],
+    "agents": [],
+    "skills": [],
+    "decisions": []
+  }
+}

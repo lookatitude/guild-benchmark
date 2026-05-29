@@ -1,0 +1,33 @@
+schema_version: guild.run.v1
+run_id: run-plan-001
+command: /guild:plan
+arguments:
+  rigor: deep
+cwd: /tmp/fixture/project
+target_kind: existing_guild_project
+workspace:
+  is_workspace: false
+  root: /tmp/fixture/project
+project: fixture-project
+host:
+  requested: auto
+  resolved: claude
+model_tier_policy: rigor=deep
+started_at: 2026-05-29T11:00:00Z
+ignore_policy: n/a
+scan_policy: n/a
+initiative_attachment: my-initiative
+phase: plan
+run_class: full
+gates:
+  G-plan:
+    posture: auto-approved
+    codex_review: SKIPPED
+status: open
+phases_log:
+  - phase: detect
+    proposed: plan
+    at: 2026-05-29T11:00:00Z
+  - phase: plan
+    deliverable: plan.md
+    at: 2026-05-29T11:03:00Z

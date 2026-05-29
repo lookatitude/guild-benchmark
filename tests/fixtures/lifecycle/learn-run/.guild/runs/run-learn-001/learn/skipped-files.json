@@ -1,0 +1,11 @@
+{
+  "schema_version": "guild.skipped_files.v1",
+  "run_id": "run-learn-001",
+  "generated_at": "2026-05-29T08:05:00Z",
+  "skipped_count": 3,
+  "skipped": [
+    { "path": "package-lock.json", "reason": "lockfile-oversized", "rule": "oversized-blob", "can_manually_include": true, "summary_produced": true },
+    { "path": "node_modules/x/y.js", "reason": "vendored-dependency", "rule": "vendored-deps", "can_manually_include": false, "summary_produced": false },
+    { "path": "dist/bundle.js", "reason": "generated-output", "rule": "generated-output", "can_manually_include": false, "summary_produced": false }
+  ]
+}

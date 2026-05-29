@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadCase } from "./case-loader.js";
 import { importFixture, loadRunRecord } from "./artifact-importer.js";
+import { importLifecycleRun } from "./lifecycle-importer.js";
 import { compareSets } from "./compare.js";
 import { persistScore, scoreRun } from "./scorer.js";
 import { serverDefaultsFromEnv, startServer } from "./server.js";
@@ -453,6 +454,45 @@ async function commandLoop(args: ParsedArgs): Promise<never> {
   }
 }
 
+// SC-F — full-lifecycle import. argv:
+//   --run-dir <.guild/runs/<id>> [--run-id <id>] [--runs-dir <path>]
+// Reads on-disk run.yaml + provenance.json + trace + learn artifacts (NN#9);
+// imports ALL run types. Prints the imported run-id, run_type, eligibility,
+// timeline length, and a compact metric summary.
+async function commandLifecycleImport(args: ParsedArgs): Promise<void> {
+  const runDir = args.flags.get("run-dir");
+  if (!runDir || runDir === "true") {
+    throw new Error("lifecycle-import: --run-dir <.guild/runs/<id>> is required");
+  }
+  const runsDir = resolve(args.flags.get("runs-dir") ?? DEFAULT_RUNS_DIR);
+  const runIdFlag = args.flags.get("run-id");
+  const result = await importLifecycleRun({
+    sourceRunDir: resolve(runDir),
+    runsDir,
+    ...(runIdFlag && runIdFlag !== "true" ? { runId: runIdFlag } : {}),
+  });
+  const r = result.record;
+  const m = r.metrics;
+  process.stdout.write(
+    [
+      `lifecycle-import: run_id=${r.run_id} run_type=${r.run_type} run_class=${r.run_class}`,
+      `  benchmark_eligible=${r.benchmark_eligible} partial=${r.partial} status=${r.status}`,
+      `  timeline_entries=${r.timeline.length} phases_log=${r.phases_log.length}`,
+      `  replay_completeness=${m.replay_completeness ?? "n/a"}` +
+        (m.gate_count !== undefined ? ` gate_count=${m.gate_count}` : "") +
+        (m.knowledge_candidates_produced !== undefined
+          ? ` knowledge_candidates=${m.knowledge_candidates_produced}`
+          : "") +
+        (m.graph_edge_count !== undefined ? ` graph_edges=${m.graph_edge_count}` : ""),
+      `  imported_to=${result.runDir}`,
+      r.missing_artifacts.length > 0
+        ? `  missing_artifacts=${r.missing_artifacts.join(",")}`
+        : "  missing_artifacts=(none)",
+      "",
+    ].join("\n"),
+  );
+}
+
 async function commandServe(args: ParsedArgs): Promise<void> {
   const runsDir = resolve(args.flags.get("runs-dir") ?? DEFAULT_RUNS_DIR);
   const casesDir = resolve(args.flags.get("cases-dir") ?? resolve(process.cwd(), "cases"));
@@ -505,6 +545,9 @@ function printUsage(): void {
       "  benchmark run      --case <slug> [--run-id <id>] [--dry-run] [--cleanup]",
       "                          [--runs-dir <path>] [--cases-dir <path>]",
       "                          (--dry-run prints the resolved plan; never spawns claude)",
+      "  benchmark lifecycle-import --run-dir <.guild/runs/<id>> [--run-id <id>] [--runs-dir <path>]",
+      "                          (SC-F: imports ANY run type — learn/ideate/plan/qa/ops/build —",
+      "                           from on-disk run.yaml + provenance.json + trace; NN#9 no plugin import)",
       "  benchmark loop     --start    --case <slug> [--baseline-run-id <id>] [--dry-run]",
       "                     --continue --baseline-run-id <id> --apply <proposal-id> [--dry-run]",
       "                     --status   --baseline-run-id <id> [--diff <proposal-id>]",
@@ -623,6 +666,9 @@ async function main(argv: string[]): Promise<void> {
       return;
     case "run":
       await commandRun(args);
+      return;
+    case "lifecycle-import":
+      await commandLifecycleImport(args);
       return;
     case "loop":
       await commandLoop(args);

@@ -9,6 +9,7 @@ import {
   loadRunEvents,
   parseRunJson,
 } from "./artifact-importer.js";
+import { importLifecycleRun } from "./lifecycle-importer.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -16,6 +17,8 @@ import { collectLoopRounds, persistScore, scoreRun } from "./scorer.js";
 import type {
   AuditLogImportRequest,
   AuditLogImportResponse,
+  LifecycleImportRequest,
+  LifecycleImportResponse,
   Case,
   CaseSummary,
   CasesListResponse,
@@ -308,6 +311,44 @@ export function createApp(opts: ServerOpts): Hono {
     }
   });
 
+  // SC-F — full-lifecycle import. Imports a Guild run of ANY type
+  // (learn/ideate/plan/qa/ops/build/...) from its on-disk run.yaml +
+  // provenance.json + trace + learn artifacts. NN#9: on-disk read only, no
+  // plugin import. Additive to /api/imports/audit-log (which only consumes
+  // logs); this consumes the full guild.run.v1 manifest.
+  app.post("/api/imports/lifecycle", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+    const parseResult = parseLifecycleImportRequest(body);
+    if (!parseResult.ok) {
+      return c.json({ error: parseResult.error }, 400);
+    }
+    try {
+      const imported = await importLifecycleRun({
+        sourceRunDir: parseResult.value.run_dir,
+        runsDir,
+        ...(parseResult.value.run_id ? { runId: parseResult.value.run_id } : {}),
+      });
+      const responseBody: LifecycleImportResponse = {
+        run_id: imported.record.run_id,
+        location: `/api/runs/${imported.record.run_id}`,
+        imported_from: resolve(parseResult.value.run_dir),
+        source_run_id: imported.sourceRunId,
+        run_type: imported.record.run_type,
+        benchmark_eligible: imported.record.benchmark_eligible,
+      };
+      c.header("Location", `/api/runs/${imported.record.run_id}`);
+      return c.json(responseBody, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `lifecycle import failed: ${message}` }, 400);
+    }
+  });
+
   // ---- Static fallback for non-/api paths --------------------------------
   app.get("*", async (c) => {
     if (c.req.path.startsWith("/api/")) {
@@ -498,6 +539,34 @@ function parseAuditLogImportRequest(
   raw: unknown,
 ):
   | { ok: true; value: AuditLogImportRequest }
+  | { ok: false; error: string } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "body must be a JSON object" };
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.run_dir !== "string" || obj.run_dir.trim().length === 0) {
+    return { ok: false, error: "run_dir is required and must be a string" };
+  }
+  let runId: string | undefined;
+  if (obj.run_id !== undefined) {
+    if (typeof obj.run_id !== "string" || !isSafeSetId(obj.run_id)) {
+      return { ok: false, error: "run_id must match [A-Za-z0-9._-]+" };
+    }
+    runId = obj.run_id;
+  }
+  return {
+    ok: true,
+    value: {
+      run_dir: obj.run_dir,
+      ...(runId ? { run_id: runId } : {}),
+    },
+  };
+}
+
+function parseLifecycleImportRequest(
+  raw: unknown,
+):
+  | { ok: true; value: LifecycleImportRequest }
   | { ok: false; error: string } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "body must be a JSON object" };

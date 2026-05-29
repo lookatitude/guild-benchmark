@@ -1,0 +1,11 @@
+{
+  "schema_version": "guild.knowledge_links.v1",
+  "links": [
+    { "from": "task:L1", "to": "run:run-learn-001", "type": "produced", "run_id": "knowledge-links-builder" },
+    { "from": "skill:guild-learn", "to": "run:run-learn-001", "type": "used_for", "run_id": "knowledge-links-builder" },
+    { "from": "agent:learn-agent", "to": "run:run-learn-001", "type": "used_for", "run_id": "knowledge-links-builder" },
+    { "from": "run:run-learn-001", "to": "reflection:lesson-detection", "type": "produced", "run_id": "knowledge-links-builder" },
+    { "from": "run:run-learn-001", "to": "component:knowledge", "type": "touches", "run_id": "knowledge-links-builder" },
+    { "from": "task:L1", "to": "decision:cheap-map-first", "type": "constrains", "run_id": "knowledge-links-builder" }
+  ]
+}

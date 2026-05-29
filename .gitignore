@@ -64,6 +64,9 @@ ui/coverage/
 # Benchmark fixture .guild dirs — static test data, not live runtime state
 !fixtures/**/.guild/
 !fixtures/**/.guild/**
+# Fixtures also live under tests/fixtures/; the unanchored `runs/` rule (above)
+# was eating their .guild/runs/ trees. Un-ignore all tests/fixtures test data.
+!tests/fixtures/**
 
 # OS
 .DS_Store

@@ -1,0 +1,37 @@
+{
+  "schema_version": "guild.provenance.v1",
+  "run_id": "run-learn-001",
+  "command": "/guild:learn",
+  "initiative": null,
+  "retention_class": "one-off-90d",
+  "started_at": "2026-05-29T08:00:00Z",
+  "closed_at": "2026-05-29T08:10:00Z",
+  "status": "closed",
+  "run_class": "full",
+  "terminal_trace_event": {
+    "event_id": "evt-close-001",
+    "event_name": "run_closed",
+    "at": "2026-05-29T08:10:00Z",
+    "log_ref": ".guild/runs/run-learn-001/logs/v1.4-events.jsonl"
+  },
+  "final_learning_checkpoint": ".guild/runs/run-learn-001/learning/reflection-run-learn-001.yaml",
+  "gates": {
+    "G-spec": { "posture": "auto-approved", "outcome": "approved", "codex_review": "SKIPPED" }
+  },
+  "touched": {
+    "tasks": ["L1"],
+    "agents": ["learn-agent"],
+    "skills": ["guild-learn"],
+    "decisions": [],
+    "features": ["knowledge"],
+    "files": ["src/index.ts"]
+  },
+  "coverage": {
+    "scanned_count": 42,
+    "skipped_count": 3,
+    "skipped_files_ref": ".guild/runs/run-learn-001/learn/skipped-files.json"
+  },
+  "artifacts": {
+    "summary": ".guild/runs/run-learn-001/summary.md"
+  }
+}

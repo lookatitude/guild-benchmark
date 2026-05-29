@@ -526,3 +526,134 @@ export interface AuditLogImportResponse {
   imported_from: string;
   source_run_id: string;
 }
+
+// ---- SC-F full-lifecycle import contracts ------------------------------
+//
+// Locked by `.guild/initiatives/active/learn-knowledge-convergence/artifacts/
+// benchmark-import-contract.md` (SC-F). The lifecycle importer consumes ON-DISK
+// `run.yaml` (guild.run.v1) + `provenance.json` (guild.provenance.v1) +
+// `logs/v1.4-events.jsonl` + optional `learn/harvest-candidates.json` +
+// optional `learn/skipped-files.json` + the derived
+// `.guild/indexes/knowledge-links.json`. NO plugin module is imported at
+// runtime (non-negotiable #9) — the on-disk artifact is the only contract.
+//
+// Unlike the build-only benchmark runs (run.json), lifecycle runs cover ALL
+// run types (learn/ideate/plan/qa/ops/build/status/...). `run.yaml.command`
+// classifies the run type; `run_class` + `benchmark_eligible` gate scoring.
+
+// Run type derived from `run.yaml.command`. The §435 entrypoint set plus
+// `unknown` for unrecognised commands.
+export type RunTypeKind =
+  | "learn"
+  | "ideate"
+  | "plan"
+  | "build"
+  | "qa"
+  | "ops"
+  | "status"
+  | "wiki"
+  | "initiative"
+  | "fix"
+  | "evolve"
+  | "rollback"
+  | "audit"
+  | "stats"
+  | "unknown";
+
+// One entry on the entry-to-close timeline. Merged from `run.yaml.phases_log`
+// (the replay backbone) and the v1.4 trace markers + lifecycle markers
+// (run_started / run_closed) in `logs/v1.4-events.jsonl`.
+export type TimelineKind =
+  | "phase"
+  | "gate"
+  | "specialist_dispatch"
+  | "specialist_receipt"
+  | "run_started"
+  | "run_closed"
+  | "tool_call"
+  | "escalation";
+
+export interface TimelineEntry {
+  at: string; // RFC3339 UTC; empty string when source omitted a timestamp
+  kind: TimelineKind;
+  label: string;
+  duration_ms?: number;
+  detail?: Record<string, unknown>;
+}
+
+// §488-505 metric set. Every field is optional: a metric whose source
+// artifact is absent (e.g. no harvest-candidates.json on a non-learn run,
+// or no knowledge-links.json index) is `undefined`, never an error.
+export interface LifecycleMetrics {
+  time_to_project_understanding_ms?: number;
+  file_coverage_count?: number;
+  skipped_file_count?: number;
+  skipped_file_categories?: Record<string, number>;
+  knowledge_candidates_produced?: number;
+  decision_candidates_produced?: number;
+  graph_node_count?: number;
+  graph_edge_count?: number;
+  phase_durations_ms?: Record<string, number>;
+  gate_count?: number;
+  human_questions_asked?: number;
+  context_budget_pressure?: number;
+  review_rounds?: number;
+  verification_outcomes?: Record<string, "pass" | "fail" | "skip">;
+  learning_checkpoint_verdicts?: string[];
+  reflection_promotion_rate?: number;
+  replay_completeness?: "full" | "partial" | "none";
+  benchmark_fixture_eligible?: boolean;
+}
+
+// Compact summary of the E1 knowledge-links read surface for a run.
+export interface KnowledgeLinksSummary {
+  skills: string[];
+  agents: string[];
+  lessons: string[]; // reflection/evolution node ids
+  constraining_decisions: string[];
+  run_edge_count: number;
+}
+
+// Free-shape phase-transition entry from `run.yaml.phases_log`. Lenient:
+// only `phase` is depended on; other fields pass through.
+export interface LifecyclePhaseLogEntry {
+  phase: string;
+  proposed?: string;
+  detected_from?: string;
+  deliverable?: unknown;
+  gate?: string;
+  at?: string;
+  [key: string]: unknown;
+}
+
+export interface LifecycleRunRecord {
+  run_id: string;
+  command: string;
+  run_class: "full" | "lightweight";
+  run_type: RunTypeKind;
+  benchmark_eligible: boolean;
+  target_kind?: string;
+  started_at: string;
+  closed_at: string | null;
+  status: string; // run.yaml.status or provenance.status; "open" when no close
+  phases_log: LifecyclePhaseLogEntry[];
+  timeline: TimelineEntry[];
+  metrics: LifecycleMetrics;
+  knowledge_links?: KnowledgeLinksSummary;
+  partial: boolean; // true when provenance.json (close record) absent
+  missing_artifacts: string[];
+}
+
+export interface LifecycleImportRequest {
+  run_dir: string;
+  run_id?: string;
+}
+
+export interface LifecycleImportResponse {
+  run_id: string;
+  location: string;
+  imported_from: string;
+  source_run_id: string;
+  run_type: RunTypeKind;
+  benchmark_eligible: boolean;
+}

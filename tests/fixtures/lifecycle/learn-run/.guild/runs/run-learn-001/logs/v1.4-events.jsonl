@@ -1,0 +1,5 @@
+{"at":"2026-05-29T08:00:00Z","event_name":"run_started","run_id":"run-learn-001"}
+{"ts":"2026-05-29T08:00:01Z","event":"phase_start","run_id":"run-learn-001","phase":"learn"}
+{"ts":"2026-05-29T08:00:02Z","event":"gate_decision","run_id":"run-learn-001","gate":"gate-1-spec","decision":"approved","source":"user"}
+{"ts":"2026-05-29T08:05:00Z","event":"phase_end","run_id":"run-learn-001","phase":"learn","duration_ms":299000,"status":"ok"}
+{"at":"2026-05-29T08:10:00Z","event_name":"run_closed","run_id":"run-learn-001"}
