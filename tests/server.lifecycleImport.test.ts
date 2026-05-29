@@ -9,8 +9,10 @@ import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { scoreRun } from "../src/scorer.js";
 import { createApp } from "../src/server.js";
-import type { LifecycleImportResponse, RunDetailResponse, RunsListResponse } from "../src/types.js";
+import type { Case, LifecycleImportResponse, RunDetailResponse, RunRecord, RunsListResponse } from "../src/types.js";
+import { SCHEMA_VERSION } from "../src/types.js";
 import { req } from "./server.helpers.js";
 
 const FIXTURES = resolve(__dirname, "fixtures", "lifecycle");
@@ -161,5 +163,90 @@ describe("server / POST /api/imports/lifecycle", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/run_dir/);
+  });
+
+  // ---- Scoring honesty: lifecycle import must NOT masquerade as a complete
+  // guild_lifecycle run — it must be classified as partial/raw_model because
+  // no events.ndjson artifact was produced by the lifecycle tool chain. -----
+  it("scoring honesty: persisted score.json for lifecycle import is marked partial and carries events.ndjson in missing_artifacts (run_kind = raw_model)", async () => {
+    const projectRoot = await stageFixture(root, "learn-run");
+    const sourceRunDir = join(projectRoot, ".guild", "runs", "run-learn-001");
+    const app = createApp({ runsDir, casesDir, port: 0 });
+
+    const importRes = await app.fetch(
+      req("/api/imports/lifecycle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_dir: sourceRunDir, run_id: "lc-honesty-test" }),
+      }),
+    );
+    expect(importRes.status).toBe(201);
+
+    // Fetch the persisted score via the detail endpoint.
+    const detailRes = await app.fetch(req("/api/runs/lc-honesty-test"));
+    expect(detailRes.status).toBe(200);
+    const detail = (await detailRes.json()) as RunDetailResponse;
+    const score = detail.score;
+
+    // The synthetic RunRecord has no benchmark events.ndjson — scoreRun must
+    // detect this and classify accordingly. If it claims "guild_lifecycle",
+    // kind-mix warnings in comparisons/lists are silently suppressed.
+    expect(score.run_kind).toBe("raw_model");
+
+    // The persisted score must carry "events.ndjson" in missing_artifacts so
+    // the kind-mix comparator detects it as eventless.
+    expect(score.missing_artifacts).toContain("events.ndjson");
+
+    // A lifecycle import is definitionally partial — it doesn't go through the
+    // full benchmark event pipeline.
+    expect(score.partial).toBe(true);
+  });
+
+  it("scoring honesty (no over-correction): a real events-based benchmark run is still scored as guild_lifecycle and NOT partial", () => {
+    // This test ensures the fix doesn't break the happy-path for a run that
+    // actually has events — it must stay guild_lifecycle / partial=false.
+    const realRecord: RunRecord = {
+      run: {
+        schema_version: SCHEMA_VERSION,
+        run_id: "real-events-run-001",
+        case_slug: "test-case",
+        plugin_ref: "plugin-ref",
+        model_ref: { default: "claude-sonnet-4-5" },
+        started_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        status: "pass",
+      },
+      events: [
+        { ts: new Date().toISOString(), type: "gate_passed", gate: "brainstorm" },
+      ],
+      v14_events: [],
+      runDir: "/tmp/fake",
+      artifactsRoot: "/tmp/fake/artifacts",
+      receipts: [],
+      hasReview: false,
+      hasAssumptions: false,
+      hasReflection: false,
+      // A real run with events present: partial=false, no events.ndjson in missing_artifacts.
+      partial: false,
+      missing_artifacts: [],
+    };
+
+    const realCase: Case = {
+      schema_version: SCHEMA_VERSION,
+      id: "test-case",
+      title: "Test Case",
+      timeout_seconds: 60,
+      repetitions: 1,
+      fixture: "",
+      prompt: "",
+      expected_specialists: [],
+      expected_stage_order: [],
+      acceptance_commands: [],
+    };
+
+    const { score } = scoreRun(realRecord, realCase);
+    expect(score.run_kind).toBe("guild_lifecycle");
+    expect(score.partial).toBe(false);
+    expect(score.missing_artifacts).not.toContain("events.ndjson");
   });
 });

@@ -658,6 +658,17 @@ async function persistLifecycleArtifacts(
   // Build a minimal RunRecord for the scorer. No events = raw_model scoring
   // (all lifecycle-dependent components score 0, which is correct since this
   // is a lifecycle run not a benchmark run).
+  //
+  // Scoring honesty: always inject "events.ndjson" into missing_artifacts so
+  // scoreRun classifies this as run_kind="raw_model" (not "guild_lifecycle").
+  // Without this, the persisted score.json would claim a complete lifecycle
+  // run, suppressing the kind-mix warnings that comparison/list consumers
+  // rely on when a lifecycle import is mixed with a real scored run.
+  // See round-2 codex-review finding: server.ts ~671-672.
+  const lifecycleMissingArtifacts = record.missing_artifacts.includes("events.ndjson")
+    ? record.missing_artifacts
+    : [...record.missing_artifacts, "events.ndjson"];
+
   const minimalRunRecord: RunRecord = {
     run: runJson,
     events: [],
@@ -668,8 +679,8 @@ async function persistLifecycleArtifacts(
     hasReview: false,
     hasAssumptions: false,
     hasReflection: false,
-    partial: record.partial,
-    missing_artifacts: record.missing_artifacts,
+    partial: true,
+    missing_artifacts: lifecycleMissingArtifacts,
   };
 
   const lifecycleCase: Case = {
