@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   classifyRunType,
+  classifyRunTypeFromRun,
   importLifecycleRun,
   listLifecycleRunDirs,
 } from "../src/lifecycle-importer.js";
@@ -41,6 +42,81 @@ describe("lifecycle-importer / classifyRunType", () => {
   it("returns unknown for unrecognised commands", () => {
     expect(classifyRunType("/guild:nope")).toBe("unknown");
     expect(classifyRunType(undefined)).toBe("unknown");
+  });
+});
+
+describe("lifecycle-importer / classifyRunTypeFromRun (smart-dispatcher phase derivation)", () => {
+  // Non-dispatcher commands: phases_log is ignored; authoritative COMMAND_TO_RUN_TYPE wins.
+  it("non-dispatcher commands use the direct command mapping regardless of phases_log", () => {
+    const buildPhases = [{ phase: "build-wave-1" }, { phase: "build-wave-2" }];
+    expect(classifyRunTypeFromRun("/guild:learn", buildPhases)).toBe("learn");
+    expect(classifyRunTypeFromRun("/guild:plan", buildPhases)).toBe("plan");
+    expect(classifyRunTypeFromRun("/guild:qa", [])).toBe("qa");
+    expect(classifyRunTypeFromRun("/guild:ideate", undefined)).toBe("ideate");
+  });
+
+  // /guild:guild with phases_log topping out at ideate => ideate (not build).
+  it("/guild:guild with phases_log topped at ideate classifies as ideate", () => {
+    const ideateOnlyPhases = [
+      { phase: "detect" },
+      { phase: "ideate" },
+    ];
+    expect(classifyRunTypeFromRun("/guild:guild", ideateOnlyPhases)).toBe("ideate");
+  });
+
+  // /guild:guild with phases_log topped at plan => plan.
+  it("/guild:guild with phases_log topped at plan classifies as plan", () => {
+    const planPhases = [
+      { phase: "detect" },
+      { phase: "ideate" },
+      { phase: "plan" },
+    ];
+    expect(classifyRunTypeFromRun("/guild:guild", planPhases)).toBe("plan");
+  });
+
+  // /guild:guild with build-wave-* phases => build.
+  it("/guild:guild with build-wave phases (the real lkc run shape) classifies as build", () => {
+    const lkcPhases = [
+      { phase: "detect" },
+      { phase: "ideate" },
+      { phase: "plan" },
+      { phase: "build-wave-1" },
+      { phase: "build-wave-2" },
+    ];
+    expect(classifyRunTypeFromRun("/guild:guild", lkcPhases)).toBe("build");
+  });
+
+  // /guild:guild with verify phase (deepest reached) => build (verify is a build sub-phase).
+  it("/guild:guild with a verify phase classifies as build", () => {
+    const verifyPhases = [
+      { phase: "detect" },
+      { phase: "plan" },
+      { phase: "build-wave-1" },
+      { phase: "verify" },
+    ];
+    expect(classifyRunTypeFromRun("/guild:guild", verifyPhases)).toBe("build");
+  });
+
+  // /guild:guild with no phases_log (absent or empty) falls back to "build".
+  it("/guild:guild with no phases_log falls back to build", () => {
+    expect(classifyRunTypeFromRun("/guild:guild", undefined)).toBe("build");
+    expect(classifyRunTypeFromRun("/guild:guild", [])).toBe("build");
+  });
+
+  // /guild:guild with ops phases => ops.
+  it("/guild:guild with ops phase classifies as ops", () => {
+    expect(classifyRunTypeFromRun("/guild:guild", [{ phase: "ops" }])).toBe("ops");
+  });
+
+  // /guild:guild with qa phase => qa.
+  it("/guild:guild with qa phase classifies as qa", () => {
+    expect(classifyRunTypeFromRun("/guild:guild", [{ phase: "qa" }])).toBe("qa");
+  });
+
+  // Unknown dispatcher — unrecognised command still returns unknown regardless of phases.
+  it("unrecognised command returns unknown even with phases_log", () => {
+    expect(classifyRunTypeFromRun(undefined, [{ phase: "build-wave-1" }])).toBe("unknown");
+    expect(classifyRunTypeFromRun("/guild:nope", [{ phase: "plan" }])).toBe("unknown");
   });
 });
 
@@ -191,6 +267,16 @@ describe("lifecycle-importer / importLifecycleRun", () => {
     expect(record.benchmark_eligible).toBe(false);
     // Trace events still produce a timeline + phase durations.
     expect(record.metrics.phase_durations_ms).toEqual({ plan: 179000 });
+  });
+
+  it("/guild:guild run whose phases_log tops at ideate imports as run_type=ideate", async () => {
+    // This is the phase-derivation integration test: the smart-dispatcher entry
+    // must use actual phases, not the hardcoded "build" fallback.
+    const root = await stageFixture(workDir, "guild-ideate-run");
+    const sourceRunDir = join(root, ".guild", "runs", "run-guild-ideate-001");
+    const { record } = await importLifecycleRun({ sourceRunDir, runsDir });
+    expect(record.command).toBe("/guild:guild");
+    expect(record.run_type).toBe("ideate");
   });
 
   it("throws when run.yaml is absent (use importAuditRun instead)", async () => {

@@ -83,13 +83,81 @@ const COMMAND_TO_RUN_TYPE: Record<string, RunTypeKind> = {
   "/guild:rollback": "rollback",
   "/guild:audit": "audit",
   "/guild:stats": "stats",
-  // The smart dispatcher maps to build for scoring purposes.
+  // The smart dispatcher: fallback to "build" when phases_log is absent.
+  // Use classifyRunTypeFromRun() to derive from actual phases when available.
   "/guild:guild": "build",
 };
+
+// Smart-dispatcher commands whose run_type should be derived from phases_log
+// rather than fixed by the command string (contract §3, updated).
+const SMART_DISPATCHER_COMMANDS = new Set(["/guild:guild"]);
+
+// Map a phases_log phase name to the RunTypeKind it implies. Phase names from
+// the real lkc run: detect, ideate, plan, build-wave-N, verify, qa, ops, etc.
+// Returns undefined for phases that don't imply a run type (e.g. "detect").
+function phaseToRunType(phase: string): RunTypeKind | undefined {
+  if (phase.startsWith("build-wave") || phase === "verify") return "build";
+  if (phase === "plan") return "plan";
+  if (phase === "ideate") return "ideate";
+  if (phase === "learn") return "learn";
+  if (phase === "qa") return "qa";
+  if (phase === "ops") return "ops";
+  if (phase === "status") return "status";
+  if (phase === "wiki") return "wiki";
+  if (phase === "initiative") return "initiative";
+  if (phase === "fix") return "fix";
+  if (phase === "evolve") return "evolve";
+  if (phase === "rollback") return "rollback";
+  if (phase === "audit") return "audit";
+  if (phase === "stats") return "stats";
+  // "detect" and other orchestrator-only phases don't map to a run type.
+  return undefined;
+}
+
+// Derive the RunTypeKind from the run's actual phases_log for smart-dispatcher
+// commands. Walks phases in order; the last recognized phase wins (chronological
+// order means last = deepest reached). Falls back to "build" when the log is
+// absent, empty, or contains only unrecognized phases (e.g. just ["detect"]).
+function deriveRunTypeFromPhasesLog(
+  phasesLog: Array<{ phase?: string }> | undefined,
+): RunTypeKind {
+  if (!phasesLog || phasesLog.length === 0) return "build";
+  let derived: RunTypeKind = "build";
+  let found = false;
+  for (const entry of phasesLog) {
+    const kind = entry.phase ? phaseToRunType(entry.phase) : undefined;
+    if (kind !== undefined) {
+      derived = kind;
+      found = true;
+    }
+  }
+  return found ? derived : "build";
+}
 
 export function classifyRunType(command: string | undefined): RunTypeKind {
   if (!command) return "unknown";
   return COMMAND_TO_RUN_TYPE[command] ?? "unknown";
+}
+
+/**
+ * Like classifyRunType but, for smart-dispatcher commands (e.g. /guild:guild),
+ * derives the RunTypeKind from the run's actual phases_log rather than using
+ * the hardcoded fallback. Non-dispatcher commands ignore phasesLog entirely.
+ *
+ * Keeps classifyRunType signature stable — call this from importLifecycleRun
+ * and anywhere you have the phases_log available.
+ */
+export function classifyRunTypeFromRun(
+  command: string | undefined,
+  phasesLog?: Array<{ phase?: string }>,
+): RunTypeKind {
+  if (!command) return "unknown";
+  const direct = COMMAND_TO_RUN_TYPE[command];
+  if (direct === undefined) return "unknown";
+  if (SMART_DISPATCHER_COMMANDS.has(command)) {
+    return deriveRunTypeFromPhasesLog(phasesLog);
+  }
+  return direct;
 }
 
 function isSafeImportRunId(runId: string): boolean {
@@ -299,12 +367,12 @@ export async function importLifecycleRun(
 
   // ---- Derive the record ------------------------------------------------
   const command = runYaml.command ?? "";
-  const runType = classifyRunType(command);
+  const phasesLog = Array.isArray(runYaml.phases_log) ? runYaml.phases_log : [];
+  const runType = classifyRunTypeFromRun(command, phasesLog);
   const runClass = (runYaml.run_class ?? provenance?.run_class ?? "full") as
     | "full"
     | "lightweight";
   const status = provenance?.status ?? runYaml.status ?? "open";
-  const phasesLog = Array.isArray(runYaml.phases_log) ? runYaml.phases_log : [];
 
   const timeline = renderTimeline({
     phasesLog,
