@@ -1,17 +1,28 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useRunStatus } from "../hooks/useRunStatus";
+import { useFetch } from "../hooks/useFetch";
 import { StageGraph } from "../components/StageGraph";
 import { ArtifactList } from "../components/ArtifactList";
 import { MetricBreakdown } from "../components/MetricBreakdown";
 import { ScoreCard } from "../components/ScoreCard";
-import type { MetricsJson } from "../../../src/types";
+import { LifecycleTimeline } from "../components/LifecycleTimeline";
+import { api } from "../lib/api";
+import type { LifecycleRunRecord, MetricsJson } from "../../../src/types";
 
 export default function RunDetailPage() {
   const params = useParams<{ run_id: string }>();
   const runId = params.run_id;
   const { data, error, status, isPolling } = useRunStatus(runId);
   const [selectedStage, setSelectedStage] = useState<string | undefined>(undefined);
+
+  // SC-9: fetch the lifecycle record once the run is terminal (not polling).
+  // 404 is expected for standard benchmark runs — the component hides the
+  // section in that case. Deferring until terminal keeps polling-contract
+  // tests predictable (no extra fetch during the non-terminal phase).
+  const lifecycleUrl =
+    runId && !isPolling && status === "success" ? api.lifecycleRecord(runId) : null;
+  const { data: lifecycleRecord } = useFetch<LifecycleRunRecord>(lifecycleUrl);
 
   return (
     <section>
@@ -73,6 +84,10 @@ export default function RunDetailPage() {
             <h2>Artifacts</h2>
             <ArtifactList detail={data} />
           </section>
+
+          {lifecycleRecord ? (
+            <LifecycleTimeline entries={lifecycleRecord.timeline} />
+          ) : null}
 
           <section>
             <h2>Run metadata</h2>

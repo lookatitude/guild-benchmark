@@ -73,6 +73,18 @@ export function installMockFetch(opts: InstallOpts = {}): MockFetchHandle {
           : input.url;
     calls.push({ url, init });
 
+    // SC-9: lifecycle-record sub-path returns 404 by default. The override
+    // is NOT called for this URL so that existing tests whose override
+    // matches by broad substring ("/api/runs/<id>") don't count it.
+    // Tests that specifically need to control lifecycle-record responses
+    // should use a separate fetch spy rather than the shared override.
+    if (url.match(/\/lifecycle-record$/)) {
+      return new Response(JSON.stringify({ error: "no lifecycle record" }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     if (opts.override) {
       const r = opts.override(url, init);
       if (r) return r;

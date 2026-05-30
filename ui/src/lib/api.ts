@@ -20,6 +20,8 @@ export const api = {
       ? `${API_BASE}/runs?case=${encodeURIComponent(caseSlug)}`
       : `${API_BASE}/runs`,
   runDetail: (runId: string) => `${API_BASE}/runs/${encodeURIComponent(runId)}`,
+  lifecycleRecord: (runId: string) =>
+    `${API_BASE}/runs/${encodeURIComponent(runId)}/lifecycle-record`,
   artifact: (runId: string, path: string) =>
     `${API_BASE}/runs/${encodeURIComponent(runId)}/artifacts/${path
       .split("/")

@@ -127,6 +127,27 @@ export function createApp(opts: ServerOpts): Hono {
     return c.json(body);
   });
 
+  // ---- API: GET /api/runs/:run_id/lifecycle-record (SC-9) ----------------
+  // Returns the LifecycleRunRecord (incl. the entry-to-close timeline) written
+  // by POST /api/imports/lifecycle. Returns 404 when absent (standard
+  // benchmark runs, or audit-log imports, have no lifecycle-record.json).
+  app.get("/api/runs/:run_id/lifecycle-record", async (c) => {
+    const runId = c.req.param("run_id");
+    const runDir = resolveRunDir(runsDir, runId);
+    if (!runDir) {
+      return c.json({ error: "invalid run_id" }, 400);
+    }
+    if (!existsSync(runDir)) {
+      return c.json({ error: `run not found: ${runId}` }, 404);
+    }
+    const recordPath = join(runDir, "lifecycle-record.json");
+    if (!existsSync(recordPath)) {
+      return c.json({ error: `no lifecycle record for run: ${runId}` }, 404);
+    }
+    const record = JSON.parse(await readFile(recordPath, "utf8")) as LifecycleRunRecord;
+    return c.json(record);
+  });
+
   // ---- API: GET /api/runs/:run_id/artifacts/* (raw passthrough) ----------
   app.get("/api/runs/:run_id/artifacts/*", async (c) => {
     const runId = c.req.param("run_id");
