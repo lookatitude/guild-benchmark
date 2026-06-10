@@ -504,12 +504,28 @@ async function commandServe(args: ParsedArgs): Promise<void> {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error(`serve: --port must be a valid TCP port (1-65535); got ${portFlag}`);
   }
+  // SC-12 (v2-gap-closure G-17) — optional live-project mode. Absent flag ⇒
+  // behavior-identical to today (project routes 404). The flag value is
+  // resolved to an absolute path; the directory must exist so a typo'd root
+  // fails loudly here rather than as a confusing 404 downstream.
+  const projectRootFlag = args.flags.get("project-root");
+  let projectRoot: string | undefined;
+  if (projectRootFlag !== undefined) {
+    if (projectRootFlag === "true" || projectRootFlag.trim().length === 0) {
+      throw new Error("serve: --project-root requires a path argument");
+    }
+    projectRoot = resolve(projectRootFlag);
+    if (!existsSync(projectRoot)) {
+      throw new Error(`serve: --project-root directory not found: ${projectRoot}`);
+    }
+  }
   const handle = await startServer({
     runsDir,
     casesDir,
     port,
     hostname: defaults.hostname,
     ...(uiDistDir ? { uiDistDir } : {}),
+    ...(projectRoot ? { projectRoot } : {}),
   });
   process.stdout.write(
     [
@@ -519,6 +535,9 @@ async function commandServe(args: ParsedArgs): Promise<void> {
       uiDistDir
         ? `  ui-dist: ${uiDistDir} (production-mode static fallback enabled)`
         : "  ui-dist: <not built> — non-/api paths return 404 (run `cd benchmark/ui && npm run build`)",
+      projectRoot
+        ? `  project-root: ${projectRoot} (live /api/project/* knowledge routes enabled, read-only)`
+        : "  project-root: <not set> — /api/project/* routes return 404 (pass --project-root <abs>)",
       "",
     ].join("\n"),
   );
@@ -541,7 +560,9 @@ function printUsage(): void {
       "  benchmark score    --run-id <id> [--fixture <path>] [--case <path>] [--runs-dir <path>]",
       "  benchmark compare  --baseline <set> --candidate <set> [--runs-dir <path>] [--output <path>]",
       "  benchmark serve    [--port <n>] [--runs-dir <path>] [--cases-dir <path>] [--ui-dist <path>]",
-      "                          (binds 127.0.0.1; BENCHMARK_PORT env or --port; default 3055)",
+      "                     [--project-root <abs-path>]",
+      "                          (binds 127.0.0.1; BENCHMARK_PORT env or --port; default 3055;",
+      "                           --project-root enables read-only /api/project/{knowledge-graph,wiki,wiki/page})",
       "  benchmark run      --case <slug> [--run-id <id>] [--dry-run] [--cleanup]",
       "                          [--runs-dir <path>] [--cases-dir <path>]",
       "                          (--dry-run prints the resolved plan; never spawns claude)",

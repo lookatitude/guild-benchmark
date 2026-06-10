@@ -474,6 +474,52 @@ export interface DeferredResponse {
   docs: string;
 }
 
+// ---- SC-12 (v2-gap-closure G-17/G-18) — live-project knowledge routes ----
+//
+// Served by /api/project/* when `serve --project-root <abs>` is set; produced
+// by src/project-reader.ts, consumed by the UI's Knowledge + Wiki views.
+// Contract pinned in `.guild/spec/v2-gap-closure.md §The cross-repo dashboard
+// contract`.
+
+export interface ProjectSource {
+  guild: string;
+  path: string;
+}
+
+/**
+ * Lenient pass-through KG shape: nodes/edges keep every unknown field from
+ * the source `.guild/indexes/knowledge-graph.json`; the reader only
+ * guarantees `source_guild` is stamped on each entry. Well-known fields the
+ * UI reads (`id`, `type`, `name`, `source`, `target`) are optional because
+ * the reader never validates them away.
+ */
+export interface ProjectKnowledgeGraphResponse {
+  nodes: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
+  sources: ProjectSource[];
+}
+
+export interface WikiPageSummary {
+  /** Path relative to the owning guild's `.guild/wiki/`. */
+  path: string;
+  /** First H1 of the page, else the filename without extension. */
+  title: string;
+  /** Sub-guild name in workspace mode; "project" for a plain root. */
+  source_guild: string;
+  /** Frontmatter labels when trivially parseable. */
+  labels?: string[];
+}
+
+export interface ProjectWikiListResponse {
+  pages: WikiPageSummary[];
+}
+
+export interface ProjectWikiPageResponse {
+  path: string;
+  source_guild: string;
+  content: string;
+}
+
 // ---- P3 runner contracts (T2 backend; consumed by frontend + qa) -------
 //
 // `RunOptions` is the input to runner.ts's `runBenchmark` entrypoint —

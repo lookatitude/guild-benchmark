@@ -5,6 +5,8 @@ import ComparePage from "./routes/ComparePage";
 import TriggerPanelPage from "./routes/TriggerPanelPage";
 import ImportAuditPage from "./routes/ImportAuditPage";
 import DemoPage from "./routes/DemoPage";
+import KnowledgePage from "./routes/KnowledgePage";
+import WikiPage from "./routes/WikiPage";
 
 const NAV: { to: string; label: string; end?: boolean }[] = [
   { to: "/", label: "Runs", end: true },
@@ -12,6 +14,8 @@ const NAV: { to: string; label: string; end?: boolean }[] = [
   { to: "/cases", label: "Trigger" },
   { to: "/import", label: "Import" },
   { to: "/demo", label: "Demo" },
+  { to: "/knowledge", label: "Knowledge" },
+  { to: "/wiki", label: "Wiki" },
 ];
 
 export default function App() {
@@ -34,6 +38,8 @@ export default function App() {
           <Route path="/import" element={<ImportAuditPage />} />
           <Route path="/demo" element={<DemoPage />} />
           <Route path="/demo/:case_slug" element={<DemoPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/wiki" element={<WikiPage />} />
           <Route
             path="*"
             element={

@@ -32,6 +32,14 @@ export const api = {
       candidate,
     )}`,
   cases: () => `${API_BASE}/cases`,
+  // SC-12 — live-project knowledge routes (active only when the server was
+  // started with `serve --project-root <abs>`; 404 otherwise).
+  projectKnowledgeGraph: () => `${API_BASE}/project/knowledge-graph`,
+  projectWiki: () => `${API_BASE}/project/wiki`,
+  projectWikiPage: (path: string, guild?: string) =>
+    `${API_BASE}/project/wiki/page?path=${encodeURIComponent(path)}${
+      guild ? `&guild=${encodeURIComponent(guild)}` : ""
+    }`,
 };
 
 export type PostRunErrorBody = {

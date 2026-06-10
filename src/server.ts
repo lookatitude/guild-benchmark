@@ -3,6 +3,7 @@ import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import {
   importAuditRun,
   loadRunRecord,
@@ -10,6 +11,12 @@ import {
   parseRunJson,
 } from "./artifact-importer.js";
 import { importLifecycleRun } from "./lifecycle-importer.js";
+import {
+  ProjectReadError,
+  listProjectWikiPages,
+  readProjectKnowledgeGraph,
+  readProjectWikiPage,
+} from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -43,6 +50,15 @@ export interface ServerOpts {
   uiDistDir?: string;
   port: number;
   hostname?: string;
+  /**
+   * SC-12 (v2-gap-closure G-17) — live-project mode. When set, the three
+   * read-only /api/project/* routes serve the project's `.guild/wiki/**`
+   * and `.guild/indexes/knowledge-graph.json` (workspace-federated when
+   * `<root>/.guild/workspace.json` exists). When absent, the routes return
+   * 404 and the server is behavior-identical to pre-flag builds
+   * (regression-tested; codex finding #4).
+   */
+  projectRoot?: string;
 }
 
 export interface ServerHandle {
@@ -74,6 +90,7 @@ export function createApp(opts: ServerOpts): Hono {
   const runsDir = resolve(opts.runsDir);
   const casesDir = resolve(opts.casesDir);
   const uiDistDir = opts.uiDistDir ? resolve(opts.uiDistDir) : undefined;
+  const projectRoot = opts.projectRoot ? resolve(opts.projectRoot) : undefined;
 
   // Logging middleware: every request emits `method path status duration_ms`
   // to stdout. ADR §Decision §2 — re-read on every request, no cache; the
@@ -373,6 +390,66 @@ export function createApp(opts: ServerOpts): Hono {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: `lifecycle import failed: ${message}` }, 400);
+    }
+  });
+
+  // ---- API: /api/project/* — live-project knowledge routes (SC-12) -------
+  // Active ONLY when serve was started with --project-root. Read-only into
+  // the project's .guild/ (never writes, never copies); workspace-federated
+  // + source_guild-tagged via project-reader.ts. Without the flag every
+  // project route returns 404 {error} so the no-flag server stays
+  // behavior-identical (codex finding #4).
+
+  const noProjectRoot = (c: Context) =>
+    c.json(
+      { error: "no project root configured (start serve with --project-root <abs>)" },
+      404,
+    );
+
+  const projectErrorResponse = (c: Context, err: unknown) => {
+    if (err instanceof ProjectReadError) {
+      const status = err.kind === "not_found" ? 404 : 400;
+      return c.json({ error: err.message }, status);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `project read failed: ${message}` }, 500);
+  };
+
+  // GET /api/project/knowledge-graph → { nodes, edges, sources }
+  app.get("/api/project/knowledge-graph", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await readProjectKnowledgeGraph(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/wiki → { pages: [{ path, title, source_guild, labels? }] }
+  app.get("/api/project/wiki", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectWikiPages(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/wiki/page?path=<rel>[&guild=<name>] → { path, source_guild, content }
+  app.get("/api/project/wiki/page", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const path = c.req.query("path");
+    const guild = c.req.query("guild");
+    if (!path) {
+      return c.json({ error: "path query parameter is required" }, 400);
+    }
+    try {
+      const body = await readProjectWikiPage(projectRoot, path, guild);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
     }
   });
 
