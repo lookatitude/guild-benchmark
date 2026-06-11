@@ -15,7 +15,7 @@ ui/coverage/
 
 # .guild/ — share-dot-guild policy (see docs/knowledge/decisions/guild-boundary-config-and-tracking.md Decision E)
 .guild
-!.guild/
+!/.guild/
 !.guild/wiki/
 !.guild/wiki/**
 !.guild/initiatives/
