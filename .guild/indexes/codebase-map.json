@@ -1,0 +1,2082 @@
+{
+  "version": "guild.codebase_map.v1",
+  "generated_from_commit": "f2b596a8ab5f36ab84e1d32c91f4aa288ece6ea6",
+  "project": {
+    "root": "/Users/miguelp/Projects/guild/benchmark",
+    "languages": [
+      "css",
+      "html",
+      "json",
+      "markdown",
+      "shell",
+      "typescript",
+      "yaml"
+    ],
+    "frameworks": [
+      "vitest"
+    ]
+  },
+  "files": [
+    {
+      "path": ".github/workflows/dot-guild-policy.yml",
+      "language": "yaml",
+      "loc": 0,
+      "complexity": 0,
+      "module": ".github",
+      "is_entrypoint": false
+    },
+    {
+      "path": "FOLLOWUPS.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "(root)",
+      "is_entrypoint": false
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "(root)",
+      "is_entrypoint": false
+    },
+    {
+      "path": "cases/demo-context-drift-evolve.yaml",
+      "language": "yaml",
+      "loc": 0,
+      "complexity": 0,
+      "module": "cases",
+      "is_entrypoint": false
+    },
+    {
+      "path": "cases/demo-url-shortener-build.yaml",
+      "language": "yaml",
+      "loc": 0,
+      "complexity": 0,
+      "module": "cases",
+      "is_entrypoint": false
+    },
+    {
+      "path": "cases/smoke-noop.yaml",
+      "language": "yaml",
+      "loc": 0,
+      "complexity": 0,
+      "module": "cases",
+      "is_entrypoint": false
+    },
+    {
+      "path": "cases/v1.4-synthetic-model-family.yaml",
+      "language": "yaml",
+      "loc": 0,
+      "complexity": 0,
+      "module": "cases",
+      "is_entrypoint": false
+    },
+    {
+      "path": "docs/QUERY.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "docs",
+      "is_entrypoint": false
+    },
+    {
+      "path": "docs/index.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "docs",
+      "is_entrypoint": false
+    },
+    {
+      "path": "docs/research/benchmark-datasets-fixtures.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "docs",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-fail/events.ndjson",
+      "language": "unknown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-fail/run.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-malformed/README.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-malformed/run.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-pass/events.ndjson",
+      "language": "unknown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-pass/run.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-timeout/events.ndjson",
+      "language": "unknown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "fixtures/synthetic-timeout/run.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "fixtures",
+      "is_entrypoint": false
+    },
+    {
+      "path": "package.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "(root)",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/00-index.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/01-architecture.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/02-case-suite.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/03-runner.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/04-metrics.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/05-ui.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/06-learning-loop.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-001-runner-ui-boundary.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-003-host-repo-vs-fresh-fixture.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-004-runner-process-group-signaling.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-005-learning-loop-orchestrator.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-005-windows-process-group-signaling.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-006-runner-prompt-via-stdin.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-007-rss-cap-not-portable.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-008-interactive-claude-harness.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/adr-009-v1.4-adversarial-loops-and-plugin-restructure.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/p2-ui-architecture.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/p3-runner-architecture.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/p4-learning-loop-architecture.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/security-review-p4.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/security-review.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/v1.4-claude-plugin-surface-audit.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/v1.4-jsonl-schema.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/v1.4-loop-skill-contracts.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "plans/v1.4-security-review.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "plans",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/artifact-importer.ts",
+      "language": "typescript",
+      "loc": 473,
+      "complexity": 0.78,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/calibrate-o3-cli.ts",
+      "language": "typescript",
+      "loc": 148,
+      "complexity": 0.21,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/case-loader.ts",
+      "language": "typescript",
+      "loc": 80,
+      "complexity": 0.1,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/cli.ts",
+      "language": "typescript",
+      "loc": 685,
+      "complexity": 0.96,
+      "module": "src",
+      "is_entrypoint": true
+    },
+    {
+      "path": "src/codex-review-trail.ts",
+      "language": "typescript",
+      "loc": 183,
+      "complexity": 0.31,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/compare.ts",
+      "language": "typescript",
+      "loc": 304,
+      "complexity": 0.44,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/counter-store.ts",
+      "language": "typescript",
+      "loc": 580,
+      "complexity": 0.85,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/fixtures/statusline-guild.sh",
+      "language": "shell",
+      "loc": 0,
+      "complexity": 0,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/lifecycle-importer.ts",
+      "language": "typescript",
+      "loc": 445,
+      "complexity": 0.86,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/lifecycle-metrics.ts",
+      "language": "typescript",
+      "loc": 290,
+      "complexity": 0.56,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/lifecycle-timeline.ts",
+      "language": "typescript",
+      "loc": 198,
+      "complexity": 0.36,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/log-jsonl.ts",
+      "language": "typescript",
+      "loc": 1138,
+      "complexity": 1,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/log-validator.ts",
+      "language": "typescript",
+      "loc": 417,
+      "complexity": 0.58,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-applicable.ts",
+      "language": "typescript",
+      "loc": 223,
+      "complexity": 0.42,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-drivers.ts",
+      "language": "typescript",
+      "loc": 803,
+      "complexity": 0.88,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-escalation.ts",
+      "language": "typescript",
+      "loc": 227,
+      "complexity": 0.32,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-implement-restart.ts",
+      "language": "typescript",
+      "loc": 354,
+      "complexity": 0.58,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-jsonl-stub.ts",
+      "language": "typescript",
+      "loc": 124,
+      "complexity": 0.15,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop-sentinel.ts",
+      "language": "typescript",
+      "loc": 215,
+      "complexity": 0.29,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/loop.ts",
+      "language": "typescript",
+      "loc": 1226,
+      "complexity": 1,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/o3-threshold-analyzer.ts",
+      "language": "typescript",
+      "loc": 184,
+      "complexity": 0.3,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/project-reader.ts",
+      "language": "typescript",
+      "loc": 1023,
+      "complexity": 1,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/redact-log.ts",
+      "language": "typescript",
+      "loc": 275,
+      "complexity": 0.41,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/run-events-schema.ts",
+      "language": "typescript",
+      "loc": 43,
+      "complexity": 0.05,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/runner.ts",
+      "language": "typescript",
+      "loc": 1466,
+      "complexity": 1,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/scorer.ts",
+      "language": "typescript",
+      "loc": 315,
+      "complexity": 0.57,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/server.ts",
+      "language": "typescript",
+      "loc": 956,
+      "complexity": 1,
+      "module": "src",
+      "is_entrypoint": true
+    },
+    {
+      "path": "src/summary-md-regen.ts",
+      "language": "typescript",
+      "loc": 373,
+      "complexity": 0.65,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/types.ts",
+      "language": "typescript",
+      "loc": 753,
+      "complexity": 0.61,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/v1.4-config.ts",
+      "language": "typescript",
+      "loc": 362,
+      "complexity": 0.59,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/v1.4-gate-prompt.ts",
+      "language": "typescript",
+      "loc": 305,
+      "complexity": 0.44,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/v1.4-harness.ts",
+      "language": "typescript",
+      "loc": 353,
+      "complexity": 0.54,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "src/v1.4-lock.ts",
+      "language": "typescript",
+      "loc": 301,
+      "complexity": 0.46,
+      "module": "src",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/_setup.ts",
+      "language": "typescript",
+      "loc": 8,
+      "complexity": 0.01,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/artifact-importer.test.ts",
+      "language": "typescript",
+      "loc": 354,
+      "complexity": 0.33,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/backward-compat.test.ts",
+      "language": "typescript",
+      "loc": 184,
+      "complexity": 0.19,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/calibrate-o3-cli.test.ts",
+      "language": "typescript",
+      "loc": 165,
+      "complexity": 0.18,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/case-loader.test.ts",
+      "language": "typescript",
+      "loc": 138,
+      "complexity": 0.21,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/cli.loop.test.ts",
+      "language": "typescript",
+      "loc": 308,
+      "complexity": 0.32,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/cli.test.ts",
+      "language": "typescript",
+      "loc": 213,
+      "complexity": 0.24,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/comparator.test.ts",
+      "language": "typescript",
+      "loc": 351,
+      "complexity": 0.33,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/compare.reflection-applied.test.ts",
+      "language": "typescript",
+      "loc": 453,
+      "complexity": 0.48,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/counter-store.test.ts",
+      "language": "typescript",
+      "loc": 523,
+      "complexity": 0.55,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/fixture-vs-real.test.ts",
+      "language": "typescript",
+      "loc": 189,
+      "complexity": 0.25,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/fixtures/v1.3-baseline-flow.txt",
+      "language": "unknown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/lifecycle-importer.test.ts",
+      "language": "typescript",
+      "loc": 368,
+      "complexity": 0.36,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/log-jsonl.test.ts",
+      "language": "typescript",
+      "loc": 861,
+      "complexity": 0.63,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop-clarify.test.ts",
+      "language": "typescript",
+      "loc": 355,
+      "complexity": 0.39,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop-implement.test.ts",
+      "language": "typescript",
+      "loc": 703,
+      "complexity": 0.7,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop-plan-review.test.ts",
+      "language": "typescript",
+      "loc": 246,
+      "complexity": 0.26,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop.property.test.ts",
+      "language": "typescript",
+      "loc": 240,
+      "complexity": 0.29,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop.security.test.ts",
+      "language": "typescript",
+      "loc": 805,
+      "complexity": 0.72,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/loop.unit.test.ts",
+      "language": "typescript",
+      "loc": 1146,
+      "complexity": 0.63,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/o3-threshold-analyzer.test.ts",
+      "language": "typescript",
+      "loc": 323,
+      "complexity": 0.34,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/observability-coverage.test.ts",
+      "language": "typescript",
+      "loc": 303,
+      "complexity": 0.32,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/post-tool-use-widened.test.ts",
+      "language": "typescript",
+      "loc": 282,
+      "complexity": 0.29,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/pre-compact.test.ts",
+      "language": "typescript",
+      "loc": 94,
+      "complexity": 0.09,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/pre-tool-use.test.ts",
+      "language": "typescript",
+      "loc": 153,
+      "complexity": 0.15,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/project-reader.test.ts",
+      "language": "typescript",
+      "loc": 499,
+      "complexity": 0.47,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/project.helpers.ts",
+      "language": "typescript",
+      "loc": 144,
+      "complexity": 0.14,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/redact-log-patterns.test.ts",
+      "language": "typescript",
+      "loc": 56,
+      "complexity": 0.07,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/redact-log.test.ts",
+      "language": "typescript",
+      "loc": 361,
+      "complexity": 0.34,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.live.smoke.test.ts",
+      "language": "typescript",
+      "loc": 142,
+      "complexity": 0.2,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.race.property.test.ts",
+      "language": "typescript",
+      "loc": 138,
+      "complexity": 0.18,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.rss-warn.test.ts",
+      "language": "typescript",
+      "loc": 241,
+      "complexity": 0.23,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.schema-convergence.test.ts",
+      "language": "typescript",
+      "loc": 99,
+      "complexity": 0.1,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.security.test.ts",
+      "language": "typescript",
+      "loc": 545,
+      "complexity": 0.6,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/runner.unit.test.ts",
+      "language": "typescript",
+      "loc": 833,
+      "complexity": 0.66,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/scorer.property.test.ts",
+      "language": "typescript",
+      "loc": 321,
+      "complexity": 0.35,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/scorer.test.ts",
+      "language": "typescript",
+      "loc": 406,
+      "complexity": 0.4,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.artifacts.test.ts",
+      "language": "typescript",
+      "loc": 113,
+      "complexity": 0.13,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.auditImport.test.ts",
+      "language": "typescript",
+      "loc": 129,
+      "complexity": 0.12,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.cases.test.ts",
+      "language": "typescript",
+      "loc": 56,
+      "complexity": 0.07,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.compare.test.ts",
+      "language": "typescript",
+      "loc": 65,
+      "complexity": 0.06,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.compareStderr.test.ts",
+      "language": "typescript",
+      "loc": 46,
+      "complexity": 0.06,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.helpers.ts",
+      "language": "typescript",
+      "loc": 171,
+      "complexity": 0.19,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.lifecycleImport.test.ts",
+      "language": "typescript",
+      "loc": 223,
+      "complexity": 0.24,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.lifecycleRecord.test.ts",
+      "language": "typescript",
+      "loc": 90,
+      "complexity": 0.09,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.project.test.ts",
+      "language": "typescript",
+      "loc": 325,
+      "complexity": 0.32,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.runDetail.test.ts",
+      "language": "typescript",
+      "loc": 134,
+      "complexity": 0.13,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.runs.test.ts",
+      "language": "typescript",
+      "loc": 117,
+      "complexity": 0.14,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.runsPost.live.test.ts",
+      "language": "typescript",
+      "loc": 318,
+      "complexity": 0.41,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.runsPost.test.ts",
+      "language": "typescript",
+      "loc": 89,
+      "complexity": 0.11,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/server.staticFallback.test.ts",
+      "language": "typescript",
+      "loc": 119,
+      "complexity": 0.12,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/smoke-serve.test.ts",
+      "language": "typescript",
+      "loc": 82,
+      "complexity": 0.11,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/statusline-guild.test.ts",
+      "language": "typescript",
+      "loc": 193,
+      "complexity": 0.18,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/test-count-floor.test.ts",
+      "language": "typescript",
+      "loc": 82,
+      "complexity": 0.1,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.3-baseline-regression.test.ts",
+      "language": "typescript",
+      "loc": 201,
+      "complexity": 0.23,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.4-config.test.ts",
+      "language": "typescript",
+      "loc": 507,
+      "complexity": 0.51,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.4-gate-prompt.test.ts",
+      "language": "typescript",
+      "loc": 295,
+      "complexity": 0.3,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.4-harness.test.ts",
+      "language": "typescript",
+      "loc": 259,
+      "complexity": 0.26,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.4-log-validator.test.ts",
+      "language": "typescript",
+      "loc": 393,
+      "complexity": 0.36,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/v1.4-synthetic-case.test.ts",
+      "language": "typescript",
+      "loc": 138,
+      "complexity": 0.21,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tests/verify-codex-review-trail.test.ts",
+      "language": "typescript",
+      "loc": 301,
+      "complexity": 0.29,
+      "module": "tests",
+      "is_entrypoint": false
+    },
+    {
+      "path": "tsconfig.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "(root)",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/README.md",
+      "language": "markdown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/index.html",
+      "language": "html",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/package.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/App.tsx",
+      "language": "typescript",
+      "loc": 71,
+      "complexity": 0.07,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/App.test.tsx",
+      "language": "typescript",
+      "loc": 41,
+      "complexity": 0.05,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/ComparePage.test.tsx",
+      "language": "typescript",
+      "loc": 291,
+      "complexity": 0.35,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/DemoPage.test.tsx",
+      "language": "typescript",
+      "loc": 56,
+      "complexity": 0.09,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/ImportAuditPage.test.tsx",
+      "language": "typescript",
+      "loc": 169,
+      "complexity": 0.24,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/KnowledgePage.test.tsx",
+      "language": "typescript",
+      "loc": 135,
+      "complexity": 0.14,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/LifecycleTimeline.test.tsx",
+      "language": "typescript",
+      "loc": 185,
+      "complexity": 0.18,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/LifecycleTimelineIntegration.test.tsx",
+      "language": "typescript",
+      "loc": 141,
+      "complexity": 0.17,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/MetricBreakdown.test.tsx",
+      "language": "typescript",
+      "loc": 43,
+      "complexity": 0.04,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/ReflectionBadge.test.tsx",
+      "language": "typescript",
+      "loc": 66,
+      "complexity": 0.06,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/RunDetailPage.test.tsx",
+      "language": "typescript",
+      "loc": 323,
+      "complexity": 0.34,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/RunsListPage.test.tsx",
+      "language": "typescript",
+      "loc": 188,
+      "complexity": 0.19,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/StatusPill.test.tsx",
+      "language": "typescript",
+      "loc": 28,
+      "complexity": 0.03,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/TriggerPanelPage.test.tsx",
+      "language": "typescript",
+      "loc": 310,
+      "complexity": 0.46,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/WikiPage.test.tsx",
+      "language": "typescript",
+      "loc": 216,
+      "complexity": 0.25,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/fixtures/cases.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/fixtures/comparison.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "language": "typescript",
+      "loc": 101,
+      "complexity": 0.19,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/fixtures/run-detail.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/fixtures/runs.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/setup.ts",
+      "language": "typescript",
+      "loc": 7,
+      "complexity": 0.01,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/useFetch.test.tsx",
+      "language": "typescript",
+      "loc": 100,
+      "complexity": 0.12,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/__tests__/useRunStatus.test.ts",
+      "language": "typescript",
+      "loc": 231,
+      "complexity": 0.28,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/ArtifactList.tsx",
+      "language": "typescript",
+      "loc": 65,
+      "complexity": 0.07,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/DeltaChart.tsx",
+      "language": "typescript",
+      "loc": 56,
+      "complexity": 0.06,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/DeltaTable.tsx",
+      "language": "typescript",
+      "loc": 83,
+      "complexity": 0.1,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/LifecycleTimeline.tsx",
+      "language": "typescript",
+      "loc": 131,
+      "complexity": 0.24,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/MetricBreakdown.tsx",
+      "language": "typescript",
+      "loc": 63,
+      "complexity": 0.08,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/ReflectionBadge.tsx",
+      "language": "typescript",
+      "loc": 64,
+      "complexity": 0.07,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/ScoreCard.tsx",
+      "language": "typescript",
+      "loc": 44,
+      "complexity": 0.04,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/StageGraph.tsx",
+      "language": "typescript",
+      "loc": 71,
+      "complexity": 0.11,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/components/StatusPill.tsx",
+      "language": "typescript",
+      "loc": 16,
+      "complexity": 0.02,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/hooks/useFetch.ts",
+      "language": "typescript",
+      "loc": 107,
+      "complexity": 0.2,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/hooks/useRunStatus.ts",
+      "language": "typescript",
+      "loc": 42,
+      "complexity": 0.07,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/lib/api.ts",
+      "language": "typescript",
+      "loc": 165,
+      "complexity": 0.19,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/main.tsx",
+      "language": "typescript",
+      "loc": 16,
+      "complexity": 0.02,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/ComparePage.tsx",
+      "language": "typescript",
+      "loc": 425,
+      "complexity": 0.46,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/DashboardPage.tsx",
+      "language": "typescript",
+      "loc": 133,
+      "complexity": 0.16,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/DemoPage.tsx",
+      "language": "typescript",
+      "loc": 108,
+      "complexity": 0.14,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/ImportAuditPage.tsx",
+      "language": "typescript",
+      "loc": 104,
+      "complexity": 0.12,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/KnowledgePage.tsx",
+      "language": "typescript",
+      "loc": 642,
+      "complexity": 0.8,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/ProjectRunDetailPage.tsx",
+      "language": "typescript",
+      "loc": 87,
+      "complexity": 0.09,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/RunDetailPage.tsx",
+      "language": "typescript",
+      "loc": 163,
+      "complexity": 0.19,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/RunsListPage.tsx",
+      "language": "typescript",
+      "loc": 287,
+      "complexity": 0.34,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/TriggerPanelPage.tsx",
+      "language": "typescript",
+      "loc": 278,
+      "complexity": 0.34,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/routes/WikiPage.tsx",
+      "language": "typescript",
+      "loc": 220,
+      "complexity": 0.32,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/styles/global.css",
+      "language": "css",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/src/vite-env.d.ts",
+      "language": "typescript",
+      "loc": 1,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/tsconfig.json",
+      "language": "json",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/tsconfig.tsbuildinfo",
+      "language": "unknown",
+      "loc": 0,
+      "complexity": 0,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/vite.config.ts",
+      "language": "typescript",
+      "loc": 32,
+      "complexity": 0.03,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "ui/vitest.config.ts",
+      "language": "typescript",
+      "loc": 37,
+      "complexity": 0.03,
+      "module": "ui",
+      "is_entrypoint": false
+    },
+    {
+      "path": "vitest.config.ts",
+      "language": "typescript",
+      "loc": 43,
+      "complexity": 0.04,
+      "module": "(root)",
+      "is_entrypoint": false
+    }
+  ],
+  "import_map": [
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/DashboardPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/RunsListPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/RunDetailPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/ProjectRunDetailPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/ComparePage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/TriggerPanelPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/ImportAuditPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/DemoPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/KnowledgePage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/App.tsx",
+      "to": "ui/src/routes/WikiPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/App.test.tsx",
+      "to": "ui/src/App.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/App.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ComparePage.test.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ComparePage.test.tsx",
+      "to": "ui/src/routes/ComparePage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ComparePage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/comparison.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ComparePage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/DemoPage.test.tsx",
+      "to": "ui/src/routes/DemoPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/DemoPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ImportAuditPage.test.tsx",
+      "to": "ui/src/routes/ImportAuditPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ImportAuditPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/KnowledgePage.test.tsx",
+      "to": "ui/src/routes/KnowledgePage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/KnowledgePage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/LifecycleTimeline.test.tsx",
+      "to": "ui/src/components/LifecycleTimeline.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/LifecycleTimeline.test.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/LifecycleTimelineIntegration.test.tsx",
+      "to": "ui/src/routes/RunDetailPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/LifecycleTimelineIntegration.test.tsx",
+      "to": "ui/src/__tests__/fixtures/run-detail.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/LifecycleTimelineIntegration.test.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/MetricBreakdown.test.tsx",
+      "to": "ui/src/components/MetricBreakdown.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/MetricBreakdown.test.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/MetricBreakdown.test.tsx",
+      "to": "ui/src/__tests__/fixtures/run-detail.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ReflectionBadge.test.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/ReflectionBadge.test.tsx",
+      "to": "ui/src/components/ReflectionBadge.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/RunDetailPage.test.tsx",
+      "to": "ui/src/routes/RunDetailPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/RunDetailPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/run-detail.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/RunDetailPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/RunsListPage.test.tsx",
+      "to": "ui/src/routes/RunsListPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/RunsListPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/TriggerPanelPage.test.tsx",
+      "to": "ui/src/routes/TriggerPanelPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/TriggerPanelPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/WikiPage.test.tsx",
+      "to": "ui/src/routes/WikiPage.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/WikiPage.test.tsx",
+      "to": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "to": "ui/src/__tests__/fixtures/runs.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "to": "ui/src/__tests__/fixtures/run-detail.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "to": "ui/src/__tests__/fixtures/comparison.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/fixtures/mockFetch.ts",
+      "to": "ui/src/__tests__/fixtures/cases.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/useFetch.test.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/useRunStatus.test.ts",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/useRunStatus.test.ts",
+      "to": "ui/src/__tests__/fixtures/run-detail.json",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/__tests__/useRunStatus.test.ts",
+      "to": "ui/src/hooks/useRunStatus.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/ArtifactList.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/ArtifactList.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/DeltaChart.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/DeltaTable.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/LifecycleTimeline.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/MetricBreakdown.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/ReflectionBadge.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/ScoreCard.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/ScoreCard.tsx",
+      "to": "ui/src/components/StatusPill.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/StageGraph.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/components/StatusPill.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/hooks/useRunStatus.ts",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/hooks/useRunStatus.ts",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/hooks/useRunStatus.ts",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/main.tsx",
+      "to": "ui/src/App.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/main.tsx",
+      "to": "ui/src/styles/global.css",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ComparePage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ComparePage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ComparePage.tsx",
+      "to": "ui/src/components/DeltaChart.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ComparePage.tsx",
+      "to": "ui/src/components/DeltaTable.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ComparePage.tsx",
+      "to": "ui/src/components/ReflectionBadge.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DashboardPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DashboardPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DemoPage.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DemoPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DemoPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/DemoPage.tsx",
+      "to": "ui/src/components/ScoreCard.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ImportAuditPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/KnowledgePage.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/KnowledgePage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/KnowledgePage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ProjectRunDetailPage.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ProjectRunDetailPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/ProjectRunDetailPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/hooks/useRunStatus.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/components/StageGraph.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/components/ArtifactList.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/components/MetricBreakdown.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/components/ScoreCard.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/components/LifecycleTimeline.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunDetailPage.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunsListPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunsListPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/RunsListPage.tsx",
+      "to": "ui/src/components/StatusPill.tsx",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/TriggerPanelPage.tsx",
+      "to": "src/types.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/TriggerPanelPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/WikiPage.tsx",
+      "to": "ui/src/hooks/useFetch.ts",
+      "kind": "static"
+    },
+    {
+      "from": "ui/src/routes/WikiPage.tsx",
+      "to": "ui/src/lib/api.ts",
+      "kind": "static"
+    }
+  ],
+  "stats": {
+    "file_count": 195,
+    "module_count": 9
+  }
+}

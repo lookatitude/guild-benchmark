@@ -30,7 +30,7 @@ export default function RunDetailPage() {
         <h1>
           Run <code>{runId}</code>
         </h1>
-        <Link to="/">← all runs</Link>
+        <Link to="/runs">← all runs</Link>
       </header>
 
       {isPolling ? (

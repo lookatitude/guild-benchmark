@@ -23,6 +23,7 @@ describe("App — routing shell", () => {
     handle = installMockFetch();
     mount(["/"]);
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Runs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Compare" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trigger" })).toBeInTheDocument();
@@ -37,5 +38,9 @@ describe("App — routing shell", () => {
     mount(["/no-such-route"]);
     expect(screen.getByText(/Unknown route/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to runs/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Back to runs/ })).toHaveAttribute(
+      "href",
+      "/runs",
+    );
   });
 });

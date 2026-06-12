@@ -5,6 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/server.js";
 import type {
   ProjectKnowledgeGraphResponse,
+  ProjectAnalysisResponse,
+  ProjectComparisonResponse,
+  ProjectComparisonTargetsResponse,
+  ProjectInitiativesResponse,
+  ProjectOverviewResponse,
+  ProjectRunsListResponse,
   ProjectWikiListResponse,
   ProjectWikiPageResponse,
 } from "../src/types.js";
@@ -72,6 +78,105 @@ describe("server / /api/project/* — live-project knowledge routes", () => {
 
   // ---- GET /api/project/knowledge-graph ----------------------------------
 
+  describe("GET /api/project/overview and /api/project/runs", () => {
+    it("reports live workspace runs and overview totals", async () => {
+      await seedWorkspaceProject(projectRoot);
+      await writeFileDeep(
+        join(projectRoot, ".guild", "runs", "run-root", "run.yaml"),
+        "schema_version: guild.run.v1\nrun_id: run-root\ncommand: dashboard\nstarted_at: 2026-06-10T10:00:00Z\n",
+      );
+      await writeFileDeep(
+        join(projectRoot, ".guild", "runs", "run-root", "logs", "v1.4-events.jsonl"),
+        "{\"event\":\"run_started\"}\n",
+      );
+      const app = createApp({ runsDir, casesDir, port: 0, projectRoot });
+
+      const overviewRes = await app.fetch(req("/api/project/overview"));
+      expect(overviewRes.status).toBe(200);
+      const overview = (await overviewRes.json()) as ProjectOverviewResponse;
+      expect(overview.mode).toBe("workspace");
+      expect(overview.totals.runs).toBe(1);
+
+      const runsRes = await app.fetch(req("/api/project/runs"));
+      expect(runsRes.status).toBe(200);
+      const runs = (await runsRes.json()) as ProjectRunsListResponse;
+      expect(runs.total).toBe(1);
+      expect(runs.runs[0]).toMatchObject({
+        run_id: "run-root",
+        source_guild: "workspace",
+        command: "dashboard",
+      });
+    });
+
+    it("serves initiatives, eligible comparison targets, project comparisons and analysis actions", async () => {
+      await seedWorkspaceProject(projectRoot);
+      await writeFileDeep(
+        join(projectRoot, ".guild", "runs", "run-root", "run.yaml"),
+        "schema_version: guild.run.v1\nrun_id: run-root\ncommand: /guild:initiative\ninitiative_attachment: guild-dashboard\nstarted_at: 2026-06-10T10:00:00Z\n",
+      );
+      await writeFileDeep(
+        join(projectRoot, ".guild", "runs", "run-root", "provenance.json"),
+        JSON.stringify({
+          run_id: "run-root",
+          status: "closed",
+          initiative: "guild-dashboard",
+          benchmark_eligible: true,
+        }),
+      );
+      await writeFileDeep(
+        join(projectRoot, ".guild", "runs", "run-root", "logs", "v1.4-events.jsonl"),
+        "{\"event_name\":\"run_started\"}\n{\"event_name\":\"run_closed\"}\n",
+      );
+      await writeFileDeep(
+        join(projectRoot, ".guild", "initiatives", "active", "guild-dashboard", "initiative.yaml"),
+        "id: guild-dashboard\ntitle: Guild dashboard\nscope: workspace\nstatus: in_progress\nrun_id: run-root\n",
+      );
+      const app = createApp({ runsDir, casesDir, port: 0, projectRoot });
+
+      const initiativesRes = await app.fetch(req("/api/project/initiatives"));
+      expect(initiativesRes.status).toBe(200);
+      const initiatives = (await initiativesRes.json()) as ProjectInitiativesResponse;
+      expect(initiatives.initiatives[0]).toMatchObject({
+        id: "guild-dashboard",
+        source_guild: "workspace",
+        comparison_eligible: true,
+      });
+
+      const targetsRes = await app.fetch(req("/api/project/comparison-targets"));
+      expect(targetsRes.status).toBe(200);
+      const targets = (await targetsRes.json()) as ProjectComparisonTargetsResponse;
+      expect(targets.targets.map((target) => target.id)).toContain(
+        "initiative:workspace:guild-dashboard",
+      );
+
+      const comparisonRes = await app.fetch(
+        req(
+          "/api/project/comparisons?baseline=initiative%3Aworkspace%3Aguild-dashboard&candidate=initiative%3Aworkspace%3Aguild-dashboard",
+        ),
+      );
+      expect(comparisonRes.status).toBe(200);
+      const comparison = (await comparisonRes.json()) as ProjectComparisonResponse;
+      expect(comparison.status).toBe("ok");
+      expect(comparison.baseline.total_events).toBe(2);
+
+      const analyzeRes = await app.fetch(
+        req("/api/project/analyze", {
+          method: "POST",
+          body: JSON.stringify({
+            target_kind: "initiative",
+            target_id: "initiative:workspace:guild-dashboard",
+          }),
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      expect(analyzeRes.status).toBe(200);
+      const analysis = (await analyzeRes.json()) as ProjectAnalysisResponse;
+      expect(analysis.actions.map((action) => action.command)).toContain(
+        "/guild:evolve <skill-name>",
+      );
+    });
+  });
+
   describe("GET /api/project/knowledge-graph", () => {
     it("plain root: 200 {nodes, edges, sources} with source_guild=project", async () => {
       await seedPlainProject(projectRoot);
@@ -98,12 +203,15 @@ describe("server / /api/project/* — live-project knowledge routes", () => {
       expect(guilds).toEqual(new Set(["alpha", "beta"]));
     });
 
-    it("404 {error} when no knowledge-graph.json exists under the root", async () => {
+    it("200 empty graph when no knowledge graph or codebase map exists under the root", async () => {
       const app = createApp({ runsDir, casesDir, port: 0, projectRoot });
       const res = await app.fetch(req("/api/project/knowledge-graph"));
-      expect(res.status).toBe(404);
-      const body = (await res.json()) as { error: string };
-      expect(body.error).toMatch(/knowledge-graph\.json/);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as ProjectKnowledgeGraphResponse;
+      expect(body.nodes).toEqual([]);
+      expect(body.edges).toEqual([]);
+      expect(body.sources).toEqual([]);
+      expect(body.empty_reason).toMatch(/no knowledge graph or codebase map/);
     });
   });
 

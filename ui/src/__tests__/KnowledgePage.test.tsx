@@ -64,6 +64,9 @@ describe("KnowledgePage", () => {
     await waitFor(() => {
       expect(screen.getByText(/3 nodes · 2 edges · 2 sources/)).toBeInTheDocument();
     });
+    expect(screen.getByTestId("knowledge-graph-canvas")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Neighborhood" })).toBeDisabled();
     // Type-grouped counts.
     const counts = screen.getByTestId("knowledge-type-counts");
     expect(within(counts).getByText("file (1)")).toBeInTheDocument();
@@ -105,6 +108,7 @@ describe("KnowledgePage", () => {
     await screen.findByTestId("knowledge-node-list");
     const list = screen.getByTestId("knowledge-node-list");
     await userEvent.click(within(list).getByText("createApp"));
+    expect(screen.getByRole("button", { name: "Neighborhood" })).not.toBeDisabled();
     const panel = await screen.findByTestId("knowledge-selected-node");
     // Two edge groups: declares (incoming from server.ts), uses (outgoing to beta-mod).
     expect(within(panel).getByRole("heading", { name: /declares/ })).toBeInTheDocument();

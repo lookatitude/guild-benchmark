@@ -27,6 +27,17 @@ const WORKSPACE_PAGES = {
       title: "Beta Wiki",
       source_guild: "beta",
     },
+    {
+      path: "decisions/workspace-knowledge-flow.md",
+      title: "workspace-knowledge-flow",
+      source_guild: "workspace",
+      labels: ["decision"],
+    },
+    {
+      path: "architecture/overview.md",
+      title: "Workspace Architecture",
+      source_guild: "workspace",
+    },
   ],
 };
 
@@ -45,6 +56,17 @@ const PAGE_BODIES: Record<string, { path: string; source_guild: string; content:
     path: "index.md",
     source_guild: "beta",
     content: "# Beta Wiki\n\nBeta index body.\n",
+  },
+  "workspace:decisions/workspace-knowledge-flow.md": {
+    path: "decisions/workspace-knowledge-flow.md",
+    source_guild: "workspace",
+    content: "# Workspace Knowledge Flow\n\n- Query workspace first.\n- Then project pages.\n",
+  },
+  "workspace:architecture/overview.md": {
+    path: "architecture/overview.md",
+    source_guild: "workspace",
+    content:
+      "---\ntype: decision\nowner: architect\n---\n# Workspace Architecture\n\n| Area | Owner |\n| --- | --- |\n| Knowledge | Workspace |\n",
   },
 };
 
@@ -88,28 +110,48 @@ describe("WikiPage", () => {
     handle?.reset();
   });
 
-  it("groups the page list by source_guild with labels as badges", async () => {
+  it("renders source tabs with workspace first and only shows the active source pages", async () => {
     handle = mount();
     expect(await screen.findByRole("heading", { name: "Wiki" })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText("Alpha Wiki")).toBeInTheDocument();
-    });
-    // Two guild groups with per-group counts.
-    expect(screen.getByText("2 pages")).toBeInTheDocument(); // alpha
-    expect(screen.getByText("1 page")).toBeInTheDocument(); // beta
-    expect(screen.getByText("Beta Wiki")).toBeInTheDocument();
-    // Frontmatter labels render as badges.
-    expect(screen.getByText("hooks")).toBeInTheDocument();
-    expect(screen.getByText("shell")).toBeInTheDocument();
+    const tabs = within(await screen.findByTestId("wiki-source-tabs")).getAllByRole(
+      "tab",
+    );
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["workspace2", "alpha2", "beta1"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("workspace-knowledge-flow")).toBeInTheDocument();
+    expect(screen.queryByText("Alpha Wiki")).toBeNull();
     // Placeholder until a page is picked.
     expect(screen.getByText(/Select a page to read it/)).toBeInTheDocument();
   });
 
+  it("switches source tabs and keeps page boundaries easy to scan", async () => {
+    handle = mount();
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.click(screen.getByRole("tab", { name: /alpha/i }));
+    expect(screen.getByText("Alpha Wiki")).toBeInTheDocument();
+    expect(screen.getByText("shell-hook-json-parsing")).toBeInTheDocument();
+    expect(screen.queryByText("Beta Wiki")).toBeNull();
+    expect(screen.getByText("hooks")).toBeInTheDocument();
+    expect(screen.getByText("shell")).toBeInTheDocument();
+  });
+
+  it("filters pages within the active source", async () => {
+    handle = mount();
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.type(screen.getByLabelText(/Filter pages/i), "arch");
+    expect(screen.getByText("Workspace Architecture")).toBeInTheDocument();
+    expect(screen.queryByText("workspace-knowledge-flow")).toBeNull();
+    expect(screen.getByText("Showing 1 of 2 pages")).toBeInTheDocument();
+  });
+
   it("selecting a page fetches it with the owning guild and renders the content", async () => {
     handle = mount();
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.click(screen.getByRole("tab", { name: /beta/i }));
     await screen.findByText("Beta Wiki");
     await userEvent.click(screen.getByText("Beta Wiki"));
     const panel = await screen.findByTestId("wiki-page-content");
+    expect(within(panel).getByRole("heading", { name: "Beta Wiki" })).toBeInTheDocument();
     expect(within(panel).getByText(/Beta index body/)).toBeInTheDocument();
     expect(within(panel).getByText("beta")).toBeInTheDocument();
     // The fetch carried both path and guild query params.
@@ -121,6 +163,8 @@ describe("WikiPage", () => {
 
   it("switching pages swaps the rendered content", async () => {
     handle = mount();
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.click(screen.getByRole("tab", { name: /alpha/i }));
     await screen.findByText("Alpha Wiki");
     await userEvent.click(screen.getByText("Alpha Wiki"));
     await screen.findByTestId("wiki-page-content");
@@ -139,9 +183,24 @@ describe("WikiPage", () => {
       if (url.includes("/api/project/wiki")) return jsonResponse(WORKSPACE_PAGES);
       return undefined;
     });
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.click(screen.getByRole("tab", { name: /alpha/i }));
     await screen.findByText("Alpha Wiki");
     await userEvent.click(screen.getByText("Alpha Wiki"));
     expect(await screen.findByRole("alert")).toHaveTextContent(/wiki page not found/);
+  });
+
+  it("renders markdown from the selected wiki page", async () => {
+    handle = mount();
+    await screen.findByText("workspace-knowledge-flow");
+    await userEvent.click(screen.getByText("Workspace Architecture"));
+    const markdown = await screen.findByTestId("wiki-markdown-content");
+    expect(
+      within(markdown).getByRole("heading", { name: "Workspace Architecture" }),
+    ).toBeInTheDocument();
+    expect(within(markdown).getByRole("table")).toBeInTheDocument();
+    expect(within(markdown).getByText("Knowledge")).toBeInTheDocument();
+    expect(within(markdown).queryByText(/type: decision/)).toBeNull();
   });
 
   it("renders the empty state when the wiki has no pages", async () => {

@@ -484,6 +484,7 @@ export interface DeferredResponse {
 export interface ProjectSource {
   guild: string;
   path: string;
+  kind?: "knowledge-graph" | "codebase-map" | "wiki" | "runs" | "initiatives";
 }
 
 /**
@@ -497,6 +498,138 @@ export interface ProjectKnowledgeGraphResponse {
   nodes: Record<string, unknown>[];
   edges: Record<string, unknown>[];
   sources: ProjectSource[];
+  empty_reason?: string;
+}
+
+export interface ProjectOverviewSource {
+  guild: string;
+  root: string;
+  has_runs: boolean;
+  has_wiki: boolean;
+  has_graph: boolean;
+  has_initiatives?: boolean;
+  graph_kind?: "knowledge-graph" | "codebase-map";
+  run_count: number;
+  wiki_count: number;
+  initiative_count?: number;
+}
+
+export interface ProjectOverviewResponse {
+  project_root: string;
+  mode: "project" | "workspace";
+  sources: ProjectOverviewSource[];
+  totals: {
+    runs: number;
+    initiatives?: number;
+    wiki_pages: number;
+    graph_nodes: number;
+    graph_edges: number;
+  };
+}
+
+export interface ProjectRunListRow {
+  run_id: string;
+  source_guild: string;
+  command?: string;
+  status?: string;
+  run_class?: string;
+  target_kind?: string;
+  started_at?: string;
+  closed_at?: string;
+  initiative_id?: string;
+  benchmark_eligible?: boolean;
+  comparison_eligible?: boolean;
+  comparison_reasons?: string[];
+  event_count?: number;
+  has_trace: boolean;
+  has_provenance: boolean;
+  has_run_yaml: boolean;
+  path: string;
+}
+
+export interface ProjectRunsListResponse {
+  runs: ProjectRunListRow[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export interface ProjectRunDetailResponse {
+  run: ProjectRunListRow;
+  run_yaml?: unknown;
+  provenance?: unknown;
+  event_count: number;
+  trace_preview: Record<string, unknown>[];
+}
+
+export interface ProjectInitiativeSummary {
+  id: string;
+  source_guild: string;
+  title?: string;
+  scope?: string;
+  status?: string;
+  execution_status?: string;
+  run_ids: string[];
+  eligible_run_ids: string[];
+  comparison_eligible: boolean;
+  comparison_reasons: string[];
+  path: string;
+}
+
+export interface ProjectInitiativesResponse {
+  initiatives: ProjectInitiativeSummary[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export type ProjectComparisonTargetKind = "run" | "initiative";
+
+export interface ProjectComparisonTarget {
+  id: string;
+  kind: ProjectComparisonTargetKind;
+  source_guild: string;
+  label: string;
+  run_ids: string[];
+  run_count: number;
+  comparison_eligible: boolean;
+  reasons: string[];
+}
+
+export interface ProjectComparisonTargetsResponse {
+  targets: ProjectComparisonTarget[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export interface ProjectTargetSummary {
+  target: ProjectComparisonTarget;
+  status_counts: Record<string, number>;
+  total_events: number;
+}
+
+export interface ProjectComparisonResponse {
+  baseline: ProjectTargetSummary;
+  candidate: ProjectTargetSummary;
+  status: "ok" | "kind_mismatch" | "no_comparable_runs";
+  generated_at: string;
+  notes: string[];
+}
+
+export interface ProjectAnalysisRequest {
+  target_kind: ProjectComparisonTargetKind;
+  target_id: string;
+  source_guild?: string;
+}
+
+export interface ProjectAnalysisAction {
+  label: string;
+  command: string;
+  intent: "learn" | "reflect" | "evolve" | "wiki";
+}
+
+export interface ProjectAnalysisResponse {
+  target: ProjectComparisonTarget;
+  signals: string[];
+  actions: ProjectAnalysisAction[];
 }
 
 export interface WikiPageSummary {

@@ -6,6 +6,13 @@
 import type {
   AuditLogImportRequest,
   AuditLogImportResponse,
+  ProjectAnalysisRequest,
+  ProjectAnalysisResponse,
+  ProjectComparisonResponse,
+  ProjectComparisonTargetsResponse,
+  ProjectInitiativesResponse,
+  ProjectRunDetailResponse,
+  ProjectRunsListResponse,
   RunPostRequest,
   RunPostResponse,
 } from "../../../src/types";
@@ -34,12 +41,33 @@ export const api = {
   cases: () => `${API_BASE}/cases`,
   // SC-12 — live-project knowledge routes (active only when the server was
   // started with `serve --project-root <abs>`; 404 otherwise).
+  projectOverview: () => `${API_BASE}/project/overview`,
+  projectRuns: () => `${API_BASE}/project/runs`,
+  projectRunDetail: (runId: string, guild?: string) =>
+    `${API_BASE}/project/runs/${encodeURIComponent(runId)}${
+      guild ? `?guild=${encodeURIComponent(guild)}` : ""
+    }`,
+  projectInitiatives: () => `${API_BASE}/project/initiatives`,
+  projectComparisonTargets: () => `${API_BASE}/project/comparison-targets`,
+  projectComparison: (baseline: string, candidate: string) =>
+    `${API_BASE}/project/comparisons?baseline=${encodeURIComponent(
+      baseline,
+    )}&candidate=${encodeURIComponent(candidate)}`,
   projectKnowledgeGraph: () => `${API_BASE}/project/knowledge-graph`,
   projectWiki: () => `${API_BASE}/project/wiki`,
   projectWikiPage: (path: string, guild?: string) =>
     `${API_BASE}/project/wiki/page?path=${encodeURIComponent(path)}${
       guild ? `&guild=${encodeURIComponent(guild)}` : ""
     }`,
+};
+
+export type {
+  ProjectAnalysisResponse,
+  ProjectComparisonResponse,
+  ProjectComparisonTargetsResponse,
+  ProjectInitiativesResponse,
+  ProjectRunsListResponse,
+  ProjectRunDetailResponse,
 };
 
 export type PostRunErrorBody = {
@@ -66,6 +94,17 @@ export class ImportAuditLogError extends Error {
   constructor(status: number, body: PostRunErrorBody, message: string) {
     super(message);
     this.name = "ImportAuditLogError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export class ProjectAnalyzeError extends Error {
+  status: number;
+  body: PostRunErrorBody;
+  constructor(status: number, body: PostRunErrorBody, message: string) {
+    super(message);
+    this.name = "ProjectAnalyzeError";
     this.status = status;
     this.body = body;
   }
@@ -113,4 +152,25 @@ export async function importAuditLog(
         ? body.reason
         : `unexpected status ${res.status}`;
   throw new ImportAuditLogError(res.status, body, message);
+}
+
+export async function analyzeProjectTarget(
+  req: ProjectAnalysisRequest,
+): Promise<ProjectAnalysisResponse> {
+  const res = await fetch(`${API_BASE}/project/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (res.status === 200) {
+    return (await res.json()) as ProjectAnalysisResponse;
+  }
+  const body: PostRunErrorBody = await res.json().catch(() => ({}));
+  const message =
+    typeof body.error === "string"
+      ? body.error
+      : typeof body.reason === "string"
+        ? body.reason
+        : `unexpected status ${res.status}`;
+  throw new ProjectAnalyzeError(res.status, body, message);
 }

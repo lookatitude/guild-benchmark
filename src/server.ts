@@ -13,8 +13,15 @@ import {
 import { importLifecycleRun } from "./lifecycle-importer.js";
 import {
   ProjectReadError,
+  analyzeProjectTarget,
+  compareProjectTargets,
+  getProjectOverview,
+  listProjectComparisonTargets,
+  listProjectInitiatives,
+  listProjectRuns,
   listProjectWikiPages,
   readProjectKnowledgeGraph,
+  readProjectRun,
   readProjectWikiPage,
 } from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
@@ -32,6 +39,7 @@ import type {
   CasesListResponse,
   Comparison,
   MetricsJson,
+  ProjectAnalysisRequest,
   RunDetailResponse,
   RunJson,
   RunOptions,
@@ -415,7 +423,101 @@ export function createApp(opts: ServerOpts): Hono {
     return c.json({ error: `project read failed: ${message}` }, 500);
   };
 
-  // GET /api/project/knowledge-graph → { nodes, edges, sources }
+  // GET /api/project/overview → workspace/project source summary.
+  app.get("/api/project/overview", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await getProjectOverview(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs → live `.guild/runs` list across the project/workspace.
+  app.get("/api/project/runs", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectRuns(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs/:run_id[?guild=<name>] → live run detail + trace preview.
+  app.get("/api/project/runs/:run_id", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await readProjectRun(
+        projectRoot,
+        c.req.param("run_id"),
+        c.req.query("guild"),
+      );
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/initiatives → workspace + project initiative summaries.
+  app.get("/api/project/initiatives", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectInitiatives(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/comparison-targets → only eligible live runs/initiatives.
+  app.get("/api/project/comparison-targets", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectComparisonTargets(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/comparisons?baseline=<target>&candidate=<target>
+  app.get("/api/project/comparisons", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const baseline = c.req.query("baseline");
+    const candidate = c.req.query("candidate");
+    if (!baseline || !candidate) {
+      return c.json({ error: "baseline and candidate query parameters are required" }, 400);
+    }
+    try {
+      const body = await compareProjectTargets(projectRoot, baseline, candidate);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // POST /api/project/analyze → command suggestions for Guild plugin learning/evolution.
+  app.post("/api/project/analyze", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+    const parsed = parseProjectAnalysisRequest(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    try {
+      const response = await analyzeProjectTarget(projectRoot, parsed.value);
+      return c.json(response);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/knowledge-graph → { nodes, edges, sources, empty_reason? }
   app.get("/api/project/knowledge-graph", async (c) => {
     if (!projectRoot) return noProjectRoot(c);
     try {
@@ -635,6 +737,37 @@ function parseRunPostRequest(
       case_slug: caseSlug,
       ...(runId ? { run_id: runId } : {}),
       ...(models ? { models } : {}),
+    },
+  };
+}
+
+function parseProjectAnalysisRequest(
+  body: unknown,
+):
+  | { ok: true; value: ProjectAnalysisRequest }
+  | { ok: false; error: string } {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "request body must be an object" };
+  }
+  const obj = body as Record<string, unknown>;
+  const targetKind = obj.target_kind;
+  const targetId = obj.target_id;
+  if (targetKind !== "run" && targetKind !== "initiative") {
+    return { ok: false, error: "target_kind must be run or initiative" };
+  }
+  if (typeof targetId !== "string" || targetId.trim().length === 0) {
+    return { ok: false, error: "target_id is required" };
+  }
+  const sourceGuild = obj.source_guild;
+  if (sourceGuild !== undefined && typeof sourceGuild !== "string") {
+    return { ok: false, error: "source_guild must be a string when provided" };
+  }
+  return {
+    ok: true,
+    value: {
+      target_kind: targetKind,
+      target_id: targetId,
+      ...(sourceGuild ? { source_guild: sourceGuild } : {}),
     },
   };
 }

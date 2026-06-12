@@ -1,0 +1,1175 @@
+{
+  "version": "guild.knowledge_links.v1",
+  "links": [
+    {
+      "from": "domain:.github",
+      "to": "file:.github/workflows/dot-guild-policy.yml",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:(root)",
+      "to": "file:FOLLOWUPS.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:(root)",
+      "to": "file:README.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:cases",
+      "to": "file:cases/demo-context-drift-evolve.yaml",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:cases",
+      "to": "file:cases/demo-url-shortener-build.yaml",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:cases",
+      "to": "file:cases/smoke-noop.yaml",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:cases",
+      "to": "file:cases/v1.4-synthetic-model-family.yaml",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:docs",
+      "to": "file:docs/QUERY.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:docs",
+      "to": "file:docs/index.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:docs",
+      "to": "file:docs/research/benchmark-datasets-fixtures.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-fail/events.ndjson",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-fail/run.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-malformed/README.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-malformed/run.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-pass/events.ndjson",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-pass/run.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-timeout/events.ndjson",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:fixtures",
+      "to": "file:fixtures/synthetic-timeout/run.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:(root)",
+      "to": "file:package.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/00-index.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/01-architecture.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/02-case-suite.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/03-runner.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/04-metrics.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/05-ui.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/06-learning-loop.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-001-runner-ui-boundary.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-003-host-repo-vs-fresh-fixture.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-004-runner-process-group-signaling.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-005-learning-loop-orchestrator.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-005-windows-process-group-signaling.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-006-runner-prompt-via-stdin.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-007-rss-cap-not-portable.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-008-interactive-claude-harness.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/adr-009-v1.4-adversarial-loops-and-plugin-restructure.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/p2-ui-architecture.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/p3-runner-architecture.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/p4-learning-loop-architecture.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/security-review-p4.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/security-review.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/v1.4-claude-plugin-surface-audit.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/v1.4-jsonl-schema.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/v1.4-loop-skill-contracts.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:plans",
+      "to": "file:plans/v1.4-security-review.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/artifact-importer.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/calibrate-o3-cli.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/case-loader.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/cli.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/codex-review-trail.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/compare.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/counter-store.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/fixtures/statusline-guild.sh",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/lifecycle-importer.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/lifecycle-metrics.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/lifecycle-timeline.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/log-jsonl.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/log-validator.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-applicable.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-drivers.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-escalation.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-implement-restart.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-jsonl-stub.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop-sentinel.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/loop.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/o3-threshold-analyzer.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/project-reader.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/redact-log.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/run-events-schema.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/runner.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/scorer.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/server.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/summary-md-regen.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/types.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/v1.4-config.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/v1.4-gate-prompt.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/v1.4-harness.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:src",
+      "to": "file:src/v1.4-lock.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/_setup.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/artifact-importer.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/backward-compat.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/calibrate-o3-cli.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/case-loader.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/cli.loop.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/cli.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/comparator.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/compare.reflection-applied.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/counter-store.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/fixture-vs-real.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/fixtures/v1.3-baseline-flow.txt",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/lifecycle-importer.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/log-jsonl.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop-clarify.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop-implement.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop-plan-review.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop.property.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop.security.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/loop.unit.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/o3-threshold-analyzer.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/observability-coverage.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/post-tool-use-widened.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/pre-compact.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/pre-tool-use.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/project-reader.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/project.helpers.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/redact-log-patterns.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/redact-log.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.live.smoke.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.race.property.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.rss-warn.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.schema-convergence.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.security.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/runner.unit.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/scorer.property.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/scorer.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.artifacts.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.auditImport.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.cases.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.compare.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.compareStderr.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.helpers.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.lifecycleImport.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.lifecycleRecord.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.project.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.runDetail.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.runs.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.runsPost.live.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.runsPost.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/server.staticFallback.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/smoke-serve.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/statusline-guild.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/test-count-floor.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.3-baseline-regression.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.4-config.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.4-gate-prompt.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.4-harness.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.4-log-validator.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/v1.4-synthetic-case.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:tests",
+      "to": "file:tests/verify-codex-review-trail.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:(root)",
+      "to": "file:tsconfig.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/README.md",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/index.html",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/package.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/App.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/App.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/ComparePage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/DemoPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/ImportAuditPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/KnowledgePage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/LifecycleTimeline.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/LifecycleTimelineIntegration.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/MetricBreakdown.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/ReflectionBadge.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/RunDetailPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/RunsListPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/StatusPill.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/TriggerPanelPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/WikiPage.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/fixtures/cases.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/fixtures/comparison.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/fixtures/mockFetch.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/fixtures/run-detail.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/fixtures/runs.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/setup.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/useFetch.test.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/__tests__/useRunStatus.test.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/ArtifactList.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/DeltaChart.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/DeltaTable.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/LifecycleTimeline.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/MetricBreakdown.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/ReflectionBadge.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/ScoreCard.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/StageGraph.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/components/StatusPill.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/hooks/useFetch.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/hooks/useRunStatus.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/lib/api.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/main.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/ComparePage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/DashboardPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/DemoPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/ImportAuditPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/KnowledgePage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/ProjectRunDetailPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/RunDetailPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/RunsListPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/TriggerPanelPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/routes/WikiPage.tsx",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/styles/global.css",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/src/vite-env.d.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/tsconfig.json",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/tsconfig.tsbuildinfo",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/vite.config.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:ui",
+      "to": "file:ui/vitest.config.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    },
+    {
+      "from": "domain:(root)",
+      "to": "file:vitest.config.ts",
+      "type": "touches",
+      "run_id": "run-be5d0479-1cb4-4023-b7f4-a60ae25993a8"
+    }
+  ]
+}

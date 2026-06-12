@@ -7,7 +7,14 @@ import {
   extractFrontmatterLabels,
   extractTitle,
   listProjectWikiPages,
+  getProjectOverview,
+  analyzeProjectTarget,
+  compareProjectTargets,
+  listProjectComparisonTargets,
+  listProjectInitiatives,
+  listProjectRuns,
   readProjectKnowledgeGraph,
+  readProjectRun,
   readProjectWikiPage,
   resolveGuildSources,
   safeJoinUnder,
@@ -120,7 +127,11 @@ describe("project-reader / readProjectKnowledgeGraph", () => {
     expect(res.nodes).toHaveLength(3);
     expect(res.edges).toHaveLength(2);
     expect(res.sources).toEqual([
-      { guild: "project", path: join(root, ".guild", "indexes", "knowledge-graph.json") },
+      {
+        guild: "project",
+        path: join(root, ".guild", "indexes", "knowledge-graph.json"),
+        kind: "knowledge-graph",
+      },
     ]);
     for (const n of res.nodes) expect(n.source_guild).toBe("project");
     for (const e of res.edges) expect(e.source_guild).toBe("project");
@@ -142,10 +153,12 @@ describe("project-reader / readProjectKnowledgeGraph", () => {
     expect(res.edges[0].source_guild).toBe("alpha");
   });
 
-  it("missing KG everywhere → ProjectReadError(not_found)", async () => {
-    await expect(readProjectKnowledgeGraph(root)).rejects.toMatchObject({
-      name: "ProjectReadError",
-      kind: "not_found",
+  it("missing KG everywhere → empty graph with empty_reason", async () => {
+    await expect(readProjectKnowledgeGraph(root)).resolves.toMatchObject({
+      nodes: [],
+      edges: [],
+      sources: [],
+      empty_reason: expect.stringMatching(/no knowledge graph or codebase map/),
     });
   });
 
@@ -159,10 +172,13 @@ describe("project-reader / readProjectKnowledgeGraph", () => {
     expect(res.sources.map((s) => s.guild)).toEqual(["beta"]);
   });
 
-  it("all sources unreadable → not_found", async () => {
+  it("all sources unreadable → empty graph with empty_reason", async () => {
     await writeFileDeep(join(root, ".guild", "indexes", "knowledge-graph.json"), "[1,2");
-    await expect(readProjectKnowledgeGraph(root)).rejects.toMatchObject({
-      kind: "not_found",
+    await expect(readProjectKnowledgeGraph(root)).resolves.toMatchObject({
+      nodes: [],
+      edges: [],
+      sources: [],
+      empty_reason: expect.stringMatching(/no readable knowledge graph or codebase map/),
     });
   });
 
@@ -174,6 +190,192 @@ describe("project-reader / readProjectKnowledgeGraph", () => {
     const res = await readProjectKnowledgeGraph(root);
     expect(res.nodes).toHaveLength(1);
     expect(res.edges).toHaveLength(0);
+  });
+
+  it("codebase-map.json is converted into module/file graph nodes", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "indexes", "codebase-map.json"),
+      JSON.stringify({
+        files: [
+          {
+            path: "src/server.ts",
+            language: "typescript",
+            loc: 120,
+            complexity: 8,
+            module: "src",
+            is_entrypoint: true,
+          },
+          { path: "README.md", language: "markdown", module: "(root)" },
+        ],
+      }),
+    );
+    const res = await readProjectKnowledgeGraph(root);
+    expect(res.sources).toEqual([
+      {
+        guild: "project",
+        path: join(root, ".guild", "indexes", "codebase-map.json"),
+        kind: "codebase-map",
+      },
+    ]);
+    expect(res.nodes.some((n) => n.id === "project:module:src")).toBe(true);
+    expect(res.nodes.some((n) => n.id === "project:file:src/server.ts")).toBe(true);
+    expect(res.edges.some((e) => e.type === "contains")).toBe(true);
+  });
+});
+
+describe("project-reader / project overview + live runs", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "proj-runs-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("lists live .guild/runs across workspace root and sub-guilds", async () => {
+    await seedWorkspaceProject(root);
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "run.yaml"),
+      "schema_version: guild.run.v1\nrun_id: run-root\ncommand: root command\nrun_class: full\nstarted_at: 2026-06-10T10:00:00Z\n",
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "provenance.json"),
+      JSON.stringify({ run_id: "run-root", closed_at: "2026-06-10", benchmark_eligible: true }),
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "logs", "v1.4-events.jsonl"),
+      "{\"event\":\"run_started\"}\n",
+    );
+    await writeFileDeep(
+      join(root, "alpha", ".guild", "runs", "run-alpha", "events.ndjson"),
+      "{\"event\":\"done\"}\n",
+    );
+
+    const listed = await listProjectRuns(root);
+    expect(listed.total).toBe(2);
+    expect(listed.runs.map((r) => `${r.source_guild}:${r.run_id}`).sort()).toEqual([
+      "alpha:run-alpha",
+      "workspace:run-root",
+    ]);
+    const rootRun = listed.runs.find((r) => r.run_id === "run-root")!;
+    expect(rootRun.command).toBe("root command");
+    expect(rootRun.benchmark_eligible).toBe(true);
+    expect(rootRun.has_trace).toBe(true);
+
+    const detail = await readProjectRun(root, "run-root", "workspace");
+    expect(detail.event_count).toBe(1);
+    expect(detail.trace_preview[0].event).toBe("run_started");
+  });
+
+  it("summarizes sources, runs, wiki pages, and graph totals", async () => {
+    await seedWorkspaceProject(root);
+    await writeFileDeep(join(root, ".guild", "runs", "run-root", "events.ndjson"), "{}\n");
+    const overview = await getProjectOverview(root);
+    expect(overview.mode).toBe("workspace");
+    expect(overview.totals.runs).toBe(1);
+    expect(overview.totals.wiki_pages).toBeGreaterThan(0);
+    expect(overview.totals.graph_nodes).toBe(2);
+    expect(overview.sources.map((s) => s.guild)).toEqual([
+      "workspace",
+      "alpha",
+      "beta",
+      "gamma",
+    ]);
+  });
+
+  it("loads workspace and child initiatives and marks only trace-backed runs eligible", async () => {
+    await seedWorkspaceProject(root);
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "run.yaml"),
+      "schema_version: guild.run.v1\nrun_id: run-root\ncommand: /guild:initiative\ninitiative_attachment: guild-dashboard\nstarted_at: 2026-06-10T10:00:00Z\n",
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "provenance.json"),
+      JSON.stringify({
+        run_id: "run-root",
+        status: "closed",
+        initiative: "guild-dashboard",
+        benchmark_eligible: true,
+      }),
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", "run-root", "logs", "v1.4-events.jsonl"),
+      "{\"event_name\":\"run_started\"}\n{\"event_name\":\"run_closed\"}\n",
+    );
+    await writeFileDeep(
+      join(root, ".guild", "initiatives", "active", "guild-dashboard", "initiative.yaml"),
+      "id: guild-dashboard\ntitle: Guild dashboard\nscope: workspace\nstatus: in_progress\nrun_id: run-root\n",
+    );
+    await writeFileDeep(
+      join(root, "alpha", ".guild", "runs", "run-alpha", "run.yaml"),
+      "schema_version: guild.run.v1\nrun_id: run-alpha\ncommand: /guild:build\nstarted_at: 2026-06-10T11:00:00Z\n",
+    );
+    await writeFileDeep(
+      join(root, "alpha", ".guild", "initiatives", "active", "alpha-work", "initiative.yaml"),
+      "id: alpha-work\ntitle: Alpha work\nscope: project\nrun_id: run-alpha\n",
+    );
+
+    const runs = await listProjectRuns(root);
+    expect(runs.runs.find((run) => run.run_id === "run-root")).toMatchObject({
+      source_guild: "workspace",
+      comparison_eligible: true,
+      event_count: 2,
+    });
+    expect(runs.runs.find((run) => run.run_id === "run-alpha")).toMatchObject({
+      source_guild: "alpha",
+      comparison_eligible: false,
+      comparison_reasons: expect.arrayContaining(["no trace events"]),
+    });
+
+    const initiatives = await listProjectInitiatives(root);
+    expect(initiatives.initiatives).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "guild-dashboard",
+          source_guild: "workspace",
+          eligible_run_ids: ["run-root"],
+          comparison_eligible: true,
+        }),
+        expect.objectContaining({
+          id: "alpha-work",
+          source_guild: "alpha",
+          eligible_run_ids: [],
+          comparison_eligible: false,
+        }),
+      ]),
+    );
+
+    const targets = await listProjectComparisonTargets(root);
+    expect(targets.targets.map((target) => target.id)).toEqual(
+      expect.arrayContaining([
+        "initiative:workspace:guild-dashboard",
+        "run:workspace:run-root",
+      ]),
+    );
+    expect(targets.targets.some((target) => target.id.includes("alpha-work"))).toBe(false);
+
+    const comparison = await compareProjectTargets(
+      root,
+      "initiative:workspace:guild-dashboard",
+      "initiative:workspace:guild-dashboard",
+    );
+    expect(comparison.status).toBe("ok");
+    expect(comparison.baseline.total_events).toBe(2);
+
+    const analysis = await analyzeProjectTarget(root, {
+      target_kind: "initiative",
+      target_id: "initiative:workspace:guild-dashboard",
+    });
+    expect(analysis.signals.join(" ")).toMatch(/trace events/);
+    expect(analysis.actions.map((action) => action.command)).toEqual(
+      expect.arrayContaining([
+        "/guild:reflect --initiative guild-dashboard",
+        "/guild:learn",
+        "/guild:evolve <skill-name>",
+      ]),
+    );
   });
 });
 
