@@ -106,6 +106,159 @@ function subtopicMaxDepth(nodes: SubtopicTreeNode[]): number {
   return max;
 }
 
+// ---- Domain / business-flow helpers ---------------------------------------
+
+interface DomainFlowStep {
+  id: string;
+  label: string;
+  /** From the `flow_step` edge `weight` — monotonically encodes step order. */
+  weight: number;
+}
+
+interface DomainFlowGroup {
+  id: string;
+  label: string;
+  steps: DomainFlowStep[];
+}
+
+interface DomainGroup {
+  id: string;
+  label: string;
+  flows: DomainFlowGroup[];
+}
+
+/** Lenient numeric accessor: number, numeric string, or 0. */
+function num(rec: KgRecord, key: string): number {
+  const v = rec[key];
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const p = parseFloat(v);
+    return Number.isNaN(p) ? 0 : p;
+  }
+  return 0;
+}
+
+/**
+ * Group `domain` nodes → their business `flow` nodes (via `contains_flow`
+ * edges, domain→flow) → ordered `step` nodes (via `flow_step` edges, flow→step).
+ *
+ * Step order comes from the `flow_step` edge `weight`, which monotonically
+ * encodes step order (0.1 → 1.0) — NOT from input edge order. Pure + lenient:
+ * any node/edge field may be absent; returns `[]` when there are no domains.
+ */
+function buildDomainFlows(nodes: KgRecord[], edges: KgRecord[]): DomainGroup[] {
+  const nodesById = new Map<string, KgRecord>();
+  for (const n of nodes) {
+    const id = nodeId(n);
+    if (id) nodesById.set(id, n);
+  }
+  const domainIds = nodes
+    .filter((n) => nodeType(n) === "domain")
+    .map(nodeId)
+    .filter(Boolean);
+  if (domainIds.length === 0) return [];
+
+  // domain id → flow ids (contains_flow: source = domain, target = flow)
+  const flowsOf = new Map<string, string[]>();
+  for (const e of edges) {
+    if (str(e, "type") !== "contains_flow") continue;
+    const domain = str(e, "source");
+    const flow = str(e, "target");
+    if (!domain || !flow) continue;
+    const list = flowsOf.get(domain) ?? [];
+    list.push(flow);
+    flowsOf.set(domain, list);
+  }
+
+  // flow id → steps (flow_step: source = flow, target = step), ordered by weight
+  const stepsOf = new Map<string, DomainFlowStep[]>();
+  for (const e of edges) {
+    if (str(e, "type") !== "flow_step") continue;
+    const flow = str(e, "source");
+    const step = str(e, "target");
+    if (!flow || !step) continue;
+    const list = stepsOf.get(flow) ?? [];
+    const n = nodesById.get(step);
+    list.push({ id: step, label: n ? nodeLabel(n) : step, weight: num(e, "weight") });
+    stepsOf.set(flow, list);
+  }
+  // Sort each flow's steps by edge weight — this is what makes ordering
+  // independent of the input edge order (anti-vacuity).
+  for (const list of stepsOf.values()) {
+    list.sort((a, b) => a.weight - b.weight);
+  }
+
+  return domainIds.map((domainId) => {
+    const dn = nodesById.get(domainId);
+    const flowIds = flowsOf.get(domainId) ?? [];
+    return {
+      id: domainId,
+      label: dn ? nodeLabel(dn) : domainId,
+      flows: flowIds.map((flowId) => {
+        const fn = nodesById.get(flowId);
+        return {
+          id: flowId,
+          label: fn ? nodeLabel(fn) : flowId,
+          steps: stepsOf.get(flowId) ?? [],
+        };
+      }),
+    };
+  });
+}
+
+function DomainFlowsView({
+  domains,
+  selectedId,
+  onSelect,
+}: {
+  domains: DomainGroup[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className="domain-flows" data-testid="knowledge-domain-flows-list">
+      {domains.map((domain) => (
+        <div key={domain.id} className="domain-group" data-domain-id={domain.id}>
+          <h4>
+            {domain.label} <span className="muted">domain</span>
+          </h4>
+          {domain.flows.length === 0 ? (
+            <p className="muted">No business flows in this domain.</p>
+          ) : (
+            domain.flows.map((flow) => (
+              <div key={flow.id} className="domain-flow" data-flow-id={flow.id}>
+                <h5>
+                  {flow.label} <span className="muted">flow</span>
+                </h5>
+                {flow.steps.length === 0 ? (
+                  <p className="muted">No steps recorded for this flow.</p>
+                ) : (
+                  <ol className="domain-flow-steps">
+                    {flow.steps.map((step) => (
+                      <li key={step.id} data-step-id={step.id}>
+                        <button
+                          onClick={() => onSelect(step.id)}
+                          aria-pressed={selectedId === step.id}
+                          style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                        >
+                          <code>{step.label}</code>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export { buildDomainFlows };
+export type { DomainGroup, DomainFlowGroup, DomainFlowStep };
+
 function SubtopicTreeView({ tree }: { tree: SubtopicTreeNode[] }) {
   if (tree.length === 0) return null;
 
@@ -213,6 +366,13 @@ export default function KnowledgePage() {
   );
 
   const subtopicDepth = useMemo(() => subtopicMaxDepth(subtopicTree), [subtopicTree]);
+
+  // G11 — domains & business-flows view (consumes domain/flow/step nodes +
+  // contains_flow/flow_step edges; independent of the v2 knowledge tier).
+  const domainFlows = useMemo(
+    () => (data ? buildDomainFlows(data.nodes, data.edges) : []),
+    [data],
+  );
 
   const wikiPageNodes = useMemo(
     () => (data?.nodes ?? []).filter((n) => nodeType(n) === "wiki_page"),
@@ -554,6 +714,28 @@ export default function KnowledgePage() {
               )}
             </div>
           ) : null}
+
+          {/* G11 — Domains & business flows. Always rendered when the graph
+              has nodes; shows an empty-state when no domain nodes exist. */}
+          {data.nodes.length > 0 && (
+            <div className="card" data-testid="knowledge-domains-flows">
+              <h3>
+                Domains &amp; flows{" "}
+                <span className="muted">(contains_flow · flow_step)</span>
+              </h3>
+              {domainFlows.length === 0 ? (
+                <div className="empty" data-testid="knowledge-domains-empty">
+                  No business domains in this graph.
+                </div>
+              ) : (
+                <DomainFlowsView
+                  domains={domainFlows}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              )}
+            </div>
+          )}
 
           {/* v2 knowledge tier — SC-10 panels (conditional on v2 data presence) */}
 
