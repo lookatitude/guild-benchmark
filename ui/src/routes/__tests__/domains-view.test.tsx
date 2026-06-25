@@ -310,3 +310,116 @@ describe("KnowledgePage — Domains & Flows view", () => {
     expect(within(selected).getByText("Step 1.2.2")).toBeInTheDocument();
   });
 });
+
+// FIX round-2 #3 — REAL-PATH federated selection. These render the page and
+// CLICK (domains step, node-list, canvas node) with duplicate (guild,id) across
+// two guilds. Anti-vacuity: under raw-id selection the last-inserted (beta) node
+// wins, so clicking alpha would surface beta — these assertions then fail.
+
+// A federated mount that preserves each node/edge's own source_guild (the shared
+// `mount` above stamps everything "project").
+function mountFederated(graph: { nodes: Rec[]; edges: Rec[] }) {
+  const handle = installMockFetch({
+    override: (url) =>
+      url.includes("/api/project/knowledge-graph")
+        ? new Response(
+            JSON.stringify({
+              nodes: graph.nodes,
+              edges: graph.edges,
+              sources: [
+                { guild: "alpha", path: "/ws/alpha/.guild/indexes/knowledge-graph.json" },
+                { guild: "beta", path: "/ws/beta/.guild/indexes/knowledge-graph.json" },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          )
+        : undefined,
+  });
+  render(
+    <MemoryRouter initialEntries={["/knowledge"]}>
+      <KnowledgePage />
+    </MemoryRouter>,
+  );
+  return handle;
+}
+
+// Two guilds, each with an identically-named domain:x → flow:y → step:z.
+function federatedDomainsGraph(): { nodes: Rec[]; edges: Rec[] } {
+  const nodes: Rec[] = [];
+  const edges: Rec[] = [];
+  for (const guild of ["alpha", "beta"]) {
+    const Cap = guild[0].toUpperCase() + guild.slice(1);
+    nodes.push({ id: "domain:x", type: "domain", name: `${Cap} Domain`, source_guild: guild });
+    nodes.push({ id: "flow:y", type: "flow", name: `${Cap} Flow`, source_guild: guild });
+    nodes.push({ id: "step:z", type: "step", name: `${Cap} Step`, source_guild: guild });
+    edges.push({ source: "domain:x", target: "flow:y", type: "contains_flow", source_guild: guild });
+    edges.push({ source: "flow:y", target: "step:z", type: "flow_step", weight: 0.1, source_guild: guild });
+  }
+  return { nodes, edges };
+}
+
+describe("KnowledgePage — FIX round-2 federated selection (real path)", () => {
+  let handle: ReturnType<typeof installMockFetch> | undefined;
+  afterEach(() => handle?.reset());
+
+  it("clicking the alpha domain step selects ALPHA's step, not beta's", async () => {
+    handle = mountFederated(federatedDomainsGraph());
+    const list = await screen.findByTestId("knowledge-domain-flows-list");
+
+    const alphaGroup = list.querySelector('[data-guild="alpha"]')!;
+    const betaGroup = list.querySelector('[data-guild="beta"]')!;
+    const alphaStepBtn = within(alphaGroup as HTMLElement).getByText("Alpha Step").closest("button")!;
+    const betaStepBtn = within(betaGroup as HTMLElement).getByText("Beta Step").closest("button")!;
+
+    await userEvent.setup().click(alphaStepBtn);
+
+    // Only the alpha step button is pressed.
+    await waitFor(() => expect(alphaStepBtn).toHaveAttribute("aria-pressed", "true"));
+    expect(betaStepBtn).toHaveAttribute("aria-pressed", "false");
+
+    // The selection panel resolved ALPHA's node, not beta's (raw-id keying would
+    // surface "Beta Step" because it was inserted last).
+    const selected = await screen.findByTestId("knowledge-selected-node");
+    expect(within(selected).getByText("Alpha Step")).toBeInTheDocument();
+    expect(within(selected).queryByText("Beta Step")).toBeNull();
+  });
+
+  it("clicking the alpha node in the node-list selects ALPHA, not the same-id beta node", async () => {
+    handle = mountFederated({
+      nodes: [
+        { id: "dup", type: "file", name: "Alpha Dup", source_guild: "alpha" },
+        { id: "dup", type: "file", name: "Beta Dup", source_guild: "beta" },
+      ],
+      edges: [],
+    });
+    const nodeList = await screen.findByTestId("knowledge-node-list");
+    const alphaBtn = within(nodeList).getByText("Alpha Dup").closest("button")!;
+    const betaBtn = within(nodeList).getByText("Beta Dup").closest("button")!;
+
+    await userEvent.setup().click(alphaBtn);
+
+    await waitFor(() => expect(alphaBtn).toHaveAttribute("aria-pressed", "true"));
+    expect(betaBtn).toHaveAttribute("aria-pressed", "false");
+    const selected = await screen.findByTestId("knowledge-selected-node");
+    expect(within(selected).getByText("Alpha Dup")).toBeInTheDocument();
+    expect(within(selected).queryByText("Beta Dup")).toBeNull();
+  });
+
+  it("clicking a same-id canvas node selects the right guild's node", async () => {
+    handle = mountFederated({
+      nodes: [
+        { id: "dup", type: "file", name: "Alpha Dup", source_guild: "alpha" },
+        { id: "dup", type: "file", name: "Beta Dup", source_guild: "beta" },
+      ],
+      edges: [],
+    });
+    const canvas = await screen.findByTestId("knowledge-graph-canvas");
+    // Canvas g nodes carry aria-label `${label}, ${type}` → target alpha precisely.
+    const alphaNode = within(canvas).getByLabelText("Alpha Dup, file");
+    await userEvent.setup().click(alphaNode);
+
+    const selected = await screen.findByTestId("knowledge-selected-node");
+    expect(within(selected).getByText("Alpha Dup")).toBeInTheDocument();
+    expect(within(selected).queryByText("Beta Dup")).toBeNull();
+  });
+});
