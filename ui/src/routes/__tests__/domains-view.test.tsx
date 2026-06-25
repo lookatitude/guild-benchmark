@@ -19,20 +19,22 @@ import { installMockFetch } from "../../__tests__/fixtures/mockFetch";
 type Rec = Record<string, unknown>;
 
 // A graph with 2 domains, each owning 3 flows, each flow having 3 ordered steps.
-// flow_step edges carry a `weight` that encodes order; we deliberately push the
-// edges in a SHUFFLED order so a vacuous "preserve input order" impl would fail.
+// CRUCIAL (FIX-G11): domains/flows/steps are pushed in a deliberately REVERSED
+// (non-sorted) order, and step weights are inserted out of order — so any impl
+// that preserves input order produces the WRONG full output. A correct impl
+// sorts domains+flows by stable key and steps by weight.
 function buildFixture(): { nodes: Rec[]; edges: Rec[] } {
   const nodes: Rec[] = [];
   const edges: Rec[] = [];
 
-  for (let d = 1; d <= 2; d++) {
+  for (let d = 2; d >= 1; d--) {
     const domainId = `domain:d${d}`;
     nodes.push({ id: domainId, type: "domain", name: `Domain ${d}` });
-    for (let f = 1; f <= 3; f++) {
+    for (let f = 3; f >= 1; f--) {
       const flowId = `flow:d${d}f${f}`;
       nodes.push({ id: flowId, type: "flow", name: `Flow ${d}.${f}` });
       edges.push({ source: domainId, target: flowId, type: "contains_flow" });
-      for (let s = 1; s <= 3; s++) {
+      for (let s = 3; s >= 1; s--) {
         const stepId = `step:d${d}f${f}s${s}`;
         nodes.push({ id: stepId, type: "step", name: `Step ${d}.${f}.${s}` });
         // weight encodes the intended order (s=1 → 0.1, s=2 → 0.2, s=3 → 0.3)
@@ -48,27 +50,60 @@ function buildFixture(): { nodes: Rec[]; edges: Rec[] } {
   return { nodes, edges };
 }
 
-// Deterministic shuffle (index-based, no Math.random) so the input edge order
+// Deterministic shuffle (index-based, no Math.random) so the input order
 // differs from the desired output order.
-function shuffle<T>(arr: T[]): T[] {
+function shuffle<T>(seed: number, arr: T[]): T[] {
   const out = [...arr];
   for (let i = out.length - 1; i > 0; i--) {
-    const j = (i * 7 + 3) % out.length;
+    const j = (i * seed + 3) % out.length;
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
+}
+
+// Collapse the full output into a comparable plain structure (domain → flow →
+// step ids, in order) so we can assert the ENTIRE ordered output, not just steps.
+function structure(groups: ReturnType<typeof buildDomainFlows>) {
+  return groups.map((d) => ({
+    id: d.id,
+    guild: d.guild,
+    flows: d.flows.map((f) => ({ id: f.id, steps: f.steps.map((s) => s.id) })),
+  }));
 }
 
 function stepLabels(group: ReturnType<typeof buildDomainFlows>[number], flowIdx: number): string[] {
   return group.flows[flowIdx].steps.map((s) => s.label);
 }
 
+// The canonical (sorted) output the helper must always produce, regardless of
+// input order.
+const CANONICAL = [
+  {
+    id: "domain:d1",
+    guild: "",
+    flows: [
+      { id: "flow:d1f1", steps: ["step:d1f1s1", "step:d1f1s2", "step:d1f1s3"] },
+      { id: "flow:d1f2", steps: ["step:d1f2s1", "step:d1f2s2", "step:d1f2s3"] },
+      { id: "flow:d1f3", steps: ["step:d1f3s1", "step:d1f3s2", "step:d1f3s3"] },
+    ],
+  },
+  {
+    id: "domain:d2",
+    guild: "",
+    flows: [
+      { id: "flow:d2f1", steps: ["step:d2f1s1", "step:d2f1s2", "step:d2f1s3"] },
+      { id: "flow:d2f2", steps: ["step:d2f2s1", "step:d2f2s2", "step:d2f2s3"] },
+      { id: "flow:d2f3", steps: ["step:d2f3s1", "step:d2f3s2", "step:d2f3s3"] },
+    ],
+  },
+];
+
 describe("buildDomainFlows — G11 gate 1 (grouping + ordering)", () => {
   it("groups 2 domains × 3 flows with steps in the correct order", () => {
     const { nodes, edges } = buildFixture();
     const groups = buildDomainFlows(nodes, edges);
 
-    // 2 domain groups.
+    // 2 domain groups, sorted by id even though input is reversed.
     expect(groups).toHaveLength(2);
     expect(groups.map((g) => g.label)).toEqual(["Domain 1", "Domain 2"]);
 
@@ -83,7 +118,6 @@ describe("buildDomainFlows — G11 gate 1 (grouping + ordering)", () => {
       "Step 1.1.2",
       "Step 1.1.3",
     ]);
-    // And under a flow of domain 2.
     expect(stepLabels(groups[1], 2)).toEqual([
       "Step 2.3.1",
       "Step 2.3.2",
@@ -91,30 +125,21 @@ describe("buildDomainFlows — G11 gate 1 (grouping + ordering)", () => {
     ]);
   });
 
-  it("orders steps by flow_step weight, NOT input edge order (anti-vacuity)", () => {
+  it("FULL output is shuffle-invariant — domains, flows AND steps (anti-vacuity)", () => {
     const { nodes, edges } = buildFixture();
-    const baseline = buildDomainFlows(nodes, edges);
 
-    // Shuffle both node and edge order; the weight-based ordering must hold.
-    const shuffled = buildDomainFlows(shuffle(nodes), shuffle(edges));
+    // The unshuffled (already-reversed-input) output must equal the canonical
+    // sorted structure. An input-order impl would FAIL here because the fixture
+    // input is reversed.
+    expect(structure(buildDomainFlows(nodes, edges))).toEqual(CANONICAL);
 
-    // Every flow's step order is identical to the unshuffled baseline.
-    for (let d = 0; d < baseline.length; d++) {
-      const bDomain = baseline[d];
-      const sDomain = shuffled.find((g) => g.id === bDomain.id);
-      expect(sDomain).toBeDefined();
-      if (!sDomain) continue;
-      for (const bFlow of bDomain.flows) {
-        const sFlow = sDomain.flows.find((f) => f.id === bFlow.id);
-        expect(sFlow).toBeDefined();
-        if (!sFlow) continue;
-        expect(sFlow.steps.map((s) => s.id)).toEqual(bFlow.steps.map((s) => s.id));
-        // Weights strictly ascending → real ordering, not coincidence.
-        const weights = sFlow.steps.map((s) => s.weight);
-        const sortedWeights = [...weights].sort((a, b) => a - b);
-        expect(weights).toEqual(sortedWeights);
-      }
-    }
+    // Two independent shuffles of BOTH nodes and edges must produce byte-equal
+    // full output — proving order is content-derived, not input-derived.
+    const a = structure(buildDomainFlows(shuffle(7, nodes), shuffle(13, edges)));
+    const b = structure(buildDomainFlows(shuffle(31, nodes), shuffle(5, edges)));
+    expect(a).toEqual(CANONICAL);
+    expect(b).toEqual(CANONICAL);
+    expect(a).toEqual(b);
   });
 
   it("is lenient: missing fields and a flow with no steps do not throw", () => {
@@ -143,6 +168,44 @@ describe("buildDomainFlows — G11 gate 2 (no domains → empty)", () => {
       { source: "src/server.ts", target: "createApp", type: "declares" },
     ];
     expect(buildDomainFlows(nodes, edges)).toEqual([]);
+  });
+});
+
+describe("buildDomainFlows — FIX-G11 federated (source_guild,id) keying", () => {
+  it("keeps same-id domains from different guilds as separate groups (anti-vacuity vs raw-id keying)", () => {
+    // Two guilds each carry an identically-named `domain:x` / `flow:y` / `step:z`.
+    // Raw-id keying would collapse them into ONE group; composite keying keeps two.
+    const nodes: Rec[] = [
+      { id: "domain:x", type: "domain", name: "Alpha Domain", source_guild: "alpha" },
+      { id: "flow:y", type: "flow", name: "Alpha Flow", source_guild: "alpha" },
+      { id: "step:z", type: "step", name: "Alpha Step", source_guild: "alpha" },
+      { id: "domain:x", type: "domain", name: "Beta Domain", source_guild: "beta" },
+      { id: "flow:y", type: "flow", name: "Beta Flow", source_guild: "beta" },
+      { id: "step:z", type: "step", name: "Beta Step", source_guild: "beta" },
+    ];
+    const edges: Rec[] = [
+      { source: "domain:x", target: "flow:y", type: "contains_flow", source_guild: "alpha" },
+      { source: "flow:y", target: "step:z", type: "flow_step", weight: 0.1, source_guild: "alpha" },
+      { source: "domain:x", target: "flow:y", type: "contains_flow", source_guild: "beta" },
+      { source: "flow:y", target: "step:z", type: "flow_step", weight: 0.1, source_guild: "beta" },
+    ];
+
+    const groups = buildDomainFlows(nodes, edges);
+
+    // TWO distinct domain groups (would be ONE under raw-id keying).
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.guild).sort()).toEqual(["alpha", "beta"]);
+
+    // Each group resolved its OWN guild's flow + step (no cross-guild bleed).
+    const alpha = groups.find((g) => g.guild === "alpha")!;
+    const beta = groups.find((g) => g.guild === "beta")!;
+    expect(alpha.label).toBe("Alpha Domain");
+    expect(alpha.flows).toHaveLength(1);
+    expect(alpha.flows[0].label).toBe("Alpha Flow");
+    expect(alpha.flows[0].steps.map((s) => s.label)).toEqual(["Alpha Step"]);
+    expect(beta.label).toBe("Beta Domain");
+    expect(beta.flows[0].label).toBe("Beta Flow");
+    expect(beta.flows[0].steps.map((s) => s.label)).toEqual(["Beta Step"]);
   });
 });
 
