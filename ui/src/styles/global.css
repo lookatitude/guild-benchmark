@@ -875,6 +875,38 @@ section + section {
   touch-action: none;
 }
 
+/* G12 — architecture layers + importance heatmap. */
+.importance-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: 12px;
+  color: var(--color-text-muted, inherit);
+}
+
+.importance-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.architecture-layers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.architecture-layer-nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
 .range-control input {
   width: 130px;
 }

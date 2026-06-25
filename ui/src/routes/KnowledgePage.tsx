@@ -14,6 +14,16 @@ import {
   SMALL_GRAPH_MAX,
   type ViewTransform,
 } from "./forceLayout";
+import {
+  buildImportanceScale,
+  buildImportanceLegend,
+  importanceRadius,
+  importanceBucket,
+  importanceColor,
+  isDegenerate,
+  MAX_RADIUS,
+  type ImportanceScale,
+} from "./architecture";
 
 // SC-12 / G-18 — Knowledge view: type-grouped node/edge explorer over
 // GET /api/project/knowledge-graph. List-based rendering on purpose — no
@@ -389,6 +399,269 @@ function DomainFlowsView({
 export { buildDomainFlows };
 export type { DomainGroup, DomainFlowGroup, DomainFlowStep };
 
+// ---- Architecture & importance helpers (G12) ------------------------------
+
+/** Fields, in priority order, that a structural/architecture pass may use to
+ *  group a node into a layer / component / cluster. First present wins. */
+const LAYER_FIELDS = ["layer", "component", "cluster"] as const;
+
+/** The layer/cluster a node belongs to, or null if it carries none. */
+function nodeLayer(n: KgRecord): { field: string; value: string } | null {
+  for (const f of LAYER_FIELDS) {
+    const v = str(n, f);
+    if (v) return { field: f, value: v };
+  }
+  return null;
+}
+
+/**
+ * Degree-centrality per node, keyed by the composite (source_guild, id). Edge
+ * endpoints resolve via the same `resolveEndpointKey` the canvas uses, so
+ * federated same-id nodes never share a degree count, and an endpoint that
+ * resolves to a real node is credited even when the OTHER endpoint is a phantom.
+ */
+function computeNodeDegrees(nodes: KgRecord[], edges: KgRecord[]): Map<string, number> {
+  const nodesByKey = new Map<string, KgRecord>();
+  for (const n of nodes) {
+    if (nodeId(n)) nodesByKey.set(nodeKey(n), n);
+  }
+  const rawIdIndex = buildRawIdIndex(nodes);
+  const degree = new Map<string, number>();
+  for (const e of edges) {
+    const s = resolveEndpointKey(e, "source", nodesByKey, rawIdIndex);
+    const t = resolveEndpointKey(e, "target", nodesByKey, rawIdIndex);
+    if (nodesByKey.has(s)) degree.set(s, (degree.get(s) ?? 0) + 1);
+    if (nodesByKey.has(t)) degree.set(t, (degree.get(t) ?? 0) + 1);
+  }
+  return degree;
+}
+
+/**
+ * A node's importance value. Degree-centrality is the always-available,
+ * deterministic base signal; a numeric `importance_score` (author/structural
+ * pass provided) OVERRIDES it when present so an explicitly-scored node is not
+ * capped by its raw degree. Monotonic in both inputs. Lenient: any field absent.
+ */
+function nodeImportanceValue(n: KgRecord, degree: number): number {
+  const raw = n["importance_score"];
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const p = parseFloat(raw);
+    if (!Number.isNaN(p)) return p;
+  }
+  return degree;
+}
+
+interface ArchNodeView {
+  /** Composite (source_guild, id) selection key. */
+  key: string;
+  id: string;
+  label: string;
+  type: string;
+  guild: string;
+  degree: number;
+  value: number;
+  bucket: number;
+  radius: number;
+}
+
+interface ArchLayer {
+  /** Composite (guild, layer-value) group key — distinct per guild. */
+  id: string;
+  /** The layer/cluster value (the rendered group heading). */
+  label: string;
+  /** Which field supplied the grouping (`layer` / `component` / `cluster`). */
+  field: string;
+  guild: string;
+  nodes: ArchNodeView[];
+}
+
+interface ArchitectureModel {
+  layers: ArchLayer[];
+  scale: ImportanceScale;
+}
+
+/**
+ * Group nodes carrying a `layer`/`component`/`cluster` field into architecture
+ * layers and attach the importance encoding (radius + colour bucket) to each.
+ *
+ * Determinism: the importance SCALE is built over ALL nodes' values (so the
+ * encoding is comparable across layers), layers sort by a stable
+ * (guild, label) key, and members sort by importance desc then id — the whole
+ * output is a pure function of graph content, independent of input order.
+ * Federation: degree + layer joins key on the composite (source_guild, id); a
+ * layer value shared across guilds yields one group PER guild (no collapse).
+ * Lenient: any field may be absent; returns `{ layers: [], scale }` (empty
+ * architecture) when no node carries a layer/cluster field.
+ */
+function buildArchitecture(nodes: KgRecord[], edges: KgRecord[]): ArchitectureModel {
+  const degrees = computeNodeDegrees(nodes, edges);
+
+  // Scale over EVERY node's importance value (not just grouped ones) so leaves
+  // and hubs share one comparable scale.
+  const values: number[] = [];
+  for (const n of nodes) {
+    if (!nodeId(n)) continue;
+    values.push(nodeImportanceValue(n, degrees.get(nodeKey(n)) ?? 0));
+  }
+  const scale = buildImportanceScale(values);
+
+  const groups = new Map<string, ArchLayer>();
+  for (const n of nodes) {
+    const id = nodeId(n);
+    if (!id) continue;
+    const layer = nodeLayer(n);
+    if (!layer) continue;
+    const guild = str(n, "source_guild");
+    const gkey = compositeKey(guild, layer.value);
+    const key = nodeKey(n);
+    const degree = degrees.get(key) ?? 0;
+    const value = nodeImportanceValue(n, degree);
+    const view: ArchNodeView = {
+      key,
+      id,
+      label: nodeLabel(n),
+      type: nodeType(n),
+      guild,
+      degree,
+      value,
+      bucket: importanceBucket(value, scale),
+      radius: importanceRadius(value, scale),
+    };
+    const existing = groups.get(gkey);
+    if (existing) existing.nodes.push(view);
+    else groups.set(gkey, { id: gkey, label: layer.value, field: layer.field, guild, nodes: [view] });
+  }
+
+  const layers = [...groups.values()].sort((a, b) =>
+    a.guild !== b.guild
+      ? a.guild < b.guild
+        ? -1
+        : 1
+      : a.label < b.label
+        ? -1
+        : a.label > b.label
+          ? 1
+          : 0,
+  );
+  for (const layer of layers) {
+    layer.nodes.sort((a, b) => b.value - a.value || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+  return { layers, scale };
+}
+
+/** Importance legend — colour swatch + value range per bucket. */
+function ImportanceLegend({ scale }: { scale: ImportanceScale }) {
+  const entries = buildImportanceLegend(scale);
+  const fmt = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+  return (
+    <div
+      className="importance-legend"
+      data-testid="knowledge-importance-legend"
+      data-degenerate={isDegenerate(scale) ? "true" : "false"}
+      aria-label="Importance scale legend"
+    >
+      <span className="muted">Importance (degree / score):</span>
+      {entries.map((e) => (
+        <span key={e.bucket} className="importance-legend-item" data-bucket={e.bucket}>
+          <span
+            className="importance-legend-swatch"
+            style={{
+              background: e.color,
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+            }}
+          />{" "}
+          {fmt(e.lo)}{e.hi !== e.lo ? `–${fmt(e.hi)}` : ""}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Architecture layers + importance heatmap (per-node size/colour encoding). */
+function ArchitectureView({
+  model,
+  selectedId,
+  onSelect,
+  workspaceMode,
+}: {
+  model: ArchitectureModel;
+  selectedId: string;
+  onSelect: (key: string) => void;
+  workspaceMode: boolean;
+}) {
+  const diameter = MAX_RADIUS * 2;
+  return (
+    <div className="architecture-layers" data-testid="knowledge-architecture-layers">
+      {model.layers.map((layer) => (
+        <div
+          key={layer.id}
+          className="architecture-layer"
+          data-layer-id={layer.id}
+          data-layer={layer.label}
+          data-field={layer.field}
+          data-guild={layer.guild || "project"}
+        >
+          <h4>
+            {layer.label}{" "}
+            <span className="muted">
+              {layer.field} · {layer.nodes.length}
+            </span>
+            {workspaceMode && layer.guild ? (
+              <span className="badge-source" style={{ marginLeft: 8 }}>
+                {layer.guild}
+              </span>
+            ) : null}
+          </h4>
+          <ul className="architecture-layer-nodes">
+            {layer.nodes.map((n) => (
+              <li
+                key={n.key}
+                data-node-id={n.id}
+                data-node-key={n.key}
+                data-importance-bucket={n.bucket}
+                data-degree={n.degree}
+                data-radius={n.radius.toFixed(2)}
+              >
+                <button
+                  onClick={() => onSelect(n.key)}
+                  aria-pressed={selectedId === n.key}
+                  title={`degree ${n.degree} · importance ${n.value}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "none",
+                    border: 0,
+                    padding: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  <svg width={diameter} height={diameter} aria-hidden="true">
+                    <circle
+                      cx={MAX_RADIUS}
+                      cy={MAX_RADIUS}
+                      r={n.radius}
+                      fill={importanceColor(n.bucket, model.scale.buckets)}
+                    />
+                  </svg>
+                  <code>{n.label}</code> <span className="muted">{n.type}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export { buildArchitecture };
+export type { ArchitectureModel, ArchLayer, ArchNodeView };
+
 function SubtopicTreeView({ tree }: { tree: SubtopicTreeNode[] }) {
   if (tree.length === 0) return null;
 
@@ -545,6 +818,12 @@ export default function KnowledgePage() {
   // contains_flow/flow_step edges; independent of the v2 knowledge tier).
   const domainFlows = useMemo(
     () => (data ? buildDomainFlows(data.nodes, data.edges) : []),
+    [data],
+  );
+
+  // G12 — architecture layers + importance heatmap (degree-centrality / score).
+  const architecture = useMemo(
+    () => (data ? buildArchitecture(data.nodes, data.edges) : { layers: [], scale: buildImportanceScale([]) }),
     [data],
   );
 
@@ -929,6 +1208,33 @@ export default function KnowledgePage() {
                   domains={domainFlows}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
+                />
+              )}
+            </div>
+          )}
+
+          {/* G12 — Architecture & importance. Always rendered when the graph
+              has nodes; the legend reflects the importance scale (one bucket
+              when degenerate) and the layered view shows an empty-state when no
+              node carries a layer/component/cluster field. */}
+          {data.nodes.length > 0 && (
+            <div className="card" data-testid="knowledge-architecture">
+              <h3>
+                Architecture &amp; importance{" "}
+                <span className="muted">(layer · degree-centrality)</span>
+              </h3>
+              <ImportanceLegend scale={architecture.scale} />
+              {architecture.layers.length === 0 ? (
+                <div className="empty" data-testid="knowledge-architecture-empty">
+                  No architecture layers in this graph (no node carries a
+                  layer/component/cluster field).
+                </div>
+              ) : (
+                <ArchitectureView
+                  model={architecture}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  workspaceMode={workspaceMode}
                 />
               )}
             </div>
