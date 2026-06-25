@@ -466,7 +466,8 @@ interface ArchNodeView {
 }
 
 interface ArchLayer {
-  /** Composite (guild, layer-value) group key — distinct per guild. */
+  /** Composite (guild, field, layer-value) group key — distinct per guild AND
+   *  per source field, so same-value groups from different fields never merge. */
   id: string;
   /** The layer/cluster value (the rendered group heading). */
   label: string;
@@ -513,7 +514,11 @@ function buildArchitecture(nodes: KgRecord[], edges: KgRecord[]): ArchitectureMo
     const layer = nodeLayer(n);
     if (!layer) continue;
     const guild = str(n, "source_guild");
-    const gkey = compositeKey(guild, layer.value);
+    // Key the group by (guild, FIELD, value) — not just (guild, value) — so a
+    // `component:"core"` node and a `cluster:"core"` node in the SAME guild form
+    // two distinct groups instead of collapsing (and being mislabelled by the
+    // field that happened to appear first). NUL-free reversible JSON key.
+    const gkey = JSON.stringify([guild, layer.field, layer.value]);
     const key = nodeKey(n);
     const degree = degrees.get(key) ?? 0;
     const value = nodeImportanceValue(n, degree);
@@ -533,16 +538,12 @@ function buildArchitecture(nodes: KgRecord[], edges: KgRecord[]): ArchitectureMo
     else groups.set(gkey, { id: gkey, label: layer.value, field: layer.field, guild, nodes: [view] });
   }
 
-  const layers = [...groups.values()].sort((a, b) =>
-    a.guild !== b.guild
-      ? a.guild < b.guild
-        ? -1
-        : 1
-      : a.label < b.label
-        ? -1
-        : a.label > b.label
-          ? 1
-          : 0,
+  // Sort by the FULL group key (guild, label, field) — label alone is not a
+  // stable key: two fields can yield the same label in one guild, so `field`
+  // breaks the tie and the order stays input-independent.
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  const layers = [...groups.values()].sort(
+    (a, b) => cmp(a.guild, b.guild) || cmp(a.label, b.label) || cmp(a.field, b.field),
   );
   for (const layer of layers) {
     layer.nodes.sort((a, b) => b.value - a.value || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

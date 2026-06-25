@@ -106,17 +106,31 @@ describe("G12 gate 1 — encoding on the REAL buildArchitecture path", () => {
     expect(big.bucket).toBeGreaterThan(small.bucket);
   });
 
-  it("anti-vacuity: swapping the hubs' degrees flips the radius+bucket ordering", () => {
-    // Now `hubA` is the SMALL one and `hubB` is the BIG one.
-    const graph = merge(
-      hubWithDegree("hubA", 2, "core"),
-      hubWithDegree("hubB", 20, "core"),
-    );
-    const model = buildArchitecture(graph.nodes, graph.edges);
-    const a = archNode(model, "hubA");
-    const b = archNode(model, "hubB");
-    expect(a.radius).toBeLessThan(b.radius);
-    expect(a.bucket).toBeLessThan(b.bucket);
+  it("anti-vacuity: swapping the SAME hubs' DEGREES flips the ordering (identity-based impl fails)", () => {
+    // Keep the two identities FIXED (`hubX`, `hubY`); only their DEGREE (edge
+    // count) swaps between the two scenarios. An impl that encoded size/colour
+    // from the node id/name instead of its degree would map hubX vs hubY the
+    // same way in both models and so could not satisfy BOTH orderings — only a
+    // genuinely degree-driven encoding flips when the degrees flip.
+    const scenario = (hiId: string, loId: string) =>
+      merge(hubWithDegree(hiId, 20, "core"), hubWithDegree(loId, 2, "core"));
+
+    // Scenario 1: hubX = degree 20, hubY = degree 2.
+    const s1 = scenario("hubX", "hubY");
+    const m1 = buildArchitecture(s1.nodes, s1.edges);
+    expect(archNode(m1, "hubX").degree).toBe(20);
+    expect(archNode(m1, "hubY").degree).toBe(2);
+    expect(archNode(m1, "hubX").radius).toBeGreaterThan(archNode(m1, "hubY").radius);
+    expect(archNode(m1, "hubX").bucket).toBeGreaterThan(archNode(m1, "hubY").bucket);
+
+    // Scenario 2: SAME ids, DEGREES swapped — hubX = 2, hubY = 20.
+    const s2 = scenario("hubY", "hubX");
+    const m2 = buildArchitecture(s2.nodes, s2.edges);
+    expect(archNode(m2, "hubX").degree).toBe(2);
+    expect(archNode(m2, "hubY").degree).toBe(20);
+    // The ordering for the SAME ids flips — proves size/colour follows degree.
+    expect(archNode(m2, "hubX").radius).toBeLessThan(archNode(m2, "hubY").radius);
+    expect(archNode(m2, "hubX").bucket).toBeLessThan(archNode(m2, "hubY").bucket);
   });
 
   it("a numeric importance_score overrides degree (monotonic in the score)", () => {
@@ -164,6 +178,41 @@ describe("G12 gate 2 — layer/cluster grouping", () => {
     const auth = model.layers.find((l) => l.label === "auth")!;
     expect(billing.field).toBe("component");
     expect(auth.field).toBe("cluster");
+  });
+
+  it("same VALUE from different FIELDS in one guild → two distinct groups (no collapse)", () => {
+    // `component:"core"` and `cluster:"core"` share the value "core" but come
+    // from different fields. Keying by (guild, value) alone would collapse them
+    // into ONE group mislabelled by whichever field appeared first; keying by
+    // (guild, FIELD, value) keeps them separate, each labelled by its own field.
+    const nodes: Rec[] = [
+      { id: "cmp", type: "file", name: "cmp", component: "core" },
+      { id: "clu", type: "file", name: "clu", cluster: "core" },
+    ];
+    const model = buildArchitecture(nodes, []);
+    expect(model.layers).toHaveLength(2);
+    // Both labelled "core" but each carries its OWN field (no first-wins mixing).
+    expect(model.layers.map((l) => l.label)).toEqual(["core", "core"]);
+    expect(model.layers.map((l) => l.field).sort()).toEqual(["cluster", "component"]);
+    const byField = (f: string) => model.layers.find((l) => l.field === f)!;
+    expect(byField("component").nodes.map((n) => n.id)).toEqual(["cmp"]);
+    expect(byField("cluster").nodes.map((n) => n.id)).toEqual(["clu"]);
+    // The group keys are distinct (the two groups never share a data-layer-id).
+    expect(byField("component").id).not.toBe(byField("cluster").id);
+  });
+
+  it("reversed input yields identical grouping (field-keyed determinism)", () => {
+    // Reverse the ACTUAL consumed structure (graph.nodes) — a partial-key impl
+    // would mis-merge or re-order; the full (guild, field, value) key does not.
+    const nodes: Rec[] = [
+      { id: "cmp", type: "file", name: "cmp", component: "core" },
+      { id: "clu", type: "file", name: "clu", cluster: "core" },
+    ];
+    const shape = (m: ReturnType<typeof buildArchitecture>) =>
+      m.layers.map((l) => ({ field: l.field, label: l.label, ids: l.nodes.map((n) => n.id) }));
+    expect(shape(buildArchitecture(nodes, []))).toEqual(
+      shape(buildArchitecture([...nodes].reverse(), [])),
+    );
   });
 
   it("output is order-independent (shuffle-invariant layers + members)", () => {
