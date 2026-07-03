@@ -9,15 +9,19 @@ This `AGENTS.md` is the canonical host-neutral instruction file; `CLAUDE.md` onl
 
 ## Workspace context
 This repo is a sub-project of the Guild umbrella workspace (`..`). The umbrella holds the
-cross-project layer (`.guild/wiki/`, `.guild/workspace-knowledge/`, `.guild/initiatives/`). Read
-umbrella + sibling knowledge through workspace federation; never replicate it here.
+cross-project `.guild/` layer; this repo holds benchmark-specific `.guild/` state in the same
+standard layout. Read umbrella + sibling knowledge through workspace federation; never replicate it here.
 
 ## v2 knowledge / memory / config
 - **Canonical durable knowledge:** this repo's `.guild/wiki/**` (filesystem-only, KnowledgeGraph-
   derived). Benchmark-exclusive knowledge lives here; cross-cutting knowledge lives in the umbrella
   `.guild/wiki/`. `docs/knowledge/` is **retired** (was a v2-design store; harvested 2026-06-27).
+- **Shareable project extensions:** benchmark-only agents, skills, workflows, loops, memory,
+  initiatives, teams, and artifacts live under this repo's `.guild/{agents,skills,workflows,loops,
+  memory,initiatives,teams,artifacts}/`.
 - **Config:** `.guild/settings.json` (inherits builtin < workspace < project per the 7-source chain).
-- **Runtime `.guild/` state** (runs, raw, indexes) is gitignored; the wiki subset is tracked.
+- **Runtime `.guild/` state:** operator-local host state remains ignored under `.guild/hosts/`; the
+  standard shareable `.guild/` subsets are tracked when intentionally added.
 
 ## Discipline
 - Branch + PR; no direct commits to `main` (v2 work lands on `release/v2.0.0`).
