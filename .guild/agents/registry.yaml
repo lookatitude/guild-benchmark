@@ -1,2 +1,11 @@
 # schema_version: guild.agents_registry.v1
-agents: []
+agents:
+  - id: diagram-motion-designer
+    file: .guild/agents/diagram-motion-designer.md
+    model: gpt-5.5
+    model_params: { reasoning: high }
+    host_preference: codex-cli
+    default_tier: powerful
+    owns: [static_diagrams, animated_diagrams, evaluation_flows, proof_paths]
+    external_skills: [impeccable]
+    consistency_source: /Users/miguelp/Projects/guild/website/.guild/agents/diagram-motion-designer.md

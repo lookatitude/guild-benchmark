@@ -1,2 +1,11 @@
 # schema_version: guild.teams_registry.v1
-teams: []
+teams:
+  - id: benchmark-visual-explanation-team
+    scope: benchmark
+    default_workflow: benchmark-diagram-motion-production
+    model_policy:
+      design: { host: codex-cli, model: gpt-5.5, reasoning: high }
+    members:
+      - diagram-motion-designer
+    routing:
+      diagram_or_animation: diagram-motion-designer

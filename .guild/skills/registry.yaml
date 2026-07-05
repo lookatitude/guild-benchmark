@@ -1,2 +1,8 @@
 # schema_version: guild.skills_registry.v1
-skills: []
+skills:
+  - id: guild-diagram-motion-designer
+    path: .guild/skills/guild-diagram-motion-designer/SKILL.md
+    type: production
+    used_by: [diagram-motion-designer]
+    external_skills: [impeccable]
+    consistency_source: /Users/miguelp/Projects/guild/website/.guild/skills/guild-diagram-motion-designer/SKILL.md
