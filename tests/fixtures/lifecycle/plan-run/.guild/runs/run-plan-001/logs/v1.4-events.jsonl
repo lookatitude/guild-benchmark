@@ -1,0 +1,3 @@
+{"at":"2026-05-29T11:00:00Z","event_name":"run_started","run_id":"run-plan-001"}
+{"ts":"2026-05-29T11:00:01Z","event":"phase_start","run_id":"run-plan-001","phase":"plan"}
+{"ts":"2026-05-29T11:03:00Z","event":"phase_end","run_id":"run-plan-001","phase":"plan","duration_ms":179000,"status":"ok"}

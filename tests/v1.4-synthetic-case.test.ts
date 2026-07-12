@@ -14,7 +14,7 @@ import { deriveModelFamily, scoreRun } from "../src/scorer.js";
 import type { Case, RunRecord } from "../src/types.js";
 
 const CASE_PATH = resolve(__dirname, "../cases/v1.4-synthetic-model-family.yaml");
-const COMMANDS_GUILD = resolve(__dirname, "../../commands/guild.md");
+const COMMANDS_GUILD = resolve(__dirname, "../../plugin/commands/guild.md");
 
 describe("F-7 synthetic case YAML", () => {
   it("file exists at the documented path", () => {

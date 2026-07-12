@@ -1,0 +1,25 @@
+{
+  "schema_version": "guild.provenance.v1",
+  "run_id": "run-status-001",
+  "command": "/guild:status",
+  "initiative": null,
+  "retention_class": "one-off-90d",
+  "started_at": "2026-05-29T09:00:00Z",
+  "closed_at": "2026-05-29T09:00:01Z",
+  "status": "closed",
+  "run_class": "lightweight",
+  "terminal_trace_event": {
+    "event_id": "evt-close-status-001",
+    "event_name": "run_closed",
+    "at": "2026-05-29T09:00:01Z",
+    "log_ref": ".guild/runs/run-status-001/logs/v1.4-events.jsonl"
+  },
+  "final_learning_checkpoint": null,
+  "gates": {},
+  "touched": {
+    "tasks": [],
+    "agents": [],
+    "skills": [],
+    "decisions": []
+  }
+}

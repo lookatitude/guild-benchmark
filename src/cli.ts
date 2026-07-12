@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadCase } from "./case-loader.js";
 import { importFixture, loadRunRecord } from "./artifact-importer.js";
+import { importLifecycleRun } from "./lifecycle-importer.js";
 import { compareSets } from "./compare.js";
 import { persistScore, scoreRun } from "./scorer.js";
 import { serverDefaultsFromEnv, startServer } from "./server.js";
@@ -453,6 +454,45 @@ async function commandLoop(args: ParsedArgs): Promise<never> {
   }
 }
 
+// SC-F — full-lifecycle import. argv:
+//   --run-dir <.guild/runs/<id>> [--run-id <id>] [--runs-dir <path>]
+// Reads on-disk run.yaml + provenance.json + trace + learn artifacts (NN#9);
+// imports ALL run types. Prints the imported run-id, run_type, eligibility,
+// timeline length, and a compact metric summary.
+async function commandLifecycleImport(args: ParsedArgs): Promise<void> {
+  const runDir = args.flags.get("run-dir");
+  if (!runDir || runDir === "true") {
+    throw new Error("lifecycle-import: --run-dir <.guild/runs/<id>> is required");
+  }
+  const runsDir = resolve(args.flags.get("runs-dir") ?? DEFAULT_RUNS_DIR);
+  const runIdFlag = args.flags.get("run-id");
+  const result = await importLifecycleRun({
+    sourceRunDir: resolve(runDir),
+    runsDir,
+    ...(runIdFlag && runIdFlag !== "true" ? { runId: runIdFlag } : {}),
+  });
+  const r = result.record;
+  const m = r.metrics;
+  process.stdout.write(
+    [
+      `lifecycle-import: run_id=${r.run_id} run_type=${r.run_type} run_class=${r.run_class}`,
+      `  benchmark_eligible=${r.benchmark_eligible} partial=${r.partial} status=${r.status}`,
+      `  timeline_entries=${r.timeline.length} phases_log=${r.phases_log.length}`,
+      `  replay_completeness=${m.replay_completeness ?? "n/a"}` +
+        (m.gate_count !== undefined ? ` gate_count=${m.gate_count}` : "") +
+        (m.knowledge_candidates_produced !== undefined
+          ? ` knowledge_candidates=${m.knowledge_candidates_produced}`
+          : "") +
+        (m.graph_edge_count !== undefined ? ` graph_edges=${m.graph_edge_count}` : ""),
+      `  imported_to=${result.runDir}`,
+      r.missing_artifacts.length > 0
+        ? `  missing_artifacts=${r.missing_artifacts.join(",")}`
+        : "  missing_artifacts=(none)",
+      "",
+    ].join("\n"),
+  );
+}
+
 async function commandServe(args: ParsedArgs): Promise<void> {
   const runsDir = resolve(args.flags.get("runs-dir") ?? DEFAULT_RUNS_DIR);
   const casesDir = resolve(args.flags.get("cases-dir") ?? resolve(process.cwd(), "cases"));
@@ -464,12 +504,28 @@ async function commandServe(args: ParsedArgs): Promise<void> {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error(`serve: --port must be a valid TCP port (1-65535); got ${portFlag}`);
   }
+  // SC-12 (v2-gap-closure G-17) — optional live-project mode. Absent flag ⇒
+  // behavior-identical to today (project routes 404). The flag value is
+  // resolved to an absolute path; the directory must exist so a typo'd root
+  // fails loudly here rather than as a confusing 404 downstream.
+  const projectRootFlag = args.flags.get("project-root");
+  let projectRoot: string | undefined;
+  if (projectRootFlag !== undefined) {
+    if (projectRootFlag === "true" || projectRootFlag.trim().length === 0) {
+      throw new Error("serve: --project-root requires a path argument");
+    }
+    projectRoot = resolve(projectRootFlag);
+    if (!existsSync(projectRoot)) {
+      throw new Error(`serve: --project-root directory not found: ${projectRoot}`);
+    }
+  }
   const handle = await startServer({
     runsDir,
     casesDir,
     port,
     hostname: defaults.hostname,
     ...(uiDistDir ? { uiDistDir } : {}),
+    ...(projectRoot ? { projectRoot } : {}),
   });
   process.stdout.write(
     [
@@ -479,6 +535,9 @@ async function commandServe(args: ParsedArgs): Promise<void> {
       uiDistDir
         ? `  ui-dist: ${uiDistDir} (production-mode static fallback enabled)`
         : "  ui-dist: <not built> — non-/api paths return 404 (run `cd benchmark/ui && npm run build`)",
+      projectRoot
+        ? `  project-root: ${projectRoot} (live /api/project/* knowledge routes enabled, read-only)`
+        : "  project-root: <not set> — /api/project/* routes return 404 (pass --project-root <abs>)",
       "",
     ].join("\n"),
   );
@@ -501,10 +560,15 @@ function printUsage(): void {
       "  benchmark score    --run-id <id> [--fixture <path>] [--case <path>] [--runs-dir <path>]",
       "  benchmark compare  --baseline <set> --candidate <set> [--runs-dir <path>] [--output <path>]",
       "  benchmark serve    [--port <n>] [--runs-dir <path>] [--cases-dir <path>] [--ui-dist <path>]",
-      "                          (binds 127.0.0.1; BENCHMARK_PORT env or --port; default 3055)",
+      "                     [--project-root <abs-path>]",
+      "                          (binds 127.0.0.1; BENCHMARK_PORT env or --port; default 3055;",
+      "                           --project-root enables read-only /api/project/{knowledge-graph,wiki,wiki/page})",
       "  benchmark run      --case <slug> [--run-id <id>] [--dry-run] [--cleanup]",
       "                          [--runs-dir <path>] [--cases-dir <path>]",
       "                          (--dry-run prints the resolved plan; never spawns claude)",
+      "  benchmark lifecycle-import --run-dir <.guild/runs/<id>> [--run-id <id>] [--runs-dir <path>]",
+      "                          (SC-F: imports ANY run type — learn/ideate/plan/qa/ops/build —",
+      "                           from on-disk run.yaml + provenance.json + trace; NN#9 no plugin import)",
       "  benchmark loop     --start    --case <slug> [--baseline-run-id <id>] [--dry-run]",
       "                     --continue --baseline-run-id <id> --apply <proposal-id> [--dry-run]",
       "                     --status   --baseline-run-id <id> [--diff <proposal-id>]",
@@ -623,6 +687,9 @@ async function main(argv: string[]): Promise<void> {
       return;
     case "run":
       await commandRun(args);
+      return;
+    case "lifecycle-import":
+      await commandLifecycleImport(args);
       return;
     case "loop":
       await commandLoop(args);

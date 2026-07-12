@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 
-const HOOK_SCRIPT = resolve(__dirname, "../../hooks/pre-tool-use.ts");
+const HOOK_SCRIPT = resolve(__dirname, "../../plugin/hooks/pre-tool-use.ts");
 const RUN_ID = "test-run-pre-tool-use";
 
 function runHook(

@@ -474,6 +474,185 @@ export interface DeferredResponse {
   docs: string;
 }
 
+// ---- SC-12 (v2-gap-closure G-17/G-18) — live-project knowledge routes ----
+//
+// Served by /api/project/* when `serve --project-root <abs>` is set; produced
+// by src/project-reader.ts, consumed by the UI's Knowledge + Wiki views.
+// Contract pinned in `.guild/spec/v2-gap-closure.md §The cross-repo dashboard
+// contract`.
+
+export interface ProjectSource {
+  guild: string;
+  path: string;
+  kind?: "knowledge-graph" | "codebase-map" | "wiki" | "runs" | "initiatives";
+}
+
+/**
+ * Lenient pass-through KG shape: nodes/edges keep every unknown field from
+ * the source `.guild/indexes/knowledge-graph.json`; the reader only
+ * guarantees `source_guild` is stamped on each entry. Well-known fields the
+ * UI reads (`id`, `type`, `name`, `source`, `target`) are optional because
+ * the reader never validates them away.
+ */
+export interface ProjectKnowledgeGraphResponse {
+  nodes: Record<string, unknown>[];
+  edges: Record<string, unknown>[];
+  sources: ProjectSource[];
+  empty_reason?: string;
+}
+
+export interface ProjectOverviewSource {
+  guild: string;
+  root: string;
+  has_runs: boolean;
+  has_wiki: boolean;
+  has_graph: boolean;
+  has_initiatives?: boolean;
+  graph_kind?: "knowledge-graph" | "codebase-map";
+  run_count: number;
+  wiki_count: number;
+  initiative_count?: number;
+}
+
+export interface ProjectOverviewResponse {
+  project_root: string;
+  mode: "project" | "workspace";
+  sources: ProjectOverviewSource[];
+  totals: {
+    runs: number;
+    initiatives?: number;
+    wiki_pages: number;
+    graph_nodes: number;
+    graph_edges: number;
+  };
+}
+
+export interface ProjectRunListRow {
+  run_id: string;
+  source_guild: string;
+  command?: string;
+  status?: string;
+  run_class?: string;
+  target_kind?: string;
+  started_at?: string;
+  closed_at?: string;
+  initiative_id?: string;
+  benchmark_eligible?: boolean;
+  comparison_eligible?: boolean;
+  comparison_reasons?: string[];
+  event_count?: number;
+  has_trace: boolean;
+  has_provenance: boolean;
+  has_run_yaml: boolean;
+  path: string;
+}
+
+export interface ProjectRunsListResponse {
+  runs: ProjectRunListRow[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export interface ProjectRunDetailResponse {
+  run: ProjectRunListRow;
+  run_yaml?: unknown;
+  provenance?: unknown;
+  event_count: number;
+  trace_preview: Record<string, unknown>[];
+}
+
+export interface ProjectInitiativeSummary {
+  id: string;
+  source_guild: string;
+  title?: string;
+  scope?: string;
+  status?: string;
+  execution_status?: string;
+  run_ids: string[];
+  eligible_run_ids: string[];
+  comparison_eligible: boolean;
+  comparison_reasons: string[];
+  path: string;
+}
+
+export interface ProjectInitiativesResponse {
+  initiatives: ProjectInitiativeSummary[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export type ProjectComparisonTargetKind = "run" | "initiative";
+
+export interface ProjectComparisonTarget {
+  id: string;
+  kind: ProjectComparisonTargetKind;
+  source_guild: string;
+  label: string;
+  run_ids: string[];
+  run_count: number;
+  comparison_eligible: boolean;
+  reasons: string[];
+}
+
+export interface ProjectComparisonTargetsResponse {
+  targets: ProjectComparisonTarget[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export interface ProjectTargetSummary {
+  target: ProjectComparisonTarget;
+  status_counts: Record<string, number>;
+  total_events: number;
+}
+
+export interface ProjectComparisonResponse {
+  baseline: ProjectTargetSummary;
+  candidate: ProjectTargetSummary;
+  status: "ok" | "kind_mismatch" | "no_comparable_runs";
+  generated_at: string;
+  notes: string[];
+}
+
+export interface ProjectAnalysisRequest {
+  target_kind: ProjectComparisonTargetKind;
+  target_id: string;
+  source_guild?: string;
+}
+
+export interface ProjectAnalysisAction {
+  label: string;
+  command: string;
+  intent: "learn" | "reflect" | "evolve" | "wiki";
+}
+
+export interface ProjectAnalysisResponse {
+  target: ProjectComparisonTarget;
+  signals: string[];
+  actions: ProjectAnalysisAction[];
+}
+
+export interface WikiPageSummary {
+  /** Path relative to the owning guild's `.guild/wiki/`. */
+  path: string;
+  /** First H1 of the page, else the filename without extension. */
+  title: string;
+  /** Sub-guild name in workspace mode; "project" for a plain root. */
+  source_guild: string;
+  /** Frontmatter labels when trivially parseable. */
+  labels?: string[];
+}
+
+export interface ProjectWikiListResponse {
+  pages: WikiPageSummary[];
+}
+
+export interface ProjectWikiPageResponse {
+  path: string;
+  source_guild: string;
+  content: string;
+}
+
 // ---- P3 runner contracts (T2 backend; consumed by frontend + qa) -------
 //
 // `RunOptions` is the input to runner.ts's `runBenchmark` entrypoint —
@@ -525,4 +704,135 @@ export interface AuditLogImportResponse {
   location: string;
   imported_from: string;
   source_run_id: string;
+}
+
+// ---- SC-F full-lifecycle import contracts ------------------------------
+//
+// Locked by `.guild/initiatives/active/learn-knowledge-convergence/artifacts/
+// benchmark-import-contract.md` (SC-F). The lifecycle importer consumes ON-DISK
+// `run.yaml` (guild.run.v1) + `provenance.json` (guild.provenance.v1) +
+// `logs/v1.4-events.jsonl` + optional `learn/harvest-candidates.json` +
+// optional `learn/skipped-files.json` + the derived
+// `.guild/indexes/knowledge-links.json`. NO plugin module is imported at
+// runtime (non-negotiable #9) — the on-disk artifact is the only contract.
+//
+// Unlike the build-only benchmark runs (run.json), lifecycle runs cover ALL
+// run types (learn/ideate/plan/qa/ops/build/status/...). `run.yaml.command`
+// classifies the run type; `run_class` + `benchmark_eligible` gate scoring.
+
+// Run type derived from `run.yaml.command`. The §435 entrypoint set plus
+// `unknown` for unrecognised commands.
+export type RunTypeKind =
+  | "learn"
+  | "ideate"
+  | "plan"
+  | "build"
+  | "qa"
+  | "ops"
+  | "status"
+  | "wiki"
+  | "initiative"
+  | "fix"
+  | "evolve"
+  | "rollback"
+  | "audit"
+  | "stats"
+  | "unknown";
+
+// One entry on the entry-to-close timeline. Merged from `run.yaml.phases_log`
+// (the replay backbone) and the v1.4 trace markers + lifecycle markers
+// (run_started / run_closed) in `logs/v1.4-events.jsonl`.
+export type TimelineKind =
+  | "phase"
+  | "gate"
+  | "specialist_dispatch"
+  | "specialist_receipt"
+  | "run_started"
+  | "run_closed"
+  | "tool_call"
+  | "escalation";
+
+export interface TimelineEntry {
+  at: string; // RFC3339 UTC; empty string when source omitted a timestamp
+  kind: TimelineKind;
+  label: string;
+  duration_ms?: number;
+  detail?: Record<string, unknown>;
+}
+
+// §488-505 metric set. Every field is optional: a metric whose source
+// artifact is absent (e.g. no harvest-candidates.json on a non-learn run,
+// or no knowledge-links.json index) is `undefined`, never an error.
+export interface LifecycleMetrics {
+  time_to_project_understanding_ms?: number;
+  file_coverage_count?: number;
+  skipped_file_count?: number;
+  skipped_file_categories?: Record<string, number>;
+  knowledge_candidates_produced?: number;
+  decision_candidates_produced?: number;
+  graph_node_count?: number;
+  graph_edge_count?: number;
+  phase_durations_ms?: Record<string, number>;
+  gate_count?: number;
+  human_questions_asked?: number;
+  context_budget_pressure?: number;
+  review_rounds?: number;
+  verification_outcomes?: Record<string, "pass" | "fail" | "skip">;
+  learning_checkpoint_verdicts?: string[];
+  reflection_promotion_rate?: number;
+  replay_completeness?: "full" | "partial" | "none";
+  benchmark_fixture_eligible?: boolean;
+}
+
+// Compact summary of the E1 knowledge-links read surface for a run.
+export interface KnowledgeLinksSummary {
+  skills: string[];
+  agents: string[];
+  lessons: string[]; // reflection/evolution node ids
+  constraining_decisions: string[];
+  run_edge_count: number;
+}
+
+// Free-shape phase-transition entry from `run.yaml.phases_log`. Lenient:
+// only `phase` is depended on; other fields pass through.
+export interface LifecyclePhaseLogEntry {
+  phase: string;
+  proposed?: string;
+  detected_from?: string;
+  deliverable?: unknown;
+  gate?: string;
+  at?: string;
+  [key: string]: unknown;
+}
+
+export interface LifecycleRunRecord {
+  run_id: string;
+  command: string;
+  run_class: "full" | "lightweight";
+  run_type: RunTypeKind;
+  benchmark_eligible: boolean;
+  target_kind?: string;
+  started_at: string;
+  closed_at: string | null;
+  status: string; // run.yaml.status or provenance.status; "open" when no close
+  phases_log: LifecyclePhaseLogEntry[];
+  timeline: TimelineEntry[];
+  metrics: LifecycleMetrics;
+  knowledge_links?: KnowledgeLinksSummary;
+  partial: boolean; // true when provenance.json (close record) absent
+  missing_artifacts: string[];
+}
+
+export interface LifecycleImportRequest {
+  run_dir: string;
+  run_id?: string;
+}
+
+export interface LifecycleImportResponse {
+  run_id: string;
+  location: string;
+  imported_from: string;
+  source_run_id: string;
+  run_type: RunTypeKind;
+  benchmark_eligible: boolean;
 }

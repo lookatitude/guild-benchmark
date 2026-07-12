@@ -13,10 +13,84 @@ reports/internal/
 coverage/
 ui/coverage/
 
-# Guild runtime state (project-local) — keep fixture .guild dirs
-.guild/
+# .guild/ — share-dot-guild policy (see docs/knowledge/decisions/guild-boundary-config-and-tracking.md Decision E)
+.guild
+!/.guild/
+!.guild/guild.yaml
+!.guild/agents/
+!.guild/agents/**
+!.guild/skills/
+!.guild/skills/**
+!.guild/workflows/
+!.guild/workflows/**
+!.guild/loops/
+!.guild/loops/**
+!.guild/wiki/
+!.guild/wiki/**
+!.guild/knowledge/
+!.guild/knowledge/**
+!.guild/memory/
+!.guild/memory/**
+!.guild/initiatives/
+!.guild/initiatives/**
+!.guild/spec/
+!.guild/spec/**
+!.guild/plan/
+!.guild/plan/**
+!.guild/prd/
+!.guild/prd/**
+!.guild/team/
+!.guild/team/**
+!.guild/teams/
+!.guild/teams/**
+!.guild/artifacts/
+!.guild/artifacts/**
+!.guild/reflections/
+!.guild/reflections/**
+!.guild/evolve/
+!.guild/evolve/**
+!.guild/indexes/
+!.guild/indexes/**
+!.guild/workspace/
+!.guild/workspace/**
+!.guild/workspace-knowledge/
+!.guild/workspace-knowledge/**
+!.guild/workspace.json
+!.guild/settings.json
+!.guild/runs/
+!.guild/runs/*/
+# Re-deny everything inside runs/<id>/ — FU-C: tighten to named-files-only.
+# Previously un-ignoring runs/<id>/ as a dir let any file through (run-state.json,
+# ad-hoc receipts). Now only the named handoffs/+files/dirs below are shared.
+.guild/runs/*/**
+!.guild/runs/*/handoffs/
+!.guild/runs/*/handoffs/**
+!.guild/runs/*/verify.md
+!.guild/runs/*/review.md
+!.guild/runs/*/provenance.json
+!.guild/runs/*/run.yaml
+!.guild/runs/*/summary.md
+!.guild/runs/*/share-payloads.flag
+
+# Re-deny operator-private / local-only sub-paths (D-SHR-4 + Decision G)
+.guild/settings.local.json
+.guild/hosts/
+# Re-deny the structural-cache sidecar: a LOCAL-ONLY, rebuildable, derived artifact (our deterministic extractor output) — never committed/exported/shared. This later rule wins over the !.guild/indexes/** re-include above, so even where .guild/indexes/** is tracked a tampered cache can never be committed (FIX-T4.1-r6; threat model in scripts/understand/lib/bundle-validate.ts).
+**/*.structural-cache.json
+
+# .claude/ — Claude Code config (FU-D: dev-team agents + settings.json default
+# to tracked when explicitly added; settings.local.json holds the operator's
+# permission allowlist and stays local). Content commit (`git add .claude/...`)
+# is a separate operator action — agents/ has drifted across workspace + plugin
+# and wants reconciliation first.
+.claude/settings.local.json
+
+# Benchmark fixture .guild dirs — static test data, not live runtime state
 !fixtures/**/.guild/
 !fixtures/**/.guild/**
+# Fixtures also live under tests/fixtures/; the unanchored `runs/` rule (above)
+# was eating their .guild/runs/ trees. Un-ignore all tests/fixtures test data.
+!tests/fixtures/**
 
 # OS
 .DS_Store

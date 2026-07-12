@@ -14,7 +14,7 @@ import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 
-const SCRIPT = resolve(__dirname, "../../scripts/statusline-guild.sh");
+const SCRIPT = resolve(__dirname, "../src/fixtures/statusline-guild.sh");
 const RUN_ID = "test-run-statusline";
 
 function runScript(env: Record<string, string> = {}): {

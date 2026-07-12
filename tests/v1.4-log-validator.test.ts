@@ -17,7 +17,7 @@ import {
   TOOL_CALL_TOOL_VALUES,
   validateEvent,
   validateText,
-} from "../../scripts/v1.4-log-validator.js";
+} from "../src/log-validator.js";
 
 const TS = "2026-04-27T07:35:00.123Z";
 const RUN_ID = "run-2026-04-27-validator-test";

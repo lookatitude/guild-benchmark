@@ -1,0 +1,35 @@
+schema_version: guild.run.v1
+run_id: run-learn-001
+command: /guild:learn
+arguments:
+  rigor: deep
+  host: auto
+  initiative: null
+cwd: /tmp/fixture/project
+target_kind: regular_project
+workspace:
+  is_workspace: false
+  root: /tmp/fixture/project
+project: fixture-project
+host:
+  requested: auto
+  resolved: claude
+model_tier_policy: rigor=deep profile
+started_at: 2026-05-29T08:00:00Z
+ignore_policy: .gitignore + allow-list
+scan_policy: cheap-map
+initiative_attachment: null
+phase: learn
+run_class: full
+gates:
+  G-spec:
+    posture: auto-approved
+    codex_review: SKIPPED
+status: closed
+phases_log:
+  - phase: detect
+    proposed: learn
+    at: 2026-05-29T08:00:00Z
+  - phase: learn
+    deliverable: .guild/indexes/codebase-map.json
+    at: 2026-05-29T08:05:00Z

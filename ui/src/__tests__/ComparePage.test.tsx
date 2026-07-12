@@ -15,6 +15,66 @@ function mount(initialEntries: string[] = ["/compare"]) {
   );
 }
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+const PROJECT_TARGETS = {
+  targets: [
+    {
+      id: "initiative:workspace:guild-dashboard",
+      kind: "initiative",
+      source_guild: "workspace",
+      label: "workspace · Guild dashboard",
+      run_ids: ["run-root"],
+      run_count: 1,
+      comparison_eligible: true,
+      reasons: [],
+    },
+    {
+      id: "initiative:workspace:website-v2",
+      kind: "initiative",
+      source_guild: "workspace",
+      label: "workspace · Website v2",
+      run_ids: ["run-web"],
+      run_count: 1,
+      comparison_eligible: true,
+      reasons: [],
+    },
+    {
+      id: "run:plugin:run-plugin",
+      kind: "run",
+      source_guild: "plugin",
+      label: "plugin · run-plugin",
+      run_ids: ["run-plugin"],
+      run_count: 1,
+      comparison_eligible: true,
+      reasons: [],
+    },
+  ],
+  total: 3,
+  sources: [],
+};
+
+const PROJECT_COMPARISON = {
+  baseline: {
+    target: PROJECT_TARGETS.targets[0],
+    status_counts: { closed: 1 },
+    total_events: 24,
+  },
+  candidate: {
+    target: PROJECT_TARGETS.targets[1],
+    status_counts: { closed: 1 },
+    total_events: 31,
+  },
+  status: "ok",
+  generated_at: "2026-06-11T00:00:00Z",
+  notes: ["Trace volume changed by 7 events."],
+};
+
 describe("ComparePage — surface", () => {
   let handle: ReturnType<typeof installMockFetch> | undefined;
 
@@ -26,7 +86,7 @@ describe("ComparePage — surface", () => {
     handle = installMockFetch();
     mount();
     expect(
-      screen.getByText(/Enter a baseline and candidate set id/),
+      screen.getByText(/Select a baseline and candidate/),
     ).toBeInTheDocument();
   });
 
@@ -54,9 +114,61 @@ describe("ComparePage — surface", () => {
   it("writes baseline + candidate into the URL search params on input", async () => {
     handle = installMockFetch();
     mount();
-    const baselineInput = screen.getByLabelText(/Baseline set id/i);
+    const baselineInput = await screen.findByLabelText(/Baseline set id/i);
     await userEvent.type(baselineInput, "set-a");
     expect((baselineInput as HTMLInputElement).value).toBe("set-a");
+  });
+
+  it("renders live eligible targets as dropdowns and analyzes selected initiatives", async () => {
+    handle = installMockFetch({
+      override: (url, init) => {
+        if (url.match(/\/api\/project\/comparison-targets$/)) {
+          return jsonResponse(PROJECT_TARGETS);
+        }
+        if (url.match(/\/api\/project\/comparisons/)) {
+          return jsonResponse(PROJECT_COMPARISON);
+        }
+        if ((init?.method ?? "GET").toUpperCase() === "POST" && url.match(/\/api\/project\/analyze$/)) {
+          return jsonResponse({
+            target: PROJECT_TARGETS.targets[0],
+            signals: ["24 trace events available for analysis across 1 run."],
+            actions: [
+              {
+                label: "Reflect on mistakes and performance",
+                command: "/guild:reflect --initiative guild-dashboard",
+                intent: "reflect",
+              },
+              {
+                label: "Evolve a skill after reflection names a target",
+                command: "/guild:evolve <skill-name>",
+                intent: "evolve",
+              },
+            ],
+          });
+        }
+        return undefined;
+      },
+    });
+    mount();
+    await screen.findByRole("combobox", { name: "Baseline" });
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Baseline" }),
+      "initiative:workspace:guild-dashboard",
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Candidate" }),
+      "initiative:workspace:website-v2",
+    );
+
+    expect(await screen.findByRole("heading", { name: "Summary" })).toBeInTheDocument();
+    expect(screen.getByText("+7")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Analyze baseline" }));
+    expect(await screen.findByTestId("analysis-panel")).toHaveTextContent(
+      "/guild:reflect --initiative guild-dashboard",
+    );
+    expect(screen.getByTestId("analysis-panel")).toHaveTextContent(
+      "/guild:evolve <skill-name>",
+    );
   });
 });
 

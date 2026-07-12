@@ -1,14 +1,29 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import {
   importAuditRun,
   loadRunRecord,
   loadRunEvents,
   parseRunJson,
 } from "./artifact-importer.js";
+import { importLifecycleRun } from "./lifecycle-importer.js";
+import {
+  ProjectReadError,
+  analyzeProjectTarget,
+  compareProjectTargets,
+  getProjectOverview,
+  listProjectComparisonTargets,
+  listProjectInitiatives,
+  listProjectRuns,
+  listProjectWikiPages,
+  readProjectKnowledgeGraph,
+  readProjectRun,
+  readProjectWikiPage,
+} from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -16,21 +31,26 @@ import { collectLoopRounds, persistScore, scoreRun } from "./scorer.js";
 import type {
   AuditLogImportRequest,
   AuditLogImportResponse,
+  LifecycleImportRequest,
+  LifecycleImportResponse,
+  LifecycleRunRecord,
   Case,
   CaseSummary,
   CasesListResponse,
   Comparison,
   MetricsJson,
+  ProjectAnalysisRequest,
   RunDetailResponse,
   RunJson,
   RunOptions,
   RunPostRequest,
   RunPostResponse,
+  RunRecord,
   RunsListResponse,
   RunsListRow,
   Score,
 } from "./types.js";
-import { EXPECTED_GATES } from "./types.js";
+import { EXPECTED_GATES, SCHEMA_VERSION } from "./types.js";
 
 export interface ServerOpts {
   runsDir: string;
@@ -38,6 +58,15 @@ export interface ServerOpts {
   uiDistDir?: string;
   port: number;
   hostname?: string;
+  /**
+   * SC-12 (v2-gap-closure G-17) — live-project mode. When set, the three
+   * read-only /api/project/* routes serve the project's `.guild/wiki/**`
+   * and `.guild/indexes/knowledge-graph.json` (workspace-federated when
+   * `<root>/.guild/workspace.json` exists). When absent, the routes return
+   * 404 and the server is behavior-identical to pre-flag builds
+   * (regression-tested; codex finding #4).
+   */
+  projectRoot?: string;
 }
 
 export interface ServerHandle {
@@ -69,6 +98,7 @@ export function createApp(opts: ServerOpts): Hono {
   const runsDir = resolve(opts.runsDir);
   const casesDir = resolve(opts.casesDir);
   const uiDistDir = opts.uiDistDir ? resolve(opts.uiDistDir) : undefined;
+  const projectRoot = opts.projectRoot ? resolve(opts.projectRoot) : undefined;
 
   // Logging middleware: every request emits `method path status duration_ms`
   // to stdout. ADR §Decision §2 — re-read on every request, no cache; the
@@ -120,6 +150,27 @@ export function createApp(opts: ServerOpts): Hono {
     const events = loadedEvents.events;
     const body: RunDetailResponse = { run, metrics, score, events };
     return c.json(body);
+  });
+
+  // ---- API: GET /api/runs/:run_id/lifecycle-record (SC-9) ----------------
+  // Returns the LifecycleRunRecord (incl. the entry-to-close timeline) written
+  // by POST /api/imports/lifecycle. Returns 404 when absent (standard
+  // benchmark runs, or audit-log imports, have no lifecycle-record.json).
+  app.get("/api/runs/:run_id/lifecycle-record", async (c) => {
+    const runId = c.req.param("run_id");
+    const runDir = resolveRunDir(runsDir, runId);
+    if (!runDir) {
+      return c.json({ error: "invalid run_id" }, 400);
+    }
+    if (!existsSync(runDir)) {
+      return c.json({ error: `run not found: ${runId}` }, 404);
+    }
+    const recordPath = join(runDir, "lifecycle-record.json");
+    if (!existsSync(recordPath)) {
+      return c.json({ error: `no lifecycle record for run: ${runId}` }, 404);
+    }
+    const record = JSON.parse(await readFile(recordPath, "utf8")) as LifecycleRunRecord;
+    return c.json(record);
   });
 
   // ---- API: GET /api/runs/:run_id/artifacts/* (raw passthrough) ----------
@@ -305,6 +356,202 @@ export function createApp(opts: ServerOpts): Hono {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return c.json({ error: `audit import failed: ${message}` }, 400);
+    }
+  });
+
+  // SC-F — full-lifecycle import. Imports a Guild run of ANY type
+  // (learn/ideate/plan/qa/ops/build/...) from its on-disk run.yaml +
+  // provenance.json + trace + learn artifacts. NN#9: on-disk read only, no
+  // plugin import. Additive to /api/imports/audit-log (which only consumes
+  // logs); this consumes the full guild.run.v1 manifest.
+  app.post("/api/imports/lifecycle", async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+    const parseResult = parseLifecycleImportRequest(body);
+    if (!parseResult.ok) {
+      return c.json({ error: parseResult.error }, 400);
+    }
+    try {
+      const imported = await importLifecycleRun({
+        sourceRunDir: parseResult.value.run_dir,
+        runsDir,
+        ...(parseResult.value.run_id ? { runId: parseResult.value.run_id } : {}),
+      });
+      // FIX 2: materialize run.json/metrics.json/score.json so that the
+      // existing GET /api/runs/:id handler + list endpoint resolve the run.
+      // The handler requires all three; without them the Location 404s.
+      await persistLifecycleArtifacts(imported.runDir, imported.record);
+      const responseBody: LifecycleImportResponse = {
+        run_id: imported.record.run_id,
+        location: `/api/runs/${imported.record.run_id}`,
+        imported_from: resolve(parseResult.value.run_dir),
+        source_run_id: imported.sourceRunId,
+        run_type: imported.record.run_type,
+        benchmark_eligible: imported.record.benchmark_eligible,
+      };
+      c.header("Location", `/api/runs/${imported.record.run_id}`);
+      return c.json(responseBody, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `lifecycle import failed: ${message}` }, 400);
+    }
+  });
+
+  // ---- API: /api/project/* — live-project knowledge routes (SC-12) -------
+  // Active ONLY when serve was started with --project-root. Read-only into
+  // the project's .guild/ (never writes, never copies); workspace-federated
+  // + source_guild-tagged via project-reader.ts. Without the flag every
+  // project route returns 404 {error} so the no-flag server stays
+  // behavior-identical (codex finding #4).
+
+  const noProjectRoot = (c: Context) =>
+    c.json(
+      { error: "no project root configured (start serve with --project-root <abs>)" },
+      404,
+    );
+
+  const projectErrorResponse = (c: Context, err: unknown) => {
+    if (err instanceof ProjectReadError) {
+      const status = err.kind === "not_found" ? 404 : 400;
+      return c.json({ error: err.message }, status);
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ error: `project read failed: ${message}` }, 500);
+  };
+
+  // GET /api/project/overview → workspace/project source summary.
+  app.get("/api/project/overview", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await getProjectOverview(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs → live `.guild/runs` list across the project/workspace.
+  app.get("/api/project/runs", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectRuns(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs/:run_id[?guild=<name>] → live run detail + trace preview.
+  app.get("/api/project/runs/:run_id", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await readProjectRun(
+        projectRoot,
+        c.req.param("run_id"),
+        c.req.query("guild"),
+      );
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/initiatives → workspace + project initiative summaries.
+  app.get("/api/project/initiatives", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectInitiatives(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/comparison-targets → only eligible live runs/initiatives.
+  app.get("/api/project/comparison-targets", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectComparisonTargets(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/comparisons?baseline=<target>&candidate=<target>
+  app.get("/api/project/comparisons", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const baseline = c.req.query("baseline");
+    const candidate = c.req.query("candidate");
+    if (!baseline || !candidate) {
+      return c.json({ error: "baseline and candidate query parameters are required" }, 400);
+    }
+    try {
+      const body = await compareProjectTargets(projectRoot, baseline, candidate);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // POST /api/project/analyze → command suggestions for Guild plugin learning/evolution.
+  app.post("/api/project/analyze", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+    const parsed = parseProjectAnalysisRequest(body);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    try {
+      const response = await analyzeProjectTarget(projectRoot, parsed.value);
+      return c.json(response);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/knowledge-graph → { nodes, edges, sources, empty_reason? }
+  app.get("/api/project/knowledge-graph", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await readProjectKnowledgeGraph(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/wiki → { pages: [{ path, title, source_guild, labels? }] }
+  app.get("/api/project/wiki", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      const body = await listProjectWikiPages(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/wiki/page?path=<rel>[&guild=<name>] → { path, source_guild, content }
+  app.get("/api/project/wiki/page", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const path = c.req.query("path");
+    const guild = c.req.query("guild");
+    if (!path) {
+      return c.json({ error: "path query parameter is required" }, 400);
+    }
+    try {
+      const body = await readProjectWikiPage(projectRoot, path, guild);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
     }
   });
 
@@ -494,10 +741,69 @@ function parseRunPostRequest(
   };
 }
 
+function parseProjectAnalysisRequest(
+  body: unknown,
+):
+  | { ok: true; value: ProjectAnalysisRequest }
+  | { ok: false; error: string } {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "request body must be an object" };
+  }
+  const obj = body as Record<string, unknown>;
+  const targetKind = obj.target_kind;
+  const targetId = obj.target_id;
+  if (targetKind !== "run" && targetKind !== "initiative") {
+    return { ok: false, error: "target_kind must be run or initiative" };
+  }
+  if (typeof targetId !== "string" || targetId.trim().length === 0) {
+    return { ok: false, error: "target_id is required" };
+  }
+  const sourceGuild = obj.source_guild;
+  if (sourceGuild !== undefined && typeof sourceGuild !== "string") {
+    return { ok: false, error: "source_guild must be a string when provided" };
+  }
+  return {
+    ok: true,
+    value: {
+      target_kind: targetKind,
+      target_id: targetId,
+      ...(sourceGuild ? { source_guild: sourceGuild } : {}),
+    },
+  };
+}
+
 function parseAuditLogImportRequest(
   raw: unknown,
 ):
   | { ok: true; value: AuditLogImportRequest }
+  | { ok: false; error: string } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "body must be a JSON object" };
+  }
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.run_dir !== "string" || obj.run_dir.trim().length === 0) {
+    return { ok: false, error: "run_dir is required and must be a string" };
+  }
+  let runId: string | undefined;
+  if (obj.run_id !== undefined) {
+    if (typeof obj.run_id !== "string" || !isSafeSetId(obj.run_id)) {
+      return { ok: false, error: "run_id must match [A-Za-z0-9._-]+" };
+    }
+    runId = obj.run_id;
+  }
+  return {
+    ok: true,
+    value: {
+      run_dir: obj.run_dir,
+      ...(runId ? { run_id: runId } : {}),
+    },
+  };
+}
+
+function parseLifecycleImportRequest(
+  raw: unknown,
+):
+  | { ok: true; value: LifecycleImportRequest }
   | { ok: false; error: string } {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
     return { ok: false, error: "body must be a JSON object" };
@@ -545,6 +851,84 @@ function makeAuditImportCase(record: Awaited<ReturnType<typeof loadRunRecord>>):
     expected_stage_order: EXPECTED_GATES,
     acceptance_commands: [],
   };
+}
+
+/**
+ * FIX 2: Materialize run.json + metrics.json + score.json from a lifecycle
+ * record so the existing GET /api/runs/:id handler resolves the returned
+ * Location and the runs list includes the imported run.
+ *
+ * The lifecycle record does not carry all RunJson fields verbatim, so we
+ * synthesize them: RunJson.status is derived from the lifecycle record status
+ * (closed => "pass"; open/partial => "fail"); model_ref and plugin_ref carry
+ * sentinel values that flag this as a lifecycle import. The scorer produces
+ * a zero-scored RunRecord (no events.ndjson) with run_kind="raw_model" which
+ * is the correct interpretation — lifecycle runs are not scored by the
+ * event-driven scorer.
+ */
+async function persistLifecycleArtifacts(
+  runDir: string,
+  record: LifecycleRunRecord,
+): Promise<void> {
+  // Map lifecycle status to RunJson.status (the closed enum).
+  const runStatus: RunJson["status"] =
+    record.status === "closed" && !record.partial ? "pass" : "fail";
+
+  const runJson: RunJson = {
+    schema_version: SCHEMA_VERSION,
+    run_id: record.run_id,
+    case_slug: `lifecycle-${record.run_type}`,
+    plugin_ref: "lifecycle-import",
+    model_ref: { default: "guild-lifecycle" },
+    started_at: record.started_at || new Date().toISOString(),
+    completed_at: record.closed_at ?? new Date().toISOString(),
+    status: runStatus,
+  };
+  await writeFile(join(runDir, "run.json"), JSON.stringify(runJson, null, 2) + "\n");
+
+  // Build a minimal RunRecord for the scorer. No events = raw_model scoring
+  // (all lifecycle-dependent components score 0, which is correct since this
+  // is a lifecycle run not a benchmark run).
+  //
+  // Scoring honesty: always inject "events.ndjson" into missing_artifacts so
+  // scoreRun classifies this as run_kind="raw_model" (not "guild_lifecycle").
+  // Without this, the persisted score.json would claim a complete lifecycle
+  // run, suppressing the kind-mix warnings that comparison/list consumers
+  // rely on when a lifecycle import is mixed with a real scored run.
+  // See round-2 codex-review finding: server.ts ~671-672.
+  const lifecycleMissingArtifacts = record.missing_artifacts.includes("events.ndjson")
+    ? record.missing_artifacts
+    : [...record.missing_artifacts, "events.ndjson"];
+
+  const minimalRunRecord: RunRecord = {
+    run: runJson,
+    events: [],
+    v14_events: [],
+    runDir,
+    artifactsRoot: join(runDir, "artifacts", ".guild"),
+    receipts: [],
+    hasReview: false,
+    hasAssumptions: false,
+    hasReflection: false,
+    partial: true,
+    missing_artifacts: lifecycleMissingArtifacts,
+  };
+
+  const lifecycleCase: Case = {
+    schema_version: SCHEMA_VERSION,
+    id: `lifecycle-${record.run_type}`,
+    title: `Lifecycle import — ${record.run_type}`,
+    timeout_seconds: 0,
+    repetitions: 1,
+    fixture: "",
+    prompt: "",
+    expected_specialists: [],
+    expected_stage_order: EXPECTED_GATES,
+    acceptance_commands: [],
+  };
+
+  const { score, metrics } = scoreRun(minimalRunRecord, lifecycleCase);
+  await persistScore(runDir, score, metrics);
 }
 
 function resolveRunDir(runsDir: string, runId: string): string | null {

@@ -25,14 +25,13 @@ import {
   readFinalStatus,
   verifyCodexReviewTrail,
   verifyOneFile,
-} from "../../scripts/verify-codex-review-trail.js";
+} from "../src/codex-review-trail.js";
 
 const VALIDATOR_SCRIPT = resolve(
   __dirname,
   "..",
-  "..",
-  "scripts",
-  "verify-codex-review-trail.ts",
+  "src",
+  "codex-review-trail.ts",
 );
 
 let tmpRoot: string;

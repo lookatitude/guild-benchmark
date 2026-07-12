@@ -1,0 +1,25 @@
+schema_version: guild.run.v1
+run_id: run-status-001
+command: /guild:status
+arguments: {}
+cwd: /tmp/fixture/project
+target_kind: existing_guild_project
+workspace:
+  is_workspace: false
+  root: /tmp/fixture/project
+project: fixture-project
+host:
+  requested: auto
+  resolved: claude
+model_tier_policy: n/a
+started_at: 2026-05-29T09:00:00Z
+ignore_policy: n/a
+scan_policy: n/a
+initiative_attachment: null
+phase: status
+run_class: lightweight
+gates: {}
+status: closed
+phases_log:
+  - phase: status
+    at: 2026-05-29T09:00:00Z

@@ -19,14 +19,18 @@ describe("App — routing shell", () => {
     handle?.reset();
   });
 
-  it("renders the primary nav with all four links", () => {
+  it("renders the primary nav with all links", () => {
     handle = installMockFetch();
     mount(["/"]);
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Runs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Compare" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trigger" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Demo" })).toBeInTheDocument();
+    // SC-12 — live-project knowledge views.
+    expect(screen.getByRole("link", { name: "Knowledge" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Wiki" })).toBeInTheDocument();
   });
 
   it("renders the unknown-route fallback for an unmatched path", () => {
@@ -34,5 +38,9 @@ describe("App — routing shell", () => {
     mount(["/no-such-route"]);
     expect(screen.getByText(/Unknown route/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to runs/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Back to runs/ })).toHaveAttribute(
+      "href",
+      "/runs",
+    );
   });
 });

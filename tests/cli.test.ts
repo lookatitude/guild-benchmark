@@ -79,6 +79,18 @@ describe("cli / deferred subcommands", () => {
     expect(r.stderr).toMatch(/--port must be a valid TCP port/);
   });
 
+  it("`serve --project-root` without a path argument exits 1 (SC-12)", () => {
+    const r = runCli(["serve", "--project-root"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/--project-root requires a path argument/);
+  });
+
+  it("`serve --project-root <missing-dir>` exits 1 before binding (SC-12)", () => {
+    const r = runCli(["serve", "--project-root", "/nonexistent/guild-project"]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/--project-root directory not found/);
+  });
+
   it("`export-website` exits 1 with unknown-subcommand error (v1.3 F8 — removed)", () => {
     // v1.3 — F8: spec says no public site in v1; the static site at
     // docs/website/ is hand-curated. The previous deferred-stub exits

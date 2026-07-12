@@ -1,0 +1,19 @@
+{
+  "schema_version": "guild.harvest_candidates.v1",
+  "run_id": "run-learn-001",
+  "wiki_candidates": [
+    { "title": "Module overview", "source_ref": "src/index.ts", "promotion_gate": "wiki-ingest" }
+  ],
+  "decision_candidates": [
+    { "decision": "use cheap-map first", "source_ref": "run-learn-001", "promotion_gate": "decisions" }
+  ],
+  "reflection_candidates": [
+    { "lesson": "detection was fast", "source_ref": "run-learn-001", "promotion_gate": "promote" },
+    { "lesson": "skipped lockfiles", "source_ref": "run-learn-001", "promotion_gate": "defer" }
+  ],
+  "evolution_candidates": [],
+  "open_questions": [
+    { "question": "deep-graph on large repo?", "source_ref": "run-learn-001" }
+  ],
+  "learning_checkpoint_verdicts": ["signal-detected", "routed-to-harvest"]
+}

@@ -1,0 +1,24 @@
+schema_version: guild.run.v1
+run_id: run-guild-ideate-001
+command: /guild:guild
+arguments:
+  rigor: standard
+cwd: /tmp/fixture/project
+target_kind: existing_guild_project
+project: fixture-project
+host:
+  requested: auto
+  resolved: claude
+model_tier_policy: rigor=standard
+started_at: 2026-05-29T09:00:00Z
+phase: ideate
+run_class: full
+status: closed
+phases_log:
+  - phase: detect
+    proposed: ideate
+    detected_from: "no spec/<slug>.md for new initiative fixture-initiative"
+    at: 2026-05-29T09:00:00Z
+  - phase: ideate
+    deliverable: .guild/initiatives/active/fixture-initiative/spec.md
+    at: 2026-05-29T09:05:00Z

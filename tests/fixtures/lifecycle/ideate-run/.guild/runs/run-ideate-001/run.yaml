@@ -1,0 +1,33 @@
+schema_version: guild.run.v1
+run_id: run-ideate-001
+command: /guild:ideate
+arguments:
+  rigor: standard
+cwd: /tmp/fixture/project
+target_kind: existing_guild_project
+workspace:
+  is_workspace: false
+  root: /tmp/fixture/project
+project: fixture-project
+host:
+  requested: auto
+  resolved: gemini
+model_tier_policy: rigor=standard
+started_at: 2026-05-29T10:00:00Z
+ignore_policy: n/a
+scan_policy: n/a
+initiative_attachment: my-initiative
+phase: ideate
+run_class: full
+gates:
+  G-spec:
+    posture: auto-approved
+    codex_review: SKIPPED
+status: closed
+phases_log:
+  - phase: detect
+    proposed: ideate
+    at: 2026-05-29T10:00:00Z
+  - phase: ideate
+    deliverable: spec.md
+    at: 2026-05-29T10:02:00Z

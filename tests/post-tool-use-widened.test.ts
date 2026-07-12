@@ -29,8 +29,8 @@ import {
   type SidecarPreEntry,
 } from "../src/log-jsonl.js";
 
-const HOOK_SCRIPT = resolve(__dirname, "../../hooks/post-tool-use.ts");
-const HOOKS_JSON = resolve(__dirname, "../../hooks/hooks.json");
+const HOOK_SCRIPT = resolve(__dirname, "../../plugin/hooks/post-tool-use.ts");
+const HOOKS_JSON = resolve(__dirname, "../../plugin/hooks/hooks.json");
 const RUN_ID = "test-run-post-tool-use";
 
 function runHook(

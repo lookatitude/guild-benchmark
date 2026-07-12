@@ -1,0 +1,26 @@
+# schema_version: guild.workflows_registry.v1
+workflows:
+  - id: benchmark-diagram-motion-production
+    phase: build
+    status: project-local
+    purpose: >
+      Produce benchmark diagrams and animations with the same design standards
+      used by the website diagram specialist.
+    first_agent: diagram-motion-designer
+    model_policy:
+      design: { host: codex-cli, model: gpt-5.5, reasoning: high }
+    steps:
+      - id: source_read
+        owner: diagram-motion-designer
+      - id: visual_design
+        owner: diagram-motion-designer
+        requires: [impeccable]
+      - id: website_reuse_handoff
+        owner: diagram-motion-designer
+        optional: true
+    gates:
+      - source refs present
+      - diagram type selected
+      - alt text present
+      - reduced-motion behavior present for animation
+      - website reuse notes present when target surface includes website
