@@ -23,7 +23,8 @@ external_skills:
 specialist_type: diagram-production
 applies_to: [benchmark, website]
 host_neutral: true
-consistency_source: /Users/miguelp/Projects/guild/website/.guild/agents/diagram-motion-designer.md
+consistency_source: ../website/.guild/agents/diagram-motion-designer.md
+owns: [static_diagrams, animated_diagrams, evaluation_flows, proof_paths]
 ---
 
 # diagram-motion-designer

@@ -1,8 +1,17 @@
 # schema_version: guild.skills_registry.v1
+# generated_by: guild.roster_resolve.v1
+# DERIVED INDEX of .guild/skills/*/SKILL.md — the SKILL.md files are the source of truth (D4).
+# Regenerate with: roster-resolve.ts --cwd <root> --write-registry. Do not hand-edit.
 skills:
   - id: guild-diagram-motion-designer
-    path: .guild/skills/guild-diagram-motion-designer/SKILL.md
+    file: .guild/skills/guild-diagram-motion-designer/SKILL.md
+    name: guild-diagram-motion-designer
+    description: >-
+      Design readable static diagrams and animated SVG/CSS diagrams for benchmark workflows,
+      evaluation architecture, proof paths, result explanations, and website handoffs.
     type: production
-    used_by: [diagram-motion-designer]
-    external_skills: [impeccable]
-    consistency_source: /Users/miguelp/Projects/guild/website/.guild/skills/guild-diagram-motion-designer/SKILL.md
+    used_by:
+      - diagram-motion-designer
+    external_skills:
+      - impeccable
+    consistency_source: ../website/.guild/skills/guild-diagram-motion-designer/SKILL.md

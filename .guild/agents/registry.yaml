@@ -1,11 +1,24 @@
 # schema_version: guild.agents_registry.v1
+# generated_by: guild.roster_resolve.v1
+# DERIVED INDEX of .guild/agents/*.md — the .md files are the source of truth (D4).
+# Regenerate with: roster-resolve.ts --cwd <root> --write-registry. Do not hand-edit.
 agents:
   - id: diagram-motion-designer
     file: .guild/agents/diagram-motion-designer.md
     model: gpt-5.5
-    model_params: { reasoning: high }
+    model_params:
+      reasoning: high
     host_preference: codex-cli
     default_tier: powerful
-    owns: [static_diagrams, animated_diagrams, evaluation_flows, proof_paths]
-    external_skills: [impeccable]
-    consistency_source: /Users/miguelp/Projects/guild/website/.guild/agents/diagram-motion-designer.md
+    specialist_type: diagram-production
+    derived_from_template: guild.agent_template.v1
+    skills:
+      - guild-diagram-motion-designer
+    owns:
+      - static_diagrams
+      - animated_diagrams
+      - evaluation_flows
+      - proof_paths
+    external_skills:
+      - impeccable
+    consistency_source: ../website/.guild/agents/diagram-motion-designer.md
