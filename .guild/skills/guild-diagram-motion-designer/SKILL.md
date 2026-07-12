@@ -5,7 +5,8 @@ when_to_use: "Use when benchmark docs, reports, UI explainers, public website ha
 type: production
 derived_from_template: guild.skill_template.v1
 external_skills: [impeccable]
-consistency_source: /Users/miguelp/Projects/guild/website/.guild/skills/guild-diagram-motion-designer/SKILL.md
+consistency_source: ../website/.guild/skills/guild-diagram-motion-designer/SKILL.md
+used_by: [diagram-motion-designer]
 ---
 
 # Guild Diagram Motion Designer
@@ -22,9 +23,9 @@ Read only what applies:
 
 - Benchmark source refs named in the handoff
 - Existing benchmark docs, reports, or UI files being explained
-- `/Users/miguelp/Projects/guild/website/.guild/skills/guild-diagram-motion-designer/SKILL.md`
+- `../website/.guild/skills/guild-diagram-motion-designer/SKILL.md`
   when the diagram will be reused on the public website
-- `/Users/miguelp/Projects/guild/.guild/wiki/standards/product-voice-steward.md`
+- `../.guild/wiki/standards/product-voice-steward.md`
   when labels or public-facing language are involved
 
 ## Diagram Types
