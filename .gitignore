@@ -16,6 +16,18 @@ ui/coverage/
 # .guild/ — share-dot-guild policy (see docs/knowledge/decisions/guild-boundary-config-and-tracking.md Decision E)
 .guild
 !/.guild/
+# HIGH (share-dot-guild risk-gate remediation, Decision J): default-deny every
+# top-level entry directly inside .guild/ so an unlisted/new subtree (e.g. a
+# future .guild/<new-thing>/) is NEVER silently committable by default —
+# deny-all, then narrowly re-include. Each subtree below must be explicitly
+# re-included: directories need the two-line `!.guild/<dir>/` + `!.guild/<dir>/**`
+# shape (the first line un-ignores the directory itself so git will recurse into
+# it at all; the second re-includes its contents — gitignore will not check
+# per-file rules inside a still-ignored parent directory). A file-only
+# re-include is a single `!.guild/<file>` line. Anything NOT named below stays
+# ignored. Keep this block's policy lines identical across the 4 workspace repos
+# (enforced by plugin/tests/dot-guild/gitignore-equivalence.test.ts).
+.guild/*
 !.guild/guild.yaml
 !.guild/agents/
 !.guild/agents/**
@@ -33,6 +45,8 @@ ui/coverage/
 !.guild/memory/**
 !.guild/initiatives/
 !.guild/initiatives/**
+!.guild/init/
+!.guild/init/**
 !.guild/spec/
 !.guild/spec/**
 !.guild/plan/
@@ -62,6 +76,9 @@ ui/coverage/
 # Re-deny everything inside runs/<id>/ — FU-C: tighten to named-files-only.
 # Previously un-ignoring runs/<id>/ as a dir let any file through (run-state.json,
 # ad-hoc receipts). Now only the named handoffs/+files/dirs below are shared.
+# run-state.json is in the FU-C re-include set: the plugin's canonical share-set
+# (plugin src/modules/security/workflows/share-set.ts) declares it shareable
+# post-scrub.
 .guild/runs/*/**
 !.guild/runs/*/handoffs/
 !.guild/runs/*/handoffs/**
@@ -71,10 +88,18 @@ ui/coverage/
 !.guild/runs/*/run.yaml
 !.guild/runs/*/summary.md
 !.guild/runs/*/share-payloads.flag
+!.guild/runs/*/run-state.json
 
-# Re-deny operator-private / local-only sub-paths (D-SHR-4 + Decision G)
+# Re-deny operator-private / local-only sub-paths (D-SHR-4 + Decision G), plus
+# derived/runtime artifacts named explicitly for the audit trail even though the
+# `.guild/*` default-deny above already covers unlisted entries.
+# `.guild/runs/current-run-id` is a bare FILE directly under runs/ — NOT covered
+# by the `!.guild/runs/*/` (directories-only, one level) re-include, so it needs
+# its own explicit deny.
 .guild/settings.local.json
 .guild/hosts/
+.guild/index.sqlite
+.guild/runs/current-run-id
 # Re-deny the structural-cache sidecar: a LOCAL-ONLY, rebuildable, derived artifact (our deterministic extractor output) — never committed/exported/shared. This later rule wins over the !.guild/indexes/** re-include above, so even where .guild/indexes/** is tracked a tampered cache can never be committed (FIX-T4.1-r6; threat model in scripts/understand/lib/bundle-validate.ts).
 **/*.structural-cache.json
 
