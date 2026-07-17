@@ -1,26 +1,74 @@
 # schema_version: guild.workflows_registry.v1
 workflows:
   - id: benchmark-diagram-motion-production
-    phase: build
+    phase: plan-build-verify
     status: project-local
     purpose: >
-      Produce benchmark diagrams and animations with the same design standards
-      used by the website diagram specialist.
+      Produce and validate benchmark-local Operational Atlas explanations from
+      current source truth without expanding into website marketing work.
     first_agent: diagram-motion-designer
+    canonical_contract: ../.guild/wiki/standards/operational-atlas-visual-contract.md
+    contract_manifest: ../.guild/artifacts/generated/operational-atlas/contract-manifest.yaml
+    local_profile: .guild/wiki/standards/operational-atlas-benchmark-profile.md
     model_policy:
       design: { host: codex-cli, model: gpt-5.5, reasoning: high }
+      validation: { host: codex-cli, model: gpt-5.5, reasoning: high }
     steps:
-      - id: source_read
+      - id: contract_load
         owner: diagram-motion-designer
-      - id: visual_design
+        skill: guild-diagram-motion-designer
+        output: resolved_contract_refs
+      - id: source_and_evidence_read
         owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: evidence_claims
+      - id: relationship_gate
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: diagram_needed_decision
+      - id: grammar_selection
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
         requires: [impeccable]
-      - id: website_reuse_handoff
+        output: grammar_decision
+      - id: static_semantic_design
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: static_state
+      - id: semantic_motion_design
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        conditional: relationship benefits from motion
+        output: motion_cycle
+      - id: theme_logo_accessibility_validation
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: theme_and_accessibility_evidence
+      - id: geometry_and_frame_validation
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: geometry_and_frame_evidence
+      - id: asset_record
+        owner: diagram-motion-designer
+        skill: guild-diagram-motion-designer
+        output: diagram_package
+      - id: cross_surface_handoff
         owner: diagram-motion-designer
         optional: true
+        output: pointer_only_handoff
     gates:
-      - source refs present
-      - diagram type selected
-      - alt text present
-      - reduced-motion behavior present for animation
-      - website reuse notes present when target surface includes website
+      - umbrella contract and generated manifest refs resolve
+      - benchmark source refs and evidence claims are present
+      - diagram is rejected when concise copy or a standard data view is clearer
+      - selected grammar matches the relationship and rejected alternatives are recorded
+      - adjacent explanations avoid unjustified repeated line card and node patterns
+      - dark and light states have identical semantics structure labels and evidence
+      - any logo use preserves the exact canonical mark with provenance
+      - semantic states use manifest colors plus text and non-color encoding
+      - alt text and a semantic fallback are present
+      - animation conveys meaning and reduced motion preserves the complete state
+      - real labels pass viewport collision clipping and path-occlusion checks
+      - animated frames pass start quarter midpoint three-quarter and reset checks
+      - copy remains evidence-led and does not invent product or support claims
+      - asset consumers provenance and retirement condition are recorded
+      - cross-surface handoff is pointer-only and does not assign marketing work

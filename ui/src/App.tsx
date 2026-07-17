@@ -28,7 +28,7 @@ export default function App() {
         <div className="brand-lockup">
           <img
             className="brand-mark brand-mark-image"
-            src="/brand/Pl67v.png"
+            src="/brand/guildstack-logo-128.png"
             alt=""
             aria-hidden="true"
           />

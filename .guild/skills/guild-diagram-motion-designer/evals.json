@@ -1,0 +1,130 @@
+{
+  "skill": "guild-diagram-motion-designer",
+  "cases": [
+    {
+      "id": "positive-baseline-candidate-comparison",
+      "should_trigger": true,
+      "prompt": "Explain why candidate run R-42 improved over baseline R-17 across correctness, evidence, and cost without hiding a regression in latency.",
+      "expects": [
+        "comparison field or matrix grammar",
+        "exact values and deltas",
+        "regression remains visible",
+        "source records",
+        "dark and light parity"
+      ]
+    },
+    {
+      "id": "positive-run-evidence-ledger",
+      "should_trigger": true,
+      "prompt": "Show how a benchmark result can be reconstructed from its run record, trace, receipts, review, and verification while the dashboard remains a read-only view.",
+      "expects": [
+        "ledger or file-tree grammar",
+        "canonical records separated from projections",
+        "real paths and schema labels",
+        "evidence-led copy"
+      ]
+    },
+    {
+      "id": "positive-reflection-loop",
+      "should_trigger": true,
+      "prompt": "Animate a failed evaluation becoming a bounded reflection proposal, replay, and kept-or-discarded decision.",
+      "expects": [
+        "state-loop grammar",
+        "visible return path",
+        "persistent causal motion",
+        "complete reduced-motion state",
+        "frame validation"
+      ]
+    },
+    {
+      "id": "positive-scoring-stack",
+      "should_trigger": true,
+      "prompt": "Explain how component weights and evidence produce one final benchmark score without implying the components happen in time order.",
+      "expects": [
+        "layered stack or scoring anatomy grammar",
+        "weights and component labels",
+        "frozen result",
+        "not a horizontal route"
+      ]
+    },
+    {
+      "id": "positive-resolution-matrix",
+      "should_trigger": true,
+      "prompt": "Show suite, model tier, host capability, and review posture resolving into one named benchmark execution posture.",
+      "expects": [
+        "resolver matrix grammar",
+        "independent inputs",
+        "named degraded state",
+        "availability separate from evidence"
+      ]
+    },
+    {
+      "id": "positive-projection-validation",
+      "should_trigger": true,
+      "prompt": "Prepare a five-node benchmark evaluation explainer for a 1280 by 720 projector using real long labels.",
+      "expects": [
+        "spatial budget",
+        "projector type floor",
+        "pairwise collision checks",
+        "multiple frame samples",
+        "dark light and reduced-motion verification"
+      ]
+    },
+    {
+      "id": "negative-metric-card-grid",
+      "should_trigger": false,
+      "prompt": "Turn every benchmark metric into an identical card so the dashboard looks fuller.",
+      "expects": [
+        "reject decorative card grid",
+        "preserve standard data view or group by one real comparison job"
+      ]
+    },
+    {
+      "id": "negative-route-everywhere",
+      "should_trigger": false,
+      "prompt": "Use the same left-to-right line diagram for scoring hierarchy, run files, comparison, and retry so every page matches.",
+      "expects": [
+        "reject repeated route grammar",
+        "select grammar from each relationship"
+      ]
+    },
+    {
+      "id": "negative-decorative-node-cloud",
+      "should_trigger": false,
+      "prompt": "Add a glowing node cloud behind the score summary even though users cannot inspect its nodes or edges.",
+      "expects": [
+        "reject decorative node cloud",
+        "distinguish it from a functional inspectable knowledge graph"
+      ]
+    },
+    {
+      "id": "negative-color-only-verdict",
+      "should_trigger": false,
+      "prompt": "Use green and red pulses as the only indication that a candidate was kept or discarded.",
+      "expects": [
+        "reject color-only state",
+        "require text plus shape icon stroke or pattern"
+      ]
+    },
+    {
+      "id": "negative-generated-logo",
+      "should_trigger": false,
+      "prompt": "Redraw the Guild Stack logo in a flatter style so it matches a compact benchmark chart.",
+      "expects": [
+        "reject redraw",
+        "require exact canonical logo or omit it",
+        "record provenance"
+      ]
+    },
+    {
+      "id": "negative-dark-first-only",
+      "should_trigger": false,
+      "prompt": "Approve the benchmark explainer after checking only dark mode and the first motion frame because dark is the primary theme.",
+      "expects": [
+        "reject incomplete validation",
+        "require light parity",
+        "require multiple frames and reduced motion"
+      ]
+    }
+  ]
+}

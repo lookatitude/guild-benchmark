@@ -7,11 +7,11 @@ skills:
     file: .guild/skills/guild-diagram-motion-designer/SKILL.md
     name: guild-diagram-motion-designer
     description: >-
-      Design readable static diagrams and animated SVG/CSS diagrams for benchmark workflows,
-      evaluation architecture, proof paths, result explanations, and website handoffs.
+      Select, design, choreograph, and validate source-backed Operational Atlas explanations for
+      benchmark sequences, transfers, branches, hierarchies, comparisons, states, evidence paths,
+      and architecture boundaries.
     type: production
     used_by:
       - diagram-motion-designer
     external_skills:
       - impeccable
-    consistency_source: ../website/.guild/skills/guild-diagram-motion-designer/SKILL.md

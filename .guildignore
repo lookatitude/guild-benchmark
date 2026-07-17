@@ -1,0 +1,91 @@
+# .guildignore — files/dirs excluded from the Guild understanding engine.
+# Syntax: .gitignore-compatible (globs, # comments, ! negation, trailing / for dirs).
+# Built-in defaults (always excluded unless ! negated):
+#   node_modules/ .git/ dist/ build/ obj/ *.lock *.min.js binary assets, etc.
+# Suggestions below are commented — uncomment to activate. One-time generation.
+
+
+# --- From .gitignore (uncomment to exclude) ---
+# ui/node_modules/
+# ui/dist/
+# *.tsbuildinfo
+# runs/
+# reports/internal/
+# ui/coverage/
+# !/.guild/
+# .guild/*
+# !.guild/guild.yaml
+# !.guild/agents/
+# !.guild/agents/**
+# !.guild/skills/
+# !.guild/skills/**
+# !.guild/workflows/
+# !.guild/workflows/**
+# !.guild/loops/
+# !.guild/loops/**
+# !.guild/wiki/
+# !.guild/wiki/**
+# !.guild/knowledge/
+# !.guild/knowledge/**
+# !.guild/memory/
+# !.guild/memory/**
+# !.guild/initiatives/
+# !.guild/initiatives/**
+# !.guild/init/
+# !.guild/init/**
+# !.guild/spec/
+# !.guild/spec/**
+# !.guild/plan/
+# !.guild/plan/**
+# !.guild/prd/
+# !.guild/prd/**
+# !.guild/team/
+# !.guild/team/**
+# !.guild/teams/
+# !.guild/teams/**
+# !.guild/artifacts/
+# !.guild/artifacts/**
+# !.guild/reflections/
+# !.guild/reflections/**
+# !.guild/evolve/
+# !.guild/evolve/**
+# !.guild/indexes/
+# !.guild/indexes/**
+# !.guild/workspace/
+# !.guild/workspace/**
+# !.guild/workspace-knowledge/
+# !.guild/workspace-knowledge/**
+# !.guild/workspace.json
+# !.guild/settings.json
+# !.guild/runs/
+# !.guild/runs/*/
+# .guild/runs/*/**
+# !.guild/runs/*/handoffs/
+# !.guild/runs/*/handoffs/**
+# !.guild/runs/*/verify.md
+# !.guild/runs/*/review.md
+# !.guild/runs/*/provenance.json
+# !.guild/runs/*/run.yaml
+# !.guild/runs/*/summary.md
+# !.guild/runs/*/share-payloads.flag
+# !.guild/runs/*/run-state.json
+# .guild/settings.local.json
+# .guild/hosts/
+# .guild/index.sqlite
+# .guild/runs/current-run-id
+# **/*.structural-cache.json
+# .claude/settings.local.json
+# !fixtures/**/.guild/
+# !fixtures/**/.guild/**
+# !tests/fixtures/**
+# .DS_Store
+
+# --- Detected directories (uncomment to exclude) ---
+# tests/
+# fixtures/
+# docs/
+
+# --- Test file patterns (uncomment to exclude) ---
+# *.test.*
+# *.spec.*
+# *.snap
