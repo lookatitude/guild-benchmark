@@ -15,10 +15,13 @@ agents:
     skills:
       - guild-diagram-motion-designer
     owns:
+      - visual_explanations
       - static_diagrams
-      - animated_diagrams
+      - semantic_motion
       - evaluation_flows
-      - proof_paths
+      - scoring_paths
+      - comparison_fields
+      - evidence_ledgers
+      - visual_validation
     external_skills:
       - impeccable
-    consistency_source: ../website/.guild/agents/diagram-motion-designer.md

@@ -3,9 +3,18 @@ teams:
   - id: benchmark-visual-explanation-team
     scope: benchmark
     default_workflow: benchmark-diagram-motion-production
+    purpose: >-
+      Create and validate benchmark evaluation and evidence explanations under
+      the shared Operational Atlas contract without adding marketing roles.
     model_policy:
       design: { host: codex-cli, model: gpt-5.5, reasoning: high }
+      validation: { host: codex-cli, model: gpt-5.5, reasoning: high }
     members:
       - diagram-motion-designer
     routing:
       diagram_or_animation: diagram-motion-designer
+      visual_validation: diagram-motion-designer
+    boundaries:
+      - benchmark evidence and explanation only
+      - no website page strategy campaign or marketing ownership
+      - cross-surface reuse is a pointer-only handoff
