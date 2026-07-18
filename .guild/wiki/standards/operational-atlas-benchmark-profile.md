@@ -11,9 +11,9 @@ labels:
 source_refs:
   - ../../../../.guild/wiki/standards/operational-atlas-visual-contract.md
   - ../../../../.guild/artifacts/generated/operational-atlas/contract-manifest.yaml
-  - ../../../../PRODUCT.md
-  - ../../../../DESIGN.md
-  - ../../../../images/guildstack-logo.png
+  - ../../../../design/PRODUCT.md
+  - ../../../../design/DESIGN.md
+  - ../../../../design/images/guildstack-logo.png
   - ../../../ui/src/styles/global.css
   - ../../../ui/src/App.tsx
   - ../../../ui/public/brand/guildstack-logo-128.png
@@ -34,7 +34,7 @@ Resolve these paths from the benchmark repository root:
 ```text
 ../.guild/wiki/standards/operational-atlas-visual-contract.md
 ../.guild/artifacts/generated/operational-atlas/contract-manifest.yaml
-../images/guildstack-logo.png
+../design/images/guildstack-logo.png
 ```
 
 ## Benchmark explanation jobs
