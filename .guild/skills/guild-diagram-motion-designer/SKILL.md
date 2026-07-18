@@ -69,7 +69,7 @@ reason.
 
 - Dark is the primary expression, but light is a first-class structural twin.
   Both themes use the same nodes, labels, ordering, evidence, and hierarchy.
-- Use the exact canonical logo at `../images/guildstack-logo.png` only when a
+- Use the exact canonical logo at `../../../../design/images/guildstack-logo.png` only when a
   logo is necessary. Do not redraw, recolor, crop, or generate it. A derived
   size must retain provenance to the canonical source.
 - Resolve semantic color tokens from the generated manifest. Live or active,
