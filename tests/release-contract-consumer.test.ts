@@ -8,6 +8,14 @@ describe("checked-in release contract consumer", () => {
     expect(result.claim.schema_version).toBe("guild.release_claim.v1");
     expect(result.claim.host_support.supported).toBe(false);
     expect(result.claim.operations).toHaveLength(6);
+    expect(result.claim.source_commit).toMatch(/^[a-f0-9]{40}$/);
+    expect(result.claim.manifest.entries).toHaveLength(2314);
+    expect(result.claim.contract_versions).toEqual({
+      runtime: "guild.runtime_boundary_contract.v1",
+      receipt: "guild.handoff.v2",
+      artifact: "guild.artifact.v1",
+    });
+    expect(result.claim.conformance_artifacts).toHaveLength(4);
   });
 
   it("rejects bundle-byte and digest-pin mismatch", () => {
