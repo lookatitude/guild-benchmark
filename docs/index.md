@@ -11,6 +11,15 @@ Follows guild-wiki §10.1.1 conventions: every page carries the extended
 frontmatter block (`type`, `owner`, `confidence`, `source_refs`, timestamps,
 `sensitivity`, `applies_to`, `related`).
 
+## contracts
+
+Consumer-side notes for contracts this repo consumes from the plugin as
+versioned fixture copies (never as source imports).
+
+| Page | Summary |
+|---|---|
+| [contracts-dynamic-host-model-routing.md](contracts-dynamic-host-model-routing.md) | The seven frozen dynamic-host-model-routing contracts consumed as fixture set v1: what is pinned, the no-cross-repo-import rule, the anti-vacuity requirement, the one failing-by-design checksum pin (followup F5), and the upstream milestone posture that bounds what a run can measure. |
+
 ## research
 
 Verbatim deep-research provenance for the benchmark engine.

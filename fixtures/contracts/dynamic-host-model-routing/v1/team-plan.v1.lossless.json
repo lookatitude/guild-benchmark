@@ -1,0 +1,25 @@
+{
+  "_migration_expectation": "no truncation => import ONLY as a PENDING v2 proposal (proposal_version 1, provenance noted), never as an approval (team-contracts \u00a77)",
+  "schema_version": "guild.team_plan.v1",
+  "station": "init",
+  "roster": [
+    {
+      "role": "researcher",
+      "scope": null,
+      "default_tier": "mid",
+      "fanout": "lead_only",
+      "source": "default"
+    },
+    {
+      "role": "technical-writer",
+      "scope": null,
+      "default_tier": "mid",
+      "fanout": "lead_only",
+      "source": "default"
+    }
+  ],
+  "fired_rules": [],
+  "cap": 6,
+  "capped": false,
+  "dropped_roles": []
+}

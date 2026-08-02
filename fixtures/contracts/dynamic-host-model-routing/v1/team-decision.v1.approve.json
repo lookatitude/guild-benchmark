@@ -1,0 +1,13 @@
+{
+  "schema_version": "guild.team_decision.v1",
+  "run_id": "run-fixture-0001",
+  "phase": "build",
+  "proposal_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+  "decision": "approve",
+  "decided_by": "user:cli-operator",
+  "decided_at": "2026-07-30T00:05:00Z",
+  "resulting_proposal": null,
+  "decision_hash_algorithm": "sha256",
+  "decision_hash_scope": "canonical_yaml_with_decision_hash_field_omitted",
+  "decision_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

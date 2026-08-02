@@ -1,0 +1,275 @@
+{
+  "schema_version": "guild.team_proposal.v2",
+  "run_id": "run-fixture-0001",
+  "phase": "build",
+  "spec_ref": {
+    "path": "spec/fixture.md",
+    "sha256": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "plan_ref": {
+    "path": "plan/fixture.md",
+    "sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "proposal_version": 1,
+  "parent_proposal_hash": null,
+  "proposal_hash_algorithm": "sha256",
+  "proposal_hash_scope": "canonical_yaml_with_proposal_hash_field_omitted",
+  "proposal_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+  "participants": [
+    {
+      "participant_id": "p0",
+      "participation_kind": "worker",
+      "role_ref": "role-0",
+      "necessity_rationale": "owns obligation ob0",
+      "owned_obligations": [
+        "ob0"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p1",
+      "participation_kind": "worker",
+      "role_ref": "role-1",
+      "necessity_rationale": "owns obligation ob1",
+      "owned_obligations": [
+        "ob1"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p2",
+      "participation_kind": "worker",
+      "role_ref": "role-2",
+      "necessity_rationale": "owns obligation ob2",
+      "owned_obligations": [
+        "ob2"
+      ],
+      "depends_on": [
+        "p1"
+      ],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p3",
+      "participation_kind": "worker",
+      "role_ref": "role-3",
+      "necessity_rationale": "owns obligation ob3",
+      "owned_obligations": [
+        "ob3"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p4",
+      "participation_kind": "worker",
+      "role_ref": "role-4",
+      "necessity_rationale": "owns obligation ob4",
+      "owned_obligations": [
+        "ob4"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p5",
+      "participation_kind": "worker",
+      "role_ref": "role-5",
+      "necessity_rationale": "owns obligation ob5",
+      "owned_obligations": [
+        "ob5"
+      ],
+      "depends_on": [
+        "p4"
+      ],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p6",
+      "participation_kind": "advisor",
+      "role_ref": "role-6",
+      "necessity_rationale": "owns obligation ob6",
+      "owned_obligations": [
+        "ob6"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p7",
+      "participation_kind": "challenger",
+      "role_ref": "role-7",
+      "necessity_rationale": "owns obligation ob7",
+      "owned_obligations": [
+        "ob7"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "implementation",
+      "capability_scope": null,
+      "backend": "team"
+    },
+    {
+      "participant_id": "p8",
+      "participation_kind": "reviewer_cross_host",
+      "role_ref": "role-8",
+      "necessity_rationale": "owns obligation ob8",
+      "owned_obligations": [
+        "ob8"
+      ],
+      "depends_on": [],
+      "tier": "mid",
+      "purpose": "adversarial",
+      "capability_scope": null,
+      "backend": "team"
+    }
+  ],
+  "obligations": [
+    {
+      "obligation_id": "ob0",
+      "source": "plan_item",
+      "text": "work item 0",
+      "disposition": {
+        "owners": [
+          "p0"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob1",
+      "source": "plan_item",
+      "text": "work item 1",
+      "disposition": {
+        "owners": [
+          "p1"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob2",
+      "source": "plan_item",
+      "text": "work item 2",
+      "disposition": {
+        "owners": [
+          "p2"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob3",
+      "source": "plan_item",
+      "text": "work item 3",
+      "disposition": {
+        "owners": [
+          "p3"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob4",
+      "source": "plan_item",
+      "text": "work item 4",
+      "disposition": {
+        "owners": [
+          "p4"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob5",
+      "source": "plan_item",
+      "text": "work item 5",
+      "disposition": {
+        "owners": [
+          "p5"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob6",
+      "source": "plan_item",
+      "text": "work item 6",
+      "disposition": {
+        "owners": [
+          "p6"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob7",
+      "source": "plan_item",
+      "text": "work item 7",
+      "disposition": {
+        "owners": [
+          "p7"
+        ]
+      }
+    },
+    {
+      "obligation_id": "ob8",
+      "source": "plan_item",
+      "text": "work item 8",
+      "disposition": {
+        "owners": [
+          "p8"
+        ]
+      }
+    }
+  ],
+  "excluded_roles": [
+    {
+      "role_ref": "seo",
+      "why_unnecessary": "no discoverability surface in scope"
+    }
+  ],
+  "backend_capacity_evidence": {
+    "backend": "team",
+    "verified_capacity": 3,
+    "method": "preflight probe",
+    "as_of": "2026-07-30T00:00:00Z"
+  },
+  "proposed_schedule": {
+    "waves": [
+      [
+        "p0",
+        "p1",
+        "p3"
+      ],
+      [
+        "p2",
+        "p4",
+        "p6"
+      ],
+      [
+        "p5",
+        "p7"
+      ],
+      [
+        "p8"
+      ]
+    ]
+  }
+}

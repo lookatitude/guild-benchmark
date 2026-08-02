@@ -1,0 +1,17 @@
+{
+  "schema_version": "guild.contract_fixture_manifest.v1",
+  "initiative": "dynamic-host-model-routing",
+  "fixture_set_version": 1,
+  "frozen_contracts": [
+    "guild.session_context.v1",
+    "guild.model_catalog.v1",
+    "guild.model_policy.v2",
+    "guild.model_resolution.v1",
+    "guild.team_proposal.v2",
+    "guild.team_decision.v1",
+    "guild.team_schedule.v1"
+  ],
+  "provenance": "hand-authored by lane T2-tdd-contract-fixtures against the FROZEN 2026-07-30 contract texts (umbrella run run-20260730-131020-dynamic-host-model-routing)",
+  "published_by_plugin_build": false,
+  "publication_note": "When the plugin build ships the fixture-publication pipeline (module-map \u00a75), it must flip published_by_plugin_build to true and add per-file sha256 checksums; the consumer test asserts this and FAILS BY DESIGN until then."
+}

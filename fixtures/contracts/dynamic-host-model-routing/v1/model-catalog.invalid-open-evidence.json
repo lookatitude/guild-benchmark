@@ -1,0 +1,52 @@
+{
+  "_invalid_reason": "evidence.state 'maybe' is outside the closed enum (catalog \u00a73); catalog_index missing on entry 0 (catalog \u00a71 REQUIRED); consumers must REJECT",
+  "schema_version": "guild.model_catalog.v1",
+  "target": {
+    "target_id": "claude-api",
+    "family": "claude",
+    "surface": "api",
+    "provider_kind": "anthropic_api",
+    "auth_mode": "api_key",
+    "account_fingerprint": "fp",
+    "endpoint_fingerprint": "fp",
+    "org_fingerprint": "fp",
+    "tool_version": "x",
+    "adapter_id": "a",
+    "adapter_version": "1"
+  },
+  "discovery": {
+    "method": "static_hint",
+    "source_ref": "static",
+    "discovered_at": "2026-07-30T00:00:00Z",
+    "ttl_seconds": 600,
+    "status": "ok",
+    "latency_ms": 0,
+    "failure_reason": null
+  },
+  "generation": 1,
+  "models": [
+    {
+      "canonical_id": "some-model",
+      "aliases": [],
+      "model_family": "claude",
+      "capabilities": {},
+      "reasoning_efforts": [],
+      "default_effort": null,
+      "tier": "powerful",
+      "provider_priority": null,
+      "provider_default": false,
+      "visibility": "listed",
+      "deprecation": {
+        "upgrade_to": null,
+        "migration_note": null
+      },
+      "evidence": {
+        "state": "maybe",
+        "source": "static_hint",
+        "confidence": "high",
+        "as_of": "2026-07-30T00:00:00Z"
+      },
+      "dispatch_evidence": null
+    }
+  ]
+}
