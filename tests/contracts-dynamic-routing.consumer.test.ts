@@ -345,11 +345,14 @@ describe("dynamic-host-model-routing contract-fixture consumer (v1)", () => {
     expect(dup.join()).toMatch(/exactly-one/);
   });
 
-  it("FAILING-BY-DESIGN: the plugin build publishes checksummed fixture copies (module-map §5 publication pipeline)", () => {
-    // Lane T2 defines the fixtures; the plugin build must publish/refresh them
-    // with per-file sha256 checksums and flip this flag. Until then this test
-    // fails BY DESIGN — the honest signal that benchmark consumes hand-copied,
-    // not build-published, fixtures.
+  // EXPECTED-FAIL until the publication pipeline ships. Lane T2 defines the
+  // fixtures; the plugin build must publish/refresh them with per-file sha256
+  // checksums and flip `published_by_plugin_build`. `it.fails` is the honest
+  // signal: this PASSES while benchmark consumes hand-copied (not build-
+  // published) fixtures, and will turn RED the moment the pipeline ships and the
+  // assertions below start passing — prompting removal of `.fails`. (Was a plain
+  // failing `it()` that red-blocked CI; converted to the self-correcting idiom.)
+  it.fails("EXPECTED-FAIL until the plugin build publishes checksummed fixture copies (module-map §5 publication pipeline)", () => {
     const manifest = fixture("manifest.json");
     expect(manifest.published_by_plugin_build).toBe(true);
     expect(manifest.checksums).toBeDefined();
