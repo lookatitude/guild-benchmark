@@ -1,0 +1,115 @@
+{
+  "model_policy": {
+    "version": 2,
+    "allow_advertised_attempt": false,
+    "purposes": {
+      "general": {
+        "min_effective_complexity": "easy",
+        "independence": "none",
+        "confirm_on_degradation": true,
+        "routes": [
+          {
+            "complexity": "easy",
+            "preferred": [
+              {
+                "selector": "alias:haiku",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [
+              {
+                "selector": "expr:tier=cheap"
+              }
+            ],
+            "provider_default": "allow_last_resort"
+          },
+          {
+            "complexity": "medium",
+            "preferred": [
+              {
+                "selector": "alias:sonnet",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [
+              {
+                "selector": "expr:tier=mid"
+              }
+            ],
+            "provider_default": "allow_last_resort"
+          },
+          {
+            "complexity": "hard",
+            "preferred": [
+              {
+                "selector": "id:claude-fable-5",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [
+              {
+                "selector": "id:claude-opus-4-8"
+              },
+              {
+                "selector": "expr:tier=powerful"
+              }
+            ],
+            "provider_default": "allow_last_resort"
+          }
+        ]
+      },
+      "research": {
+        "min_effective_complexity": "hard",
+        "independence": "none",
+        "confirm_on_degradation": true,
+        "routes": [
+          {
+            "complexity": "hard",
+            "preferred": [
+              {
+                "selector": "id:claude-fable-5",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [
+              {
+                "selector": "id:claude-opus-4-8"
+              },
+              {
+                "selector": "expr:tier=powerful"
+              }
+            ],
+            "provider_default": "forbid"
+          }
+        ]
+      },
+      "security": {
+        "min_effective_complexity": "easy",
+        "independence": "none",
+        "confirm_on_degradation": true,
+        "routes": [
+          {
+            "complexity": "any",
+            "preferred": [
+              {
+                "selector": "id:claude-opus-4-8",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [
+              {
+                "selector": "expr:model_family=claude;tier=powerful"
+              }
+            ],
+            "provider_default": "forbid"
+          }
+        ]
+      }
+    }
+  }
+}

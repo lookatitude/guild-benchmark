@@ -1,0 +1,31 @@
+{
+  "schema_version": "guild.session_context.v1",
+  "run_id": "run-fixture-0001",
+  "started_at": "2026-07-30T00:00:00Z",
+  "host": {
+    "family": "claude",
+    "surface": "cli",
+    "adapter_id": "claude-code-native",
+    "adapter_version": "2.1.220"
+  },
+  "identity": {
+    "source": "native_adapter",
+    "trust": "verified",
+    "confidence": "high",
+    "evidence": "native adapter injection at run start"
+  },
+  "execution_target": {
+    "target_id": "claude-cli-subscription",
+    "provider_kind": "anthropic_subscription",
+    "auth_mode": "subscription",
+    "account_fingerprint": "fp-acct-fixture",
+    "endpoint_fingerprint": "fp-endp-fixture",
+    "org_fingerprint": "unknown",
+    "tool_version": "claude-cli 2.1.220"
+  },
+  "active_model": null,
+  "run_binding": {
+    "binding_ref": "nonce-fixture-0001",
+    "state": "open"
+  }
+}

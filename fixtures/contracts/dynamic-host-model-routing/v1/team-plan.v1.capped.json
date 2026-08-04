@@ -1,0 +1,23 @@
+{
+  "_migration_expectation": "capped:true + dropped_roles non-empty => roster UNTRUSTED; requires v2 recomposition + fresh user approval before dispatch (team-contracts \u00a77)",
+  "schema_version": "guild.team_plan.v1",
+  "station": "build",
+  "roster": [
+    {
+      "role": "qa",
+      "scope": null,
+      "default_tier": "mid",
+      "fanout": "lead_only",
+      "source": "default"
+    }
+  ],
+  "fired_rules": [
+    "auth_touched"
+  ],
+  "cap": 6,
+  "capped": true,
+  "dropped_roles": [
+    "security",
+    "frontend"
+  ]
+}

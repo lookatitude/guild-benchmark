@@ -1,0 +1,14 @@
+{
+  "_invalid_because": "restructure_edits present iff decision=restructure (frozen §4); a restructure with no edits is malformed",
+  "schema_version": "guild.team_decision.v1",
+  "run_id": "run-fixture-0001",
+  "phase": "build",
+  "proposal_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+  "decision": "restructure",
+  "decided_by": "user:cli-operator",
+  "decided_at": "2026-07-30T00:06:00Z",
+  "resulting_proposal": null,
+  "decision_hash_algorithm": "sha256",
+  "decision_hash_scope": "canonical_yaml_with_decision_hash_field_omitted",
+  "decision_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

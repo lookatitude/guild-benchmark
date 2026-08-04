@@ -1,0 +1,84 @@
+{
+  "schema_version": "guild.model_resolution.v1",
+  "run_id": "run-fixture-0001",
+  "dispatch_id": "d-0001",
+  "refs": {
+    "session_context": {
+      "path_or_id": "session-context.valid.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "catalog_snapshot": {
+      "path_or_id": "model-catalog.valid.json",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "policy": {
+      "path_or_id": "model-policy.baseline.json",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  },
+  "request": {
+    "purpose": "research",
+    "purpose_origin": "skill:researcher-deep-dive",
+    "dispatch_ancestry": [
+      "d-0000"
+    ],
+    "rejected_labels": [
+      {
+        "source": "caller",
+        "label": "complexity:easy",
+        "reason": "research_always_hard floor"
+      }
+    ],
+    "requested_complexity": "easy",
+    "effective_complexity": "hard",
+    "forced_floor_reason": "research_always_hard"
+  },
+  "selection": {
+    "target_id": "claude-api",
+    "model": "claude-fable-5",
+    "effort": "high",
+    "evidence_state": "available",
+    "route": {
+      "index": 0,
+      "complexity": "hard",
+      "condition_kind": "always",
+      "condition_model_family": null,
+      "condition_input": null
+    },
+    "rule_path": [
+      "route[0] complexity=hard condition=always => selected",
+      "preferred[0] id:claude-fable-5 => 1 candidate"
+    ]
+  },
+  "fallbacks": [
+    {
+      "model": "claude-opus-4-8",
+      "effort": null,
+      "evidence_state": "available",
+      "source": "fallback",
+      "independence_note": null
+    }
+  ],
+  "fallback_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "rejections": [],
+  "resolution_core_hash_algorithm": "sha256",
+  "resolution_core_hash_scope": "canonical_yaml_with_resolution_core_hash_field_omitted",
+  "resolution_core_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "_invalid_reason": "finalized_at null / receipt_hash null \u2014 model_resolution \u00a78: consumers accept FINALIZED receipts only; this fixture must be REJECTED as evidence",
+  "outcome": {
+    "attempted": [
+      {
+        "model": "claude-fable-5",
+        "effort": "high",
+        "result": "failed",
+        "failure_class": "transport_error",
+        "substitution_class": null,
+        "actual_model": null
+      }
+    ]
+  },
+  "finalized_at": null,
+  "receipt_hash_algorithm": "sha256",
+  "receipt_hash_scope": "canonical_yaml_with_receipt_hash_field_omitted",
+  "receipt_hash": null
+}

@@ -1,0 +1,32 @@
+{
+  "_invalid_reason": "identity repaired to claude on unrecognized input \u2014 session_context \u00a73 requires family unknown + trust asserted + confidence low; a consumer seeing evidence 'unrecognized input' with family claude must REJECT",
+  "schema_version": "guild.session_context.v1",
+  "run_id": "run-fixture-0003",
+  "started_at": "2026-07-30T00:00:00Z",
+  "host": {
+    "family": "claude",
+    "surface": "unknown",
+    "adapter_id": "unknown",
+    "adapter_version": "0"
+  },
+  "identity": {
+    "source": "none",
+    "trust": "asserted",
+    "confidence": "low",
+    "evidence": "unrecognized host input defaulted to claude"
+  },
+  "execution_target": {
+    "target_id": "claude-cli-subscription",
+    "provider_kind": "unknown",
+    "auth_mode": "unknown",
+    "account_fingerprint": "unknown",
+    "endpoint_fingerprint": "unknown",
+    "org_fingerprint": "unknown",
+    "tool_version": "unknown"
+  },
+  "active_model": null,
+  "run_binding": {
+    "binding_ref": "nonce",
+    "state": "open"
+  }
+}

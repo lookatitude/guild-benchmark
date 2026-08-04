@@ -1,0 +1,32 @@
+{
+  "_invalid_reason": "surface is a composite (cli+app) \u2014 session_context \u00a71 requires EXACTLY ONE closed-enum value; consumers must REJECT this fixture",
+  "schema_version": "guild.session_context.v1",
+  "run_id": "run-fixture-0002",
+  "started_at": "2026-07-30T00:00:00Z",
+  "host": {
+    "family": "claude",
+    "surface": "cli+app",
+    "adapter_id": "x",
+    "adapter_version": "1"
+  },
+  "identity": {
+    "source": "none",
+    "trust": "asserted",
+    "confidence": "low",
+    "evidence": ""
+  },
+  "execution_target": {
+    "target_id": "claude-cli-subscription",
+    "provider_kind": "anthropic_subscription",
+    "auth_mode": "subscription",
+    "account_fingerprint": "fp",
+    "endpoint_fingerprint": "fp",
+    "org_fingerprint": "unknown",
+    "tool_version": "x"
+  },
+  "active_model": null,
+  "run_binding": {
+    "binding_ref": "nonce",
+    "state": "open"
+  }
+}

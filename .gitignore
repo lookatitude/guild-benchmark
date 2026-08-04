@@ -96,10 +96,19 @@ ui/coverage/
 # `.guild/runs/current-run-id` is a bare FILE directly under runs/ — NOT covered
 # by the `!.guild/runs/*/` (directories-only, one level) re-include, so it needs
 # its own explicit deny.
+# 2026-07 runs canonicalization audit trail (workspace-reorg P4): the rename
+# mapping + replay script live directly under runs/_archive/ and must be
+# committable evidence.
+!.guild/runs/_archive/rename-manifest.yaml
+!.guild/runs/_archive/rename-runs.mjs
 .guild/settings.local.json
 .guild/hosts/
 .guild/index.sqlite
 .guild/runs/current-run-id
+# Model-catalog discovery cache (guild.model_catalog.v1 §7): runtime-local,
+# machine-only state (target-fingerprint-keyed snapshots + salt) — never
+# committed/exported/shared. Deny wins over the !.guild/indexes/** re-include.
+.guild/indexes/model-catalog/
 # Re-deny the structural-cache sidecar: a LOCAL-ONLY, rebuildable, derived artifact (our deterministic extractor output) — never committed/exported/shared. This later rule wins over the !.guild/indexes/** re-include above, so even where .guild/indexes/** is tracked a tampered cache can never be committed (FIX-T4.1-r6; threat model in scripts/understand/lib/bundle-validate.ts).
 **/*.structural-cache.json
 

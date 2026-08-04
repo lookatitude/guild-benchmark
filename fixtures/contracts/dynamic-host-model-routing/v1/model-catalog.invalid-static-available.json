@@ -1,0 +1,53 @@
+{
+  "_invalid_reason": "static_hint discovery grounding evidence.state 'available' violates catalog \u00a74 (static rows emit at most advertised); consumers must REJECT",
+  "schema_version": "guild.model_catalog.v1",
+  "target": {
+    "target_id": "claude-cli-subscription",
+    "family": "claude",
+    "surface": "cli",
+    "provider_kind": "anthropic_subscription",
+    "auth_mode": "subscription",
+    "account_fingerprint": "fp",
+    "endpoint_fingerprint": "fp",
+    "org_fingerprint": "unknown",
+    "tool_version": "x",
+    "adapter_id": "a",
+    "adapter_version": "1"
+  },
+  "discovery": {
+    "method": "static_hint",
+    "source_ref": "built-in table",
+    "discovered_at": "2026-07-30T00:00:00Z",
+    "ttl_seconds": 600,
+    "status": "ok",
+    "latency_ms": 0,
+    "failure_reason": null
+  },
+  "generation": 1,
+  "models": [
+    {
+      "canonical_id": "claude-fable-5",
+      "aliases": [],
+      "model_family": "claude",
+      "capabilities": {},
+      "reasoning_efforts": [],
+      "default_effort": null,
+      "tier": "powerful",
+      "provider_priority": null,
+      "catalog_index": 0,
+      "provider_default": false,
+      "visibility": "listed",
+      "deprecation": {
+        "upgrade_to": null,
+        "migration_note": null
+      },
+      "evidence": {
+        "state": "available",
+        "source": "static_hint",
+        "confidence": "low",
+        "as_of": "2026-07-30T00:00:00Z"
+      },
+      "dispatch_evidence": null
+    }
+  ]
+}

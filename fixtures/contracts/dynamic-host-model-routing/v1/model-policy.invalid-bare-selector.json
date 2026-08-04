@@ -1,0 +1,32 @@
+{
+  "_invalid_reason": "bare-string selector 'haiku' violates the closed \u00a71a grammar (id:/alias:/expr: only); non-always condition on a non-review purpose violates \u00a71b; validator must REJECT",
+  "model_policy": {
+    "version": 2,
+    "allow_advertised_attempt": false,
+    "purposes": {
+      "general": {
+        "min_effective_complexity": "easy",
+        "independence": "none",
+        "confirm_on_degradation": true,
+        "routes": [
+          {
+            "complexity": "any",
+            "condition": {
+              "kind": "producer_model_family_is",
+              "model_family": "gpt"
+            },
+            "preferred": [
+              {
+                "selector": "haiku",
+                "effort": null,
+                "capabilities": []
+              }
+            ],
+            "fallbacks": [],
+            "provider_default": "forbid"
+          }
+        ]
+      }
+    }
+  }
+}

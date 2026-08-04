@@ -1,0 +1,93 @@
+{
+  "schema_version": "guild.model_catalog.v1",
+  "target": {
+    "target_id": "claude-api",
+    "family": "claude",
+    "surface": "api",
+    "provider_kind": "anthropic_api",
+    "auth_mode": "api_key",
+    "account_fingerprint": "fp-acct-fixture",
+    "endpoint_fingerprint": "fp-endp-fixture",
+    "org_fingerprint": "fp-org-fixture",
+    "tool_version": "claude-cli 2.1.220",
+    "adapter_id": "claude-api-models",
+    "adapter_version": "1.0.0"
+  },
+  "discovery": {
+    "method": "contract_api_list",
+    "source_ref": "claude-api-models GET /v1/models",
+    "discovered_at": "2026-07-30T00:00:00Z",
+    "ttl_seconds": 600,
+    "status": "ok",
+    "latency_ms": 240,
+    "failure_reason": null
+  },
+  "generation": 3,
+  "models": [
+    {
+      "canonical_id": "claude-fable-5",
+      "aliases": [
+        "fable"
+      ],
+      "model_family": "claude",
+      "capabilities": {
+        "thinking": true,
+        "structured_outputs": true
+      },
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "default_effort": "high",
+      "tier": "powerful",
+      "provider_priority": null,
+      "catalog_index": 0,
+      "provider_default": false,
+      "visibility": "listed",
+      "deprecation": {
+        "upgrade_to": null,
+        "migration_note": null
+      },
+      "evidence": {
+        "state": "available",
+        "source": "contract_api_list",
+        "confidence": "high",
+        "as_of": "2026-07-30T00:00:00Z"
+      },
+      "dispatch_evidence": null
+    },
+    {
+      "canonical_id": "claude-opus-4-8",
+      "aliases": [],
+      "model_family": "claude",
+      "capabilities": {
+        "thinking": true
+      },
+      "reasoning_efforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "default_effort": "medium",
+      "tier": "powerful",
+      "provider_priority": null,
+      "catalog_index": 1,
+      "provider_default": false,
+      "visibility": "listed",
+      "deprecation": {
+        "upgrade_to": null,
+        "migration_note": null
+      },
+      "evidence": {
+        "state": "available",
+        "source": "contract_api_list",
+        "confidence": "high",
+        "as_of": "2026-07-30T00:00:00Z"
+      },
+      "dispatch_evidence": null
+    }
+  ]
+}
