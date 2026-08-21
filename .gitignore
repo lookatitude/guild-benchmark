@@ -29,6 +29,7 @@ ui/coverage/
 # (enforced by plugin/tests/dot-guild/gitignore-equivalence.test.ts).
 .guild/*
 !.guild/guild.yaml
+!.guild/adoption-manifest.json
 !.guild/agents/
 !.guild/agents/**
 !.guild/skills/
@@ -85,6 +86,8 @@ ui/coverage/
 !.guild/runs/*/verify.md
 !.guild/runs/*/review.md
 !.guild/runs/*/provenance.json
+!.guild/runs/*/logs/
+!.guild/runs/*/logs/v1.4-events.jsonl
 !.guild/runs/*/run.yaml
 !.guild/runs/*/summary.md
 !.guild/runs/*/share-payloads.flag
