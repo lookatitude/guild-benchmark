@@ -7,8 +7,8 @@ teams:
       Create and validate benchmark evaluation and evidence explanations under
       the shared Operational Atlas contract without adding marketing roles.
     model_policy:
-      design: { host: codex-cli, model: gpt-5.5, reasoning: high }
-      validation: { host: codex-cli, model: gpt-5.5, reasoning: high }
+      design: { reasoning: high }
+      validation: { reasoning: high }
     members:
       - diagram-motion-designer
     routing:
