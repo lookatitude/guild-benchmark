@@ -554,3 +554,402 @@ describe("project-reader / pure helpers", () => {
     expect(safeJoinUnder("/tmp/root", "a/../../escape")).toBeNull();
   });
 });
+
+// ---- D01 (C-ANALYSIS) — plugin-produced analysis artifacts -------------------
+//
+// Acceptance: D01-AC1 (no detector/hash duplication — asserted by source grep
+// below plus pass-through assertions), D01-AC2 (wrong-run, malformed, symlink
+// escape, unsupported schema all rejected), D01-AC3 (suite runs against tmp
+// fixtures with no sibling plugin source).
+
+import { readFileSync as d01ReadFileSync, symlinkSync as d01SymlinkSync } from "node:fs";
+import { resolve as d01Resolve } from "node:path";
+import {
+  listProjectAnalysisArtifacts,
+  readProjectAnalysisArtifact,
+} from "../src/project-reader.js";
+import {
+  RUN_ANALYSIS_ENTRY,
+  SUPPORTED_INVENTORY_SCHEMA,
+  resolvePackagedRuntime,
+  type PackagedRuntime,
+} from "../src/analysis-process.js";
+
+const VALID_RUN_ID = "run-20261017-010000-example-a";
+const VALID_COMPARISON_ID = "comparison-abac869491a330d9";
+
+function sampleRecommendation(sourceId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: "guild.recommendation.v1",
+    id: "rec-a6e61633056fba7d",
+    source_id: sourceId,
+    source_analysis_id: `analysis:${sourceId}:1b4f1c74f378`,
+    scope: "project",
+    kind: "clarify_prompt_contract",
+    confidence: "high",
+    severity: "high",
+    evidence_refs: [`.guild/runs/${sourceId}/logs/v1.4-events.jsonl#line:8`],
+    evidence_signature: "5ab52c7fd47e96688bfb43e979eca10620a1280098d56e4d45aa1d7b8a7156ee",
+    affected_runs: [sourceId],
+    proposed_action: "The same failed action recurred 2 times.",
+    status: "proposed",
+    suggested_owner: "project",
+    next_action: "queue_proposal_only",
+    requires_user_approval: true,
+    routing: { action: "queue_proposal_only", requires_user_approval: true, target: "project-local" },
+    ...overrides,
+  };
+}
+
+function sampleRunAnalysis(runId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: "guild.run_analysis.v1",
+    analysis_id: `analysis:${runId}:1b4f1c74f378`,
+    run_id: runId,
+    source_hash: "1b4f1c74f378d71d89f706b4e019468486321894419facec6c7661b48370628a",
+    eligible: true,
+    identity: { run_scope: "independent", initiative_id: null, independent_group_id: "g", config_snapshot_ref: null, host: "codex", phase: "build" },
+    completeness: { score: 100, present: ["agent"], missing: [] },
+    assessments: {},
+    usage: { llm_event_count: 2, specialists_dispatched: [], tokens: { input: 1, output: 1, cached: 0, total: 2, cost_usd: 0 }, duration_ms: 1 },
+    findings: [{ id: "finding-1", kind: "repeated_failure", severity: "high", summary: "s", evidence_refs: [], signature: "sig" }],
+    recommendations: [sampleRecommendation(runId)],
+    ...overrides,
+  };
+}
+
+function sampleComparison(comparisonId: string, overrides: Record<string, unknown> = {}) {
+  return {
+    schema_version: "guild.run_comparison.v1",
+    comparison_id: comparisonId,
+    run_ids: [VALID_RUN_ID, "run-20261017-010100-example-b"],
+    source_hashes: ["a".repeat(64), "b".repeat(64)],
+    completeness: { eligible_runs: 2, total_runs: 2, average_score: 100 },
+    repeated_signatures: [],
+    recommendations: [sampleRecommendation(comparisonId, { source_analysis_id: comparisonId })],
+    ...overrides,
+  };
+}
+
+async function seedAnalysisFixtures(root: string): Promise<void> {
+  await writeFileDeep(
+    join(root, ".guild", "analysis", "runs", VALID_RUN_ID, "analysis.json"),
+    JSON.stringify(sampleRunAnalysis(VALID_RUN_ID), null, 2),
+  );
+  await writeFileDeep(
+    join(root, ".guild", "analysis", "comparisons", VALID_COMPARISON_ID, "comparison.json"),
+    JSON.stringify(sampleComparison(VALID_COMPARISON_ID), null, 2),
+  );
+  await writeFileDeep(
+    join(root, ".guild", "recommendations", `${VALID_RUN_ID}.jsonl`),
+    [
+      JSON.stringify(sampleRecommendation(VALID_RUN_ID)),
+      "{not json",
+      JSON.stringify(sampleRecommendation("some-other-run")),
+      "",
+    ].join("\n"),
+  );
+}
+
+// Minimal packaged-runtime fixture whose inspect answers depend on the id
+// suffix — reuses the D00 validation path end to end (no plugin source).
+const D01_FAKE_ENTRY = `
+const args = process.argv.slice(2);
+const kind = args[2];
+const id = args[3];
+function out(state, eligible) {
+  process.stdout.write(JSON.stringify({
+    ok: state === "current", state, kind, source_id: id,
+    artifact_ref: state === "missing" ? null : "ref", schema_version: state === "missing" ? null : "guild.run_analysis.v1",
+    source_analysis_id: null, source_hash: null, current_source_hash: null,
+    input_hash: null, current_input_hash: null, eligible, reason: state === "current" ? null : state,
+  }));
+  process.exit(0);
+}
+if (id.endsWith("example-a")) out("current", true);
+else if (id.startsWith("comparison-")) out("stale", false);
+else if (id.endsWith("-missing")) out("missing", false);
+else { process.stderr.write("refused"); process.exit(1); }
+`;
+
+async function seedRuntimeFixture(dir: string): Promise<PackagedRuntime> {
+  await writeFileDeep(
+    join(dir, ".claude-plugin", "plugin.json"),
+    JSON.stringify({ name: "guild", version: "3.1.0" }),
+  );
+  await writeFileDeep(
+    join(dir, "guild.inventory.json"),
+    JSON.stringify({
+      schema_version: SUPPORTED_INVENTORY_SCHEMA,
+      plugin_version: "3.1.0",
+      manifest: { name: "guild", version: "3.1.0" },
+      scripts: [{ id: "run-analysis", kind: "cli" }],
+    }),
+  );
+  await writeFileDeep(join(dir, RUN_ANALYSIS_ENTRY), D01_FAKE_ENTRY);
+  return resolvePackagedRuntime(dir);
+}
+
+describe("project-reader / analysis artifacts (D01)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "proj-analysis-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("lists valid run + comparison artifacts with pass-through metadata", async () => {
+    await seedAnalysisFixtures(root);
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.total).toBe(2);
+    const run = res.artifacts.find((a) => a.kind === "run");
+    expect(run).toMatchObject({
+      id: VALID_RUN_ID,
+      source_guild: "project",
+      validation: "valid",
+      artifact_eligible: true,
+      recommendation_count: 1,
+      finding_count: 1,
+      invalid_recommendation_rows: 0,
+    });
+    expect(run?.analysis_id).toBe(`analysis:${VALID_RUN_ID}:1b4f1c74f378`);
+    const cmp = res.artifacts.find((a) => a.kind === "comparison");
+    expect(cmp).toMatchObject({ id: VALID_COMPARISON_ID, validation: "valid", artifact_eligible: null });
+  });
+
+  it("rejects a wrong-run artifact (run_id differs from its directory)", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-dir-name", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-OTHER-id")),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.artifacts[0].validation).toBe("wrong_source");
+  });
+
+  it("rejects malformed JSON and unsupported schema distinctly", async () => {
+    await writeFileDeep(join(root, ".guild", "analysis", "runs", "run-bad", "analysis.json"), "{nope");
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-v2", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-v2", { schema_version: "guild.run_analysis.v2" })),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    const byId = Object.fromEntries(res.artifacts.map((a) => [a.id, a.validation]));
+    expect(byId["run-bad"]).toBe("malformed");
+    expect(byId["run-v2"]).toBe("unsupported_schema");
+  });
+
+  it("rejects a symlink-escape artifact (D01-AC2)", async () => {
+    const outside = join(root, "..", `outside-${Date.now()}.json`);
+    await writeFileDeep(d01Resolve(outside), JSON.stringify(sampleRunAnalysis("run-escape")));
+    await writeFileDeep(join(root, ".guild", "analysis", "runs", "run-escape", ".keep"), "");
+    d01SymlinkSync(
+      d01Resolve(outside),
+      join(root, ".guild", "analysis", "runs", "run-escape", "analysis.json"),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.artifacts[0].validation).toBe("malformed");
+    await rm(d01Resolve(outside), { force: true });
+  });
+
+  it("marks an artifact with invalid recommendation rows as partial, counted", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-part", "analysis.json"),
+      JSON.stringify(
+        sampleRunAnalysis("run-part", {
+          recommendations: [
+            sampleRecommendation("run-part"),
+            { schema_version: "guild.recommendation.v1", id: "rec-x" }, // missing fields
+            sampleRecommendation("run-part", { requires_user_approval: false }),
+          ],
+        }),
+      ),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.artifacts[0].validation).toBe("partial");
+    expect(res.artifacts[0].invalid_recommendation_rows).toBe(2);
+    expect(res.artifacts[0].recommendation_count).toBe(3);
+  });
+
+  it("detail: validates the recommendations ledger and reports unavailable freshness without a runtime", async () => {
+    await seedAnalysisFixtures(root);
+    const detail = await readProjectAnalysisArtifact(root, "run", VALID_RUN_ID);
+    expect(detail.summary.validation).toBe("valid");
+    expect(detail.artifact?.run_id).toBe(VALID_RUN_ID);
+    // 1 valid row for this source; the malformed line and the other-source
+    // row are counted invalid (never silently merged).
+    expect(detail.recommendations).toHaveLength(1);
+    expect(detail.recommendations[0].source_id).toBe(VALID_RUN_ID);
+    expect(detail.invalid_recommendation_lines).toBe(2);
+    expect(detail.freshness).toEqual({ state: "unavailable", reason: "analysis_package_unconfigured" });
+  });
+
+  it("detail: absent artifact still resolves (producer-authoritative missing), 400 unsafe id", async () => {
+    await seedAnalysisFixtures(root);
+    // Without a runtime: absent + unavailable (never not_found-before-inspect).
+    const absent = await readProjectAnalysisArtifact(root, "run", "run-nope");
+    expect(absent.summary.validation).toBe("absent");
+    expect(absent.freshness.state).toBe("unavailable");
+    // With a runtime: the PRODUCER reports missing.
+    const runtime = await seedRuntimeFixture(join(root, "pkg-missing"));
+    const missing = await readProjectAnalysisArtifact(root, "run", "run-nope-missing", undefined, runtime);
+    expect(missing.summary.validation).toBe("absent");
+    expect(missing.freshness.state).toBe("missing");
+    await expect(readProjectAnalysisArtifact(root, "run", "../etc")).rejects.toMatchObject({ kind: "bad_request" });
+  });
+
+  it("detail: embedded recommendation bound to another source is counted invalid (codex F2)", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-bind", "analysis.json"),
+      JSON.stringify(
+        sampleRunAnalysis("run-bind", {
+          recommendations: [sampleRecommendation("run-OTHER")],
+        }),
+      ),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.artifacts[0].validation).toBe("partial");
+    expect(res.artifacts[0].invalid_recommendation_rows).toBe(1);
+  });
+
+  it("comparison recommendation naming another comparison's analysis id is invalid (codex F2 r2)", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "comparisons", "comparison-bind", "comparison.json"),
+      JSON.stringify(
+        sampleComparison("comparison-bind", {
+          recommendations: [
+            sampleRecommendation("comparison-bind", { source_analysis_id: "comparison-OTHER" }),
+          ],
+        }),
+      ),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    const cmp = res.artifacts.find((a) => a.id === "comparison-bind");
+    expect(cmp?.validation).toBe("partial");
+    expect(cmp?.invalid_recommendation_rows).toBe(1);
+  });
+
+  it("rejects core-field mutations: null finding rows and missing identity block (codex F1)", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-nullfind", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-nullfind", { findings: [null] })),
+    );
+    const base = sampleRunAnalysis("run-noident") as Record<string, unknown>;
+    delete base.identity;
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-noident", "analysis.json"),
+      JSON.stringify(base),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    const byId = Object.fromEntries(res.artifacts.map((a) => [a.id, a.validation]));
+    expect(byId["run-nullfind"]).toBe("malformed");
+    expect(byId["run-noident"]).toBe("malformed");
+  });
+
+  it("detail: producer-authoritative freshness through the packaged transport (current/stale/refused)", async () => {
+    await seedAnalysisFixtures(root);
+    const runtime = await seedRuntimeFixture(join(root, "pkg"));
+    const current = await readProjectAnalysisArtifact(root, "run", VALID_RUN_ID, undefined, runtime);
+    expect(current.freshness).toEqual({ state: "current", reason: null, decision_eligible: true });
+    const stale = await readProjectAnalysisArtifact(root, "comparison", VALID_COMPARISON_ID, undefined, runtime);
+    // B04 F4: decision eligibility comes from INSPECT (false here) even
+    // though the stored artifact itself exists and validates.
+    expect(stale.freshness).toEqual({ state: "stale", reason: "stale", decision_eligible: false });
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-refused-x", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-refused-x")),
+    );
+    const refused = await readProjectAnalysisArtifact(root, "run", "run-refused-x", undefined, runtime);
+    expect(refused.freshness.state).toBe("refused");
+  });
+
+  it("workspace mode: same artifact id in two sub-guilds needs the guild parameter", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "workspace.json"),
+      JSON.stringify({
+        schema_version: "guild.workspace.v1",
+        sub_guilds: [
+          { name: "alpha", path: "alpha" },
+          { name: "beta", path: "beta" },
+        ],
+      }),
+    );
+    for (const child of ["alpha", "beta"]) {
+      await writeFileDeep(
+        join(root, child, ".guild", "analysis", "runs", VALID_RUN_ID, "analysis.json"),
+        JSON.stringify(sampleRunAnalysis(VALID_RUN_ID)),
+      );
+    }
+    await expect(readProjectAnalysisArtifact(root, "run", VALID_RUN_ID)).rejects.toMatchObject({
+      kind: "ambiguous_guild",
+    });
+    const scoped = await readProjectAnalysisArtifact(root, "run", VALID_RUN_ID, "beta");
+    expect(scoped.summary.source_guild).toBe("beta");
+  });
+
+  it("D01-AC1: benchmark source implements no canonical hash/detector algorithm", () => {
+    const src = d01ReadFileSync(d01Resolve(__dirname, "..", "src", "project-reader.ts"), "utf8");
+    // Freshness fields are passed through / compared by the producer; the
+    // reader itself never computes a digest or classifies findings.
+    expect(src).not.toMatch(/createHash|crypto/);
+    expect(src).not.toMatch(/instruction_violation|repeated_failure.*signature\s*=/);
+  });
+});
+
+describe("project-reader / analysis hardening (codex r3 + security)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "proj-analysis-hard-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("comparison LEDGER row naming another comparison's analysis id is invalid", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "comparisons", "comparison-l", "comparison.json"),
+      JSON.stringify(sampleComparison("comparison-l", { recommendations: [] })),
+    );
+    await writeFileDeep(
+      join(root, ".guild", "recommendations", "comparison-l.jsonl"),
+      JSON.stringify(
+        sampleRecommendation("comparison-l", { source_analysis_id: "comparison-OTHER" }),
+      ) + "\n",
+    );
+    const detail = await readProjectAnalysisArtifact(root, "comparison", "comparison-l");
+    expect(detail.recommendations).toHaveLength(0);
+    expect(detail.invalid_recommendation_lines).toBe(1);
+  });
+
+  it("refuses an oversized artifact and an oversized ledger (security F2)", async () => {
+    const pad = "x".repeat(9 * 1024 * 1024);
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-huge", "analysis.json"),
+      JSON.stringify({ ...sampleRunAnalysis("run-huge"), pad }),
+    );
+    const res = await listProjectAnalysisArtifacts(root);
+    expect(res.artifacts[0].validation).toBe("malformed");
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-okay", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-okay", { recommendations: [] })),
+    );
+    await writeFileDeep(join(root, ".guild", "recommendations", "run-okay.jsonl"), pad);
+    const detail = await readProjectAnalysisArtifact(root, "run", "run-okay");
+    expect(detail.recommendations).toHaveLength(0);
+    expect(detail.invalid_recommendation_lines).toBe(1);
+  });
+
+  it("detail parses the artifact exactly once (no reopen window) and returns it", async () => {
+    await writeFileDeep(
+      join(root, ".guild", "analysis", "runs", "run-once", "analysis.json"),
+      JSON.stringify(sampleRunAnalysis("run-once", { recommendations: [] })),
+    );
+    const detail = await readProjectAnalysisArtifact(root, "run", "run-once");
+    expect(detail.summary.validation).toBe("valid");
+    expect(detail.artifact?.analysis_id).toBe("analysis:run-once:1b4f1c74f378");
+  });
+});
