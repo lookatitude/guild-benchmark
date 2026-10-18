@@ -12,6 +12,21 @@ import { analyzeProjectTarget, api } from "../lib/api";
 import { DeltaChart } from "../components/DeltaChart";
 import { DeltaTable } from "../components/DeltaTable";
 import { ReflectionBadge } from "../components/ReflectionBadge";
+import {
+  AnalysisActionList,
+  AnalysisDetailView,
+  AnalysisReadState,
+  analysisApi,
+  analysisBlockedReason,
+  buildAnalysisAction,
+  isAnalysisDetailResponse,
+  isAnalysisListResponse,
+  isSafeAnalysisId,
+  useAnalysisRead,
+  WRAP,
+  type AnalysisJobRequestPreview,
+  type AnalysisSummary,
+} from "./RunDetailPage";
 
 export default function ComparePage() {
   // Cross-route state lives in URL search params per p2-ui-architecture.md §3.3.
@@ -193,6 +208,9 @@ export default function ComparePage() {
       ) : null}
 
       {liveMode && analysis ? <AnalysisPanel analysis={analysis} /> : null}
+      {liveMode ? (
+        <DiagnosticSection baseline={baselineTarget} candidate={candidateTarget} />
+      ) : null}
       {analysisError ? (
         <div className="error" role="alert">
           {analysisError}
@@ -444,5 +462,205 @@ function LegacyComparisonSummary({ data }: { data: Comparison }) {
             </section>
           ) : null}
         </>
+  );
+}
+
+// ---- E01 — diagnostic analysis selection (C-ANALYSIS / C-JOBS) -----------
+//
+// Separate from the trace/score comparison above: it lists plugin-produced
+// analysis artifacts, renders one with its evidence, and states the exact
+// job request for the selected run, initiative or independent group.
+
+type DiagnosticScope = "targets" | "independent";
+
+/** Exact C-JOBS ids for a live target: run targets carry run ids; an
+ * initiative target id is `initiative:<guild>:<initiative-id>`. */
+function targetRequest(target: ProjectComparisonTarget): AnalysisJobRequestPreview {
+  if (target.kind === "initiative") {
+    const initiativeId = target.id.split(":").slice(2).join(":");
+    return {
+      source_guild: target.source_guild,
+      operation: "analyze",
+      target_kind: "initiative",
+      ids: [initiativeId],
+    };
+  }
+  return { source_guild: target.source_guild, operation: "analyze", target_kind: "run", ids: target.run_ids };
+}
+
+function compareRequest(
+  baseline: ProjectComparisonTarget | undefined,
+  candidate: ProjectComparisonTarget | undefined,
+): { request: AnalysisJobRequestPreview | null; reason: string | null } {
+  if (!baseline || !candidate) return { request: null, reason: "select a baseline and a candidate" };
+  if (baseline.source_guild !== candidate.source_guild) {
+    return { request: null, reason: "unsupported: baseline and candidate come from different sources" };
+  }
+  const ids = [...new Set([...baseline.run_ids, ...candidate.run_ids])].sort();
+  if (ids.length < 2) return { request: null, reason: "a comparison needs at least 2 distinct runs" };
+  return {
+    request: { source_guild: baseline.source_guild, operation: "compare", target_kind: "runs", ids },
+    reason: null,
+  };
+}
+
+function artifactKey(a: Pick<AnalysisSummary, "kind" | "source_guild" | "id">) {
+  return `${a.kind}|${a.source_guild}|${a.id}`;
+}
+
+function DiagnosticSection({
+  baseline,
+  candidate,
+}: {
+  baseline: ProjectComparisonTarget | undefined;
+  candidate: ProjectComparisonTarget | undefined;
+}) {
+  const list = useAnalysisRead(analysisApi.list(), isAnalysisListResponse);
+  const [scope, setScope] = useState<DiagnosticScope>("targets");
+  const [groupId, setGroupId] = useState("");
+  const [groupGuild, setGroupGuild] = useState("");
+  const [selectedKey, setSelectedKey] = useState("");
+
+  const artifacts = list.state === "ok" ? list.data.artifacts : [];
+  const selected = artifacts.find((a) => artifactKey(a) === selectedKey);
+  const detail = useAnalysisRead(
+    selected ? analysisApi.detail(selected.kind, selected.id, selected.source_guild) : null,
+    isAnalysisDetailResponse,
+  );
+  const guilds = [
+    ...new Set(
+      [baseline?.source_guild, candidate?.source_guild, ...artifacts.map((a) => a.source_guild)].filter(
+        (g): g is string => !!g,
+      ),
+    ),
+  ];
+  const effectiveGroupGuild = groupGuild || guilds[0] || "";
+
+  const actions =
+    scope === "targets"
+      ? (() => {
+          const cmp = compareRequest(baseline, candidate);
+          return [
+            buildAnalysisAction(
+              "analyze-baseline",
+              "Analyze baseline",
+              baseline ? targetRequest(baseline) : null,
+              "select a baseline",
+            ),
+            buildAnalysisAction(
+              "analyze-candidate",
+              "Analyze candidate",
+              candidate ? targetRequest(candidate) : null,
+              "select a candidate",
+            ),
+            buildAnalysisAction("compare-runs", "Compare selected runs", cmp.request, cmp.reason ?? ""),
+          ];
+        })()
+      : [
+          buildAnalysisAction(
+            "analyze-independent",
+            "Analyze independent group",
+            groupId
+              ? { source_guild: effectiveGroupGuild, operation: "analyze", target_kind: "independent", ids: [groupId] }
+              : null,
+            "enter an independent group id",
+          ),
+        ];
+
+  const runArtifacts = artifacts.filter((a) => a.kind === "run");
+  const comparisonArtifacts = artifacts.filter((a) => a.kind === "comparison");
+
+  return (
+    <section data-testid="diagnostic-section" style={WRAP}>
+      <h2>Diagnostic evidence</h2>
+      <p className="muted">
+        Analysis artifacts from the Guild producer. Evidence completeness counts which evidence exists; it is not a
+        quality score and is not part of the trace comparison above.
+      </p>
+
+      <form className="compare-selection-grid" onSubmit={(e) => e.preventDefault()} aria-label="Diagnostic scope">
+        <div className="field">
+          <label htmlFor="diag-scope">Analysis scope</label>
+          <select id="diag-scope" value={scope} onChange={(e) => setScope(e.target.value as DiagnosticScope)}>
+            <option value="targets">Selected run or initiative</option>
+            <option value="independent">Independent group</option>
+          </select>
+        </div>
+        {scope === "independent" ? (
+          <>
+            <div className="field">
+              <label htmlFor="diag-group">Independent group id</label>
+              <input
+                id="diag-group"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value.trim())}
+                aria-invalid={groupId !== "" && !isSafeAnalysisId(groupId)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="diag-group-guild">Group source</label>
+              <select
+                id="diag-group-guild"
+                value={effectiveGroupGuild}
+                onChange={(e) => setGroupGuild(e.target.value)}
+                disabled={guilds.length === 0}
+              >
+                {guilds.length === 0 ? <option value="">No sources found</option> : null}
+                {guilds.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : null}
+      </form>
+
+      <h3>Analysis actions</h3>
+      <AnalysisActionList actions={actions} blockedReason={analysisBlockedReason(list)} />
+
+      <h3>Analysis artifacts</h3>
+      {list.state !== "ok" ? (
+        <AnalysisReadState read={list} emptyLabel="No analysis requested." />
+      ) : artifacts.length === 0 ? (
+        <div className="empty" data-testid="analysis-artifacts-empty">
+          No analysis artifacts yet. Analyze a run, initiative or independent group first.
+        </div>
+      ) : (
+        <div className="field">
+          <label htmlFor="diag-artifact">Analysis artifact</label>
+          <select id="diag-artifact" value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}>
+            <option value="">Select an analysis artifact</option>
+            {runArtifacts.length > 0 ? (
+              <optgroup label="Run analyses">
+                {runArtifacts.map((a) => (
+                  <option key={artifactKey(a)} value={artifactKey(a)}>
+                    {a.source_guild} · {a.id} ({a.validation})
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {comparisonArtifacts.length > 0 ? (
+              <optgroup label="Comparison analyses">
+                {comparisonArtifacts.map((a) => (
+                  <option key={artifactKey(a)} value={artifactKey(a)}>
+                    {a.source_guild} · {a.id} ({a.validation})
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+          </select>
+        </div>
+      )}
+
+      {selected ? (
+        detail.state === "ok" ? (
+          <AnalysisDetailView detail={detail.data} />
+        ) : (
+          <AnalysisReadState read={detail} emptyLabel="Select an analysis artifact." />
+        )
+      ) : null}
+    </section>
   );
 }
