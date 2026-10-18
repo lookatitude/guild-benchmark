@@ -24,6 +24,7 @@ import {
   readProjectRun,
   readProjectWikiPage,
 } from "./project-reader.js";
+import type { PackagedRuntime } from "./analysis-process.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -67,6 +68,16 @@ export interface ServerOpts {
    * (regression-tested; codex finding #4).
    */
   projectRoot?: string;
+  /**
+   * D00 (C-JOBS §startup) — validated packaged-plugin runtime descriptor.
+   * The CLI resolves `--guild-plugin-package` ONCE via
+   * `resolvePackagedRuntime` (refusing startup on an invalid package) and
+   * passes the descriptor here; every producer action (artifact inspection,
+   * D02 jobs) uses this single validated transport. When absent, project
+   * read routes keep working and /api/project/analysis/* returns
+   * 503 analysis_package_unconfigured.
+   */
+  guildPluginPackage?: PackagedRuntime;
 }
 
 export interface ServerHandle {
@@ -407,6 +418,25 @@ export function createApp(opts: ServerOpts): Hono {
   // + source_guild-tagged via project-reader.ts. Without the flag every
   // project route returns 404 {error} so the no-flag server stays
   // behavior-identical (codex finding #4).
+
+  // ---- /api/project/analysis/* availability gate (D00, C-JOBS §startup) --
+  // Flag absent ⇒ analysis inspection/jobs are unavailable with an actionable
+  // message while every existing project read route stays untouched. The
+  // validated runtime (when present) is consumed by the analysis routes that
+  // D01/D02 register under this prefix.
+  const analysisRuntime = opts.guildPluginPackage;
+  app.use("/api/project/analysis/*", async (c, next) => {
+    if (!analysisRuntime) {
+      return c.json(
+        {
+          error: "analysis_package_unconfigured",
+          hint: "start serve with --guild-plugin-package <absolute-packaged-plugin-root>",
+        },
+        503,
+      );
+    }
+    await next();
+  });
 
   const noProjectRoot = (c: Context) =>
     c.json(
