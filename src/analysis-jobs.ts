@@ -92,7 +92,14 @@ export interface AnalysisJobLimits {
   timeoutMs?: number;
 }
 
-const SHA256_HEX = /^[a-f0-9]{64}$/;
+// Canonical producer input-hash form is `sha256:<64 lowercase hex>` (the
+// artifact's diagnostics.input_hash format; E03 F3 orchestrator ruling). A
+// bare hex digest is accepted for compatibility and normalized to canonical.
+const SHA256_INPUT_HASH = /^(sha256:)?[a-f0-9]{64}$/;
+
+export function canonicalInputHash(value: string): string {
+  return value.startsWith("sha256:") ? value : `sha256:${value}`;
+}
 
 function excerpt(buf: string, max = 512): string {
   return buf.length > max ? `${buf.slice(0, max)}…` : buf;
@@ -166,8 +173,8 @@ export function buildProducerArgv(
   ) {
     return { error: "source_analysis_id (expected analysis identity) is required and must be printable" };
   }
-  if (typeof req.source_input_hash !== "string" || !SHA256_HEX.test(req.source_input_hash)) {
-    return { error: "source_input_hash must be a producer sha256 hex digest" };
+  if (typeof req.source_input_hash !== "string" || !SHA256_INPUT_HASH.test(req.source_input_hash)) {
+    return { error: "source_input_hash must be a producer sha256 digest (sha256:<64 lowercase hex> or bare hex)" };
   }
   return {
     argv: [
@@ -180,7 +187,7 @@ export function buildProducerArgv(
       "--expected-analysis-id",
       req.source_analysis_id,
       "--expected-input-hash",
-      req.source_input_hash,
+      canonicalInputHash(req.source_input_hash),
       ...cwdFlag,
     ],
   };
@@ -232,7 +239,8 @@ export class AnalysisJobManager {
       req.decision ?? "",
       req.recommendation_id ?? "",
       req.source_analysis_id ?? "",
-      req.source_input_hash ?? "",
+      // Normalized so `sha256:<hex>` and bare hex dedupe as the same guard.
+      req.source_input_hash !== undefined ? canonicalInputHash(req.source_input_hash) : "",
     ].join("\u0000");
 
     const activeId = this.activeByRoot.get(canonicalRoot);
@@ -436,7 +444,7 @@ export class AnalysisJobManager {
         const validated =
           parsed === null || typeof parsed !== "object" || Array.isArray(parsed)
             ? { error: "stdout is not a JSON object" }
-            : validateProducerSuccess(job.request, parsed as Record<string, unknown>);
+            : validateProducerSuccess(job.request, parsed as Record<string, unknown>, job.canonicalRoot);
         if ("error" in validated) {
           this.closeJob(job, {
             state: "failed",
@@ -530,6 +538,7 @@ export const MAX_TERMINAL_JOBS = 200;
 export function validateProducerSuccess(
   req: AnalysisJobRequest,
   result: Record<string, unknown>,
+  canonicalRoot: string,
 ): { refs: string[] } | { error: string } {
   if (result.ok !== true) return { error: "ok is not true" };
   if (req.operation === "analyze" && req.target_kind === "run") {
@@ -562,8 +571,16 @@ export function validateProducerSuccess(
   // artifact refs are expected.
   const refs: string[] = [];
   const written = result.written;
-  const candidates =
-    typeof written === "string" ? [written] : Array.isArray(written) ? written : [];
+  // The shipped analyze producer emits `written` as an OBJECT of absolute
+  // paths ({json, markdown}); string / string[] remain accepted (E03 F4).
+  const candidates: unknown[] =
+    typeof written === "string"
+      ? [written]
+      : Array.isArray(written)
+        ? written
+        : written !== null && typeof written === "object"
+          ? Object.values(written)
+          : [];
   // Analyze-run refs must live under THAT run's canonical analysis dir; other
   // operations' refs stay inside the canonical analysis tree (codex F2 r2).
   const requiredPrefix =
@@ -572,13 +589,32 @@ export function validateProducerSuccess(
       : ".guild/analysis/";
   for (const w of candidates) {
     if (typeof w !== "string") return { error: "written entries must be strings" };
-    if (isAbsolute(w) || w.split(/[\\/]/).includes("..")) {
+    // Absolute producer paths are resolved to their PHYSICAL path (codex F1:
+    // lexical containment alone would let a symlinked component point outside
+    // the root) and relativized against the canonical root, which the server
+    // already realpathed; anything outside it is an escape, and an
+    // unresolvable path fails closed.
+    let ref = w;
+    if (isAbsolute(ref)) {
+      let phys: string;
+      try {
+        phys = realpathSync(ref);
+      } catch {
+        return { error: `artifact ref does not resolve on disk: ${w}` };
+      }
+      const rel = relative(canonicalRoot, phys);
+      if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+        return { error: `artifact ref escapes the canonical root: ${w}` };
+      }
+      ref = rel.split(sep).join("/");
+    }
+    if (ref.split(/[\\/]/).includes("..")) {
       return { error: `artifact ref escapes the canonical root: ${w}` };
     }
-    if (!w.startsWith(requiredPrefix)) {
+    if (!ref.startsWith(requiredPrefix)) {
       return { error: `artifact ref outside ${requiredPrefix}: ${w}` };
     }
-    refs.push(w);
+    refs.push(ref);
   }
   return { refs };
 }
