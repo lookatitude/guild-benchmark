@@ -438,6 +438,8 @@ export function evidenceLinkTarget(
   if (segments.some((seg) => seg === "" || seg === "." || seg === "..")) {
     return { refused: "path traversal" };
   }
+  // Same rule the artifact route applies to the first path segment.
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(segments[0])) return { refused: "URL scheme" };
   if (!reportedRuns.includes(runId)) return { refused: "run not reported by this artifact" };
   return { runId, path: rel, ref };
 }
@@ -453,8 +455,8 @@ export function EvidenceRef({
 }) {
   const target = evidenceLinkTarget(value, reportedRuns);
   if ("runId" in target) {
-    // No API route serves project-run file contents, so the reference opens
-    // in place (run, path, line) with a link to the run overview.
+    // The reference opens in place (run, path, line), opens the file through
+    // the project-run artifact route, and hands the ref to the run overview.
     const path = target.path;
     const fragment = /#.*$/.exec(target.ref)?.[0];
     const line = fragment ? /^#line:(\d+)$/.exec(fragment)?.[1] : undefined;
@@ -473,8 +475,17 @@ export function EvidenceRef({
           <dt>Reference</dt>
           <dd style={WRAP}><code style={WRAP}>{value}</code></dd>
         </dl>
+        <a
+          href={api.projectRunArtifact(target.runId, path, guild)}
+          data-testid="evidence-file-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={WRAP}
+        >
+          Open file
+        </a>{" "}
         <Link
-          to={`/project-runs/${encodeURIComponent(target.runId)}?guild=${encodeURIComponent(guild)}`}
+          to={`/project-runs/${encodeURIComponent(target.runId)}?guild=${encodeURIComponent(guild)}&ref=${encodeURIComponent(path)}`}
           data-testid="evidence-link"
           data-ref-path={path}
           title={value}

@@ -464,9 +464,12 @@ describe("ComparePage — E01 diagnostic evidence", () => {
     );
     const rec = await screen.findByTestId("analysis-recommendation");
     const hrefs = Array.from(rec.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    const ref = encodeURIComponent("logs/v1.4-events.jsonl");
     expect(hrefs).toEqual([
-      `/project-runs/${RUN_A}?guild=plugin`,
-      `/project-runs/${RUN_B}?guild=plugin`,
+      `/api/project/runs/${RUN_A}/artifacts/logs/v1.4-events.jsonl?guild=plugin`,
+      `/project-runs/${RUN_A}?guild=plugin&ref=${ref}`,
+      `/api/project/runs/${RUN_B}/artifacts/logs/v1.4-events.jsonl?guild=plugin`,
+      `/project-runs/${RUN_B}?guild=plugin&ref=${ref}`,
     ]);
     const panels = Array.from(rec.querySelectorAll('[data-testid="evidence-ref"] summary')).map((s) => s.textContent);
     expect(panels).toEqual([evRef(RUN_A, 8), evRef(RUN_B, 9)]);
