@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -162,13 +162,12 @@ describe("ComparePage — surface", () => {
 
     expect(await screen.findByRole("heading", { name: "Summary" })).toBeInTheDocument();
     expect(screen.getByText("+7")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Analyze baseline" }));
-    expect(await screen.findByTestId("analysis-panel")).toHaveTextContent(
-      "/guild:reflect --initiative guild-dashboard",
-    );
-    expect(screen.getByTestId("analysis-panel")).toHaveTextContent(
-      "/guild:evolve <skill-name>",
-    );
+    // E-FIX F2: the legacy POST /api/project/analyze handoff is gone; the
+    // only "Analyze baseline" control is the C-JOBS job panel.
+    const analyze = screen.getAllByRole("button", { name: "Analyze baseline" });
+    expect(analyze).toHaveLength(1);
+    expect(within(screen.getByTestId("analysis-action-analyze-baseline")).getByTestId("analysis-job-panel")).toContainElement(analyze[0]);
+    expect(screen.queryByTestId("analysis-panel")).toBeNull();
   });
 });
 
@@ -313,5 +312,378 @@ describe("ComparePage — reflection_applied annotation (P4 / Q19)", () => {
     expect(cell).toHaveTextContent("0987654");
     // The `→` glyph is wrapped in aria-hidden but should be in the DOM text.
     expect(cell.textContent).toMatch(/→/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E01 — diagnostic evidence selection. Comparison payload transcribes the D01
+// contract fixture benchmark/tests/analysis-contract-fixtures/comparison.json
+// (feature/v3c-team-d-benchmark-api @ 96d2ab2), run ids deliberately shuffled
+// so hashes must stay paired by position.
+// ---------------------------------------------------------------------------
+
+const RUN_A = "run-20261017-010000-example-a";
+const RUN_B = "run-20261017-010100-example-b";
+const HASH_A = "1b4f1c74f378d71d89f706b4e019468486321894419facec6c7661b48370628a";
+const HASH_B = "998e28e3f03f8a4ba536b2ee0e78d8c4d5268846d1e17858cec94ffd6370c55d";
+const CMP_ID = "comparison-abac869491a330d9";
+const evRef = (run: string, line: number) => `.guild/runs/${run}/logs/v1.4-events.jsonl#line:${line}`;
+
+function summary(kind: "run" | "comparison", id: string, extra: Record<string, unknown> = {}) {
+  return {
+    kind,
+    id,
+    source_guild: "plugin",
+    analysis_id: kind === "comparison" ? id : `analysis:${id}:1b4f1c74f378`,
+    schema_version: kind === "comparison" ? "guild.run_comparison.v1" : "guild.run_analysis.v1",
+    artifact_eligible: kind === "comparison" ? null : true,
+    validation: "valid",
+    invalid_recommendation_rows: 0,
+    recommendation_count: 1,
+    finding_count: 0,
+    path: `/abs/project/.guild/analysis/${kind}s/${id}`,
+    ...extra,
+  };
+}
+
+const ANALYSIS_LIST = {
+  artifacts: [summary("run", RUN_A), summary("comparison", CMP_ID)],
+  total: 2,
+  sources: [],
+};
+
+const COMPARISON_DETAIL = {
+  summary: summary("comparison", CMP_ID),
+  artifact: {
+    schema_version: "guild.run_comparison.v1",
+    comparison_id: CMP_ID,
+    run_ids: [RUN_B, RUN_A],
+    source_hashes: [HASH_B, HASH_A],
+    completeness: { eligible_runs: 2, total_runs: 2, average_score: 100 },
+    repeated_signatures: [
+      { signature: "Bash|fixture failing check|fixture error", runs: [RUN_A, RUN_B], occurrences: 2 },
+    ],
+    recommendations: [],
+  },
+  recommendations: [
+    {
+      schema_version: "guild.recommendation.v1",
+      id: "rec-da35bafbcf69c4cd",
+      source_id: CMP_ID,
+      source_analysis_id: CMP_ID,
+      status: "proposed",
+      confidence: "high",
+      requires_user_approval: true,
+      evidence_refs: [evRef(RUN_A, 8), evRef(RUN_B, 9), evRef("run-not-in-comparison", 1)],
+      proposed_action: "Address repeated cross-run signature Bash|fixture failing check|fixture error",
+    },
+  ],
+  invalid_recommendation_lines: 0,
+  freshness: { state: "current", reason: null, decision_eligible: true },
+};
+
+const DIAG_TARGETS = {
+  targets: [
+    ...PROJECT_TARGETS.targets,
+    {
+      id: "run:plugin:run-plugin-2",
+      kind: "run",
+      source_guild: "plugin",
+      label: "plugin · run-plugin-2",
+      run_ids: ["run-plugin-2"],
+      run_count: 1,
+      comparison_eligible: true,
+      reasons: [],
+    },
+    {
+      id: "run:website:run-web-1",
+      kind: "run",
+      source_guild: "website",
+      label: "website · run-web-1",
+      run_ids: ["run-web-1"],
+      run_count: 1,
+      comparison_eligible: true,
+      reasons: [],
+    },
+  ],
+  total: 5,
+  sources: [],
+};
+
+function mountDiagnostics(
+  analysis: (url: string) => Response | undefined,
+  initial: string[] = ["/compare"],
+) {
+  const h = installMockFetch({
+    override: (url) => {
+      if (url.includes("/api/project/analysis/")) return analysis(url);
+      if (url.match(/\/api\/project\/comparison-targets$/)) return jsonResponse(DIAG_TARGETS);
+      if (url.match(/\/api\/project\/comparisons/)) return jsonResponse(PROJECT_COMPARISON);
+      return undefined;
+    },
+  });
+  mount(initial);
+  return h;
+}
+
+const diagnosticsOk = (url: string) =>
+  url.includes("kind=comparison") ? jsonResponse(COMPARISON_DETAIL) : jsonResponse(ANALYSIS_LIST);
+
+describe("ComparePage — E01 diagnostic evidence", () => {
+  let handle: ReturnType<typeof installMockFetch> | undefined;
+
+  afterEach(() => {
+    handle?.reset();
+  });
+
+  it("E01-AC2: renders a selected comparison with shuffled run ids paired to their hashes", async () => {
+    handle = mountDiagnostics(diagnosticsOk);
+    const picker = await screen.findByRole("combobox", { name: "Analysis artifact" });
+    await userEvent.selectOptions(picker, `comparison|plugin|${CMP_ID}`);
+    const detail = await screen.findByTestId("analysis-detail");
+    expect(detail).toHaveAttribute("data-kind", "comparison");
+    const rows = Array.from(screen.getByTestId("comparison-runs").querySelectorAll("li"));
+    expect(rows.map((r) => r.textContent)).toEqual([
+      `${RUN_B} source hash ${HASH_B}`,
+      `${RUN_A} source hash ${HASH_A}`,
+    ]);
+    expect(rows[0].style.overflowWrap).toBe("anywhere");
+    expect(screen.getByTestId("completeness")).toHaveTextContent("Eligible runs: 2 of 2");
+    expect(screen.getByTestId("completeness")).toHaveTextContent("not a quality score");
+    expect(screen.getByTestId("analysis-finding")).toHaveTextContent("2 occurrences");
+    // Decision eligibility comes from producer inspection, artifact flag is unknown.
+    expect(screen.getByTestId("artifact-eligible")).toHaveTextContent("unknown");
+    expect(screen.getByTestId("decision-eligible")).toHaveTextContent("yes");
+  });
+
+  it("E01-AC3: comparison evidence links only to its reported runs", async () => {
+    handle = mountDiagnostics(diagnosticsOk);
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Analysis artifact" }),
+      `comparison|plugin|${CMP_ID}`,
+    );
+    const rec = await screen.findByTestId("analysis-recommendation");
+    const hrefs = Array.from(rec.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual([
+      `/project-runs/${RUN_A}?guild=plugin`,
+      `/project-runs/${RUN_B}?guild=plugin`,
+    ]);
+    const panels = Array.from(rec.querySelectorAll('[data-testid="evidence-ref"] summary')).map((s) => s.textContent);
+    expect(panels).toEqual([evRef(RUN_A, 8), evRef(RUN_B, 9)]);
+    expect(rec.querySelector('[data-testid="evidence-unlinked"]')).toHaveTextContent(
+      "run not reported by this artifact",
+    );
+    expect(document.body).not.toHaveTextContent("/abs/project/.guild/analysis");
+  });
+
+  it("shows an explicit empty state when no analysis artifacts exist", async () => {
+    handle = mountDiagnostics(() => jsonResponse({ artifacts: [], total: 0, sources: [] }));
+    expect(await screen.findByTestId("analysis-artifacts-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("analysis-detail")).toBeNull();
+  });
+
+  it("503 analysis_package_unconfigured disables every action with an explanation", async () => {
+    handle = mountDiagnostics(() =>
+      jsonResponse({ error: "analysis_package_unconfigured", hint: "start serve with --guild-plugin-package <abs>" }, 503),
+    );
+    expect(await screen.findByTestId("analysis-unconfigured")).toHaveTextContent("--guild-plugin-package <abs>");
+    for (const key of ["analyze-baseline", "analyze-candidate", "compare-runs"]) {
+      const row = screen.getByTestId(`analysis-action-${key}`);
+      expect(row).toHaveAttribute("data-action-state", "disabled");
+      expect(row).toHaveTextContent("analysis package is not configured");
+    }
+    expect(screen.queryByTestId("analysis-error")).toBeNull();
+  });
+
+  it("states exact requests for run/initiative targets and refuses cross-source compares", async () => {
+    handle = mountDiagnostics(diagnosticsOk, [
+      "/compare?baseline=run:plugin:run-plugin&candidate=run:plugin:run-plugin-2",
+    ]);
+    const compare = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(compare).toHaveAttribute("data-action-state", "ready"));
+    expect(compare).toHaveTextContent(
+      JSON.stringify({
+        source_guild: "plugin",
+        operation: "compare",
+        target_kind: "runs",
+        ids: ["run-plugin", "run-plugin-2"],
+      }),
+    );
+    handle.reset();
+    cleanup();
+
+    handle = mountDiagnostics(diagnosticsOk, [
+      "/compare?baseline=run:plugin:run-plugin&candidate=run:website:run-web-1",
+    ]);
+    const cross = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(cross).toHaveTextContent("different sources"));
+    expect(cross).toHaveAttribute("data-action-state", "disabled");
+    handle.reset();
+    cleanup();
+
+    handle = mountDiagnostics(diagnosticsOk, [
+      "/compare?baseline=initiative:workspace:guild-dashboard",
+    ]);
+    const init = await screen.findByTestId("analysis-action-analyze-baseline");
+    await waitFor(() => expect(init).toHaveAttribute("data-action-state", "ready"));
+    expect(init).toHaveTextContent(
+      JSON.stringify({
+        source_guild: "workspace",
+        operation: "analyze",
+        target_kind: "initiative",
+        ids: ["guild-dashboard"],
+      }),
+    );
+    expect(screen.getByTestId("analysis-action-analyze-candidate")).toHaveTextContent(
+      "Disabled: select a candidate",
+    );
+  });
+
+  it("independent-group scope validates the id before stating a request", async () => {
+    handle = mountDiagnostics(diagnosticsOk);
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Analysis scope" }),
+      "independent",
+    );
+    expect(screen.getByTestId("analysis-action-analyze-independent")).toHaveTextContent(
+      "Disabled: enter an independent group id",
+    );
+    const input = screen.getByLabelText("Independent group id");
+    await userEvent.type(input, "../etc");
+    expect(screen.getByTestId("analysis-action-analyze-independent")).toHaveTextContent(
+      "Disabled: unsupported id: ../etc",
+    );
+    await userEvent.clear(input);
+    await userEvent.type(input, "plan-fixtures");
+    const row = screen.getByTestId("analysis-action-analyze-independent");
+    await waitFor(() => expect(row).toHaveAttribute("data-action-state", "ready"));
+    expect(row).toHaveTextContent('"target_kind":"independent","ids":["plan-fixtures"]');
+  });
+
+  it("stale and unsupported comparison states are explicit", async () => {
+    handle = mountDiagnostics((url) =>
+      url.includes("kind=comparison")
+        ? jsonResponse({
+            ...COMPARISON_DETAIL,
+            summary: summary("comparison", CMP_ID, { validation: "unsupported_schema" }),
+            // Artifact stays populated: only the validation guard may hide it.
+            freshness: { state: "stale", reason: "input_hash changed", decision_eligible: false },
+          })
+        : jsonResponse(ANALYSIS_LIST),
+    );
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Analysis artifact" }),
+      `comparison|plugin|${CMP_ID}`,
+    );
+    const notice = await screen.findByTestId("analysis-freshness");
+    expect(notice).toHaveAttribute("data-freshness", "stale");
+    expect(notice).toHaveAttribute("data-validation", "unsupported_schema");
+    expect(notice).toHaveTextContent("input_hash changed");
+    expect(screen.queryByTestId("comparison-runs")).toBeNull();
+    expect(screen.queryByTestId("analysis-finding")).toBeNull();
+    expect(document.body).not.toHaveTextContent(HASH_A);
+  });
+
+  it("a malformed list envelope renders a malformed state and disables actions", async () => {
+    handle = mountDiagnostics(() => jsonResponse({ artifacts: [{ kind: "run" }], total: 1 }));
+    expect(await screen.findByTestId("analysis-malformed")).toBeInTheDocument();
+    expect(screen.getByTestId("analysis-action-analyze-baseline")).toHaveAttribute("data-action-state", "disabled");
+  });
+});
+
+// ---- E-FIX (E03 F1/F2): mounted job panels, no legacy analyzer ------------
+
+describe("ComparePage — E-FIX mounted analysis panels", () => {
+  let handle: ReturnType<typeof installMockFetch> | undefined;
+
+  afterEach(() => {
+    handle?.reset();
+  });
+
+  function mountJobs(initial: string[]) {
+    const posts: Array<{ url: string; body: unknown }> = [];
+    handle = installMockFetch({
+      override: (url, init) => {
+        if (init?.method === "POST") {
+          posts.push({ url, body: init.body ? JSON.parse(String(init.body)) : null });
+          if (url.endsWith("/project/analysis/jobs")) {
+            return jsonResponse(
+              {
+                job_id: "job-c",
+                source_guild: "plugin",
+                operation: "compare",
+                state: "queued",
+                created_at: "2026-10-18T00:00:00Z",
+                started_at: null,
+                closed_at: null,
+                exit_code: null,
+                signal: null,
+                stdout_excerpt: "",
+                stderr_excerpt: "",
+                artifact_refs: [],
+                reason: null,
+              },
+              202,
+            );
+          }
+          return jsonResponse({ error: "unexpected POST" }, 500);
+        }
+        if (url.endsWith("/project/analysis/session")) return jsonResponse({ action_token: "tok" });
+        if (url.includes("/api/project/analysis/")) return diagnosticsOk(url);
+        if (url.match(/\/api\/project\/comparison-targets$/)) return jsonResponse(DIAG_TARGETS);
+        if (url.match(/\/api\/project\/comparisons/)) return jsonResponse(PROJECT_COMPARISON);
+        return undefined;
+      },
+    });
+    mount(initial);
+    return posts;
+  }
+
+  it("F2: live Compare has no legacy analyze buttons and never POSTs /api/project/analyze", async () => {
+    const posts = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:plugin:run-plugin-2"]);
+    const row = await screen.findByTestId("analysis-action-analyze-baseline");
+    await waitFor(() => expect(row).toHaveAttribute("data-action-state", "ready"));
+    for (const name of ["Analyze baseline", "Analyze candidate"]) {
+      const buttons = screen.getAllByRole("button", { name });
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].closest('[data-testid="analysis-job-panel"]')).not.toBeNull();
+    }
+    expect(document.querySelector(".compare-actions")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Analyze baseline" }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0].url).toMatch(/\/project\/analysis\/jobs$/);
+    expect(posts.some((p) => p.url.endsWith("/project/analyze"))).toBe(false);
+  });
+
+  it("F1: the compare action submits its exact request; an unready action stays gated", async () => {
+    const posts = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:website:run-web-1"]);
+    const cross = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(cross).toHaveTextContent("different sources"));
+    // No request can be built, so no submit control is mounted at all.
+    expect(within(cross).queryByRole("button", { name: "Compare selected runs" })).toBeNull();
+    const candidateRow = screen.getByTestId("analysis-action-analyze-candidate");
+    await waitFor(() => expect(candidateRow).toHaveAttribute("data-action-state", "ready"));
+    expect(posts).toHaveLength(0);
+    handle?.reset();
+    cleanup();
+
+    const next = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:plugin:run-plugin-2"]);
+    const compare = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(compare).toHaveAttribute("data-action-state", "ready"));
+    await userEvent.click(within(compare).getByRole("button", { name: "Compare selected runs" }));
+    await waitFor(() => expect(next).toHaveLength(1));
+    expect(next[0].body).toMatchObject({
+      source_guild: "plugin",
+      operation: "compare",
+      target_kind: "runs",
+      ids: ["run-plugin", "run-plugin-2"],
+    });
+  });
+
+  it("F1: a selected comparison artifact mounts the recommendation panel", async () => {
+    mountJobs(["/compare"]);
+    const select = await screen.findByRole("combobox", { name: "Analysis artifact" });
+    await userEvent.selectOptions(select, `comparison|${summary("comparison", CMP_ID).source_guild}|${CMP_ID}`);
+    expect(await screen.findByTestId("recommendation-panel")).toBeInTheDocument();
   });
 });
