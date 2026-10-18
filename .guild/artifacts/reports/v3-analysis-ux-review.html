@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis UX Review</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#6b6a65;--line:#e2dfd6;--card:#fff;--pass:#1f6f43;--passbg:#e5f3ea;--fail:#a1281d;--failbg:#fbe9e6;--part:#8a5a00;--partbg:#fdf2dc;--code:#f2efe8}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171a;--fg:#ecebe6;--muted:#a09e97;--line:#33333a;--card:#1f1f24;--pass:#7fd3a0;--passbg:#1d3328;--fail:#ff9a8d;--failbg:#3a1f1c;--part:#f0c36b;--partbg:#3a2f17;--code:#2a2a30}}
+:root[data-theme="dark"]{--bg:#17171a;--fg:#ecebe6;--muted:#a09e97;--line:#33333a;--card:#1f1f24;--pass:#7fd3a0;--passbg:#1d3328;--fail:#ff9a8d;--failbg:#3a1f1c;--part:#f0c36b;--partbg:#3a2f17;--code:#2a2a30}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:19px;margin:36px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}h3{font-size:16px;margin:20px 0 6px}
+p.lead{color:var(--muted);margin:0 0 20px}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:13px;overflow-wrap:anywhere}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+.pass{color:var(--pass);background:var(--passbg)}.fail{color:var(--fail);background:var(--failbg)}.part{color:var(--part);background:var(--partbg)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:7px 8px}
+th{color:var(--muted);font-weight:600;font-size:13px}
+td code{font-size:12px}
+ul{padding-left:20px}
+.muted{color:var(--muted)}
+details{margin:8px 0}summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>E03 analysis UX review</h1>
+<p class="lead">Team E UI (E01 + E02) on <code>feature/v3c-team-e-benchmark-ui</code> @ <code>b83bf74</code>, run against the D-branch server @ <code>96d2ab2</code> and the packaged plugin from <code>feature-v3c-team-c-runtime-delivery</code> @ <code>85348baf</code> (guild@3.1.0-beta.1). Reviewed 2026-10-18 by e-qa-e03.</p>
+
+<div class="verdicts">
+  <div class="card"><span class="pill part">PARTIAL</span><h3>E03-AC1 states and actions</h3>Every read and job state has a test or a real-server observation. The job and decision controls are not reachable in the shipped app (F1).</div>
+  <div class="card"><span class="pill fail">FAIL</span><h3>E03-AC2 no legacy or duplicate surface</h3>Compare still shows the legacy analyzer next to the C-JOBS actions (F2). A succeeded job says "no artifact" when one was written (F4).</div>
+  <div class="card"><span class="pill pass">PASS</span><h3>E03-AC3 server-driven controls</h3>Origin, Host, token, 409, 404 and 503 refusals come from the real server, and the UI shows the server reply. It does not use only frontend disabling.</div>
+</div>
+
+<h2>Findings</h2>
+<div class="tw"><table>
+<tr><th>ID</th><th>Severity</th><th>Finding</th><th>Evidence</th><th>Owner</th></tr>
+<tr><td>F1</td><td>High</td><td><code>AnalysisJobPanel</code> and <code>RecommendationPanel</code> are not mounted by any route. Run and Compare show actions as "Ready for the analysis job panel", but the page has no Start, Cancel, Retry, Accept or Reject control.</td><td>test <code>E03-F1</code>; <code>screens/browser-facts.json</code> (job_panel = 0, rec_panel = 0 on every page); <code>ac2-grep.txt</code></td><td>Team E (wire panels into RunDetailPage / ComparePage)</td></tr>
+<tr><td>F2</td><td>Medium</td><td>Live Compare keeps the legacy "Analyze baseline / Analyze candidate" buttons. They POST <code>/api/project/analyze</code> and render a command-suggestion "Analysis handoff" panel. The C-JOBS action rows with the same labels sit below them. This gives two analyzer surfaces.</td><td>test <code>E03-F2</code>; <code>screens/compare-configured-*.png</code>; <code>ac2-grep.txt</code></td><td>Team E</td></tr>
+<tr><td>F3</td><td>High</td><td><code>recommendation_decide</code> cannot succeed end to end. The server refuses <code>sha256:&lt;hex&gt;</code> with 400 "source_input_hash must be a producer sha256 hex digest". The producer refuses bare hex with "expected-input-hash must be sha256:&lt;64 lowercase hex&gt;". The artifact reports <code>diagnostics.input_hash</code> as <code>sha256:…</code>. The UI preflight accepts only bare hex, so it matches the server, not the producer.</td><td><code>integrated-configured-decide.txt</code></td><td>Team D (server) with the C-CLI contract owner</td></tr>
+<tr><td>F4</td><td>Medium</td><td>A succeeded analyze job returns <code>artifact_refs: []</code>, but the producer stdout reports <code>written.json</code>. The job panel then says "Job succeeded. The producer reported no artifact." This is a misleading status.</td><td><code>integrated-configured-jobs.txt</code> (job-bfa3e883…)</td><td>Team D (map producer <code>written</code> to <code>artifact_refs</code>)</td></tr>
+<tr><td>F5</td><td>Low</td><td>The unconfigured banner repeats words: "Start the server with start serve with --guild-plugin-package …". The UI prefix and the server hint both say it.</td><td><code>screens/run-unconfigured-503-*.png</code></td><td>Team E</td></tr>
+<tr><td>F6</td><td>Low</td><td>For run c3ce… the page shows "Artifact eligible: no" and "Decision eligible: yes (producer inspection)" together, with no explanation. The values are the producer's, shown as-is.</td><td><code>screens/run-current-not-eligible-*.png</code></td><td>Team E / producer, wording only</td></tr>
+<tr><td>F7</td><td>Info</td><td>With no package configured, a foreign-Origin POST gets 503, not 403. The availability gate runs before the Origin check. No action is possible in that mode, so there is no gap.</td><td><code>integrated-unconfigured-api.txt</code></td><td>none</td></tr>
+</table></div>
+
+<h2>E03-AC1: state and action coverage</h2>
+<p class="muted">"Test" = <code>ui/src/__tests__/AnalysisExperience.test.tsx</code>, run at 320px and 1280px. happy-dom has no layout engine, so the pixel check is the headless Chrome run.</p>
+<div class="tw"><table>
+<tr><th>State / action</th><th>Unit test</th><th>Real server + browser</th></tr>
+<tr><td>Read: empty (missing)</td><td>"empty: missing freshness…"</td><td>run 3b2e… <code>data-freshness=missing</code>, <code>screens/run-missing-*.png</code></td></tr>
+<tr><td>Read: partial</td><td>"partial: absent evidence renders 'not reported'…"</td><td>not produced by the real producer for these runs (unobservable)</td></tr>
+<tr><td>Read: stale</td><td>"stale: stale notice…"</td><td>unobservable (needs a source change after analysis)</td></tr>
+<tr><td>Read: failed (inspect error)</td><td>"failed: inspection error…"</td><td>unobservable with a working package</td></tr>
+<tr><td>Read: unknown / unsupported</td><td>"unknown: an unrecognized producer state…"</td><td>unsupported id: <code>screens/run-unsupported-id-*.png</code></td></tr>
+<tr><td>Read: succeeded (current)</td><td>"succeeded: current artifact…"</td><td>run d2b4… current, eligible: <code>screens/run-current-eligible-*.png</code></td></tr>
+<tr><td>Read: 503 unconfigured</td><td>"run page with no analysis package…"</td><td>port 3971: <code>integrated-unconfigured-api.txt</code>, <code>screens/run-unconfigured-503-*.png</code></td></tr>
+<tr><td>Job: queued / running</td><td>keyboard test; cancel test</td><td>202 <code>running</code>: <code>integrated-configured-jobs.txt</code></td></tr>
+<tr><td>Job: succeeded</td><td>"succeeded reaches its final text…"</td><td>job-bfa3e883… <code>succeeded</code>, closed_at set</td></tr>
+<tr><td>Job: failed</td><td>"failed reaches its final text…"</td><td>job-e03fadc7… <code>failed</code>, "has no run.yaml"</td></tr>
+<tr><td>Job: cancelled</td><td>"running then cancel…"; "cancelled reaches…"</td><td>unobservable (real jobs closed in about 100 ms)</td></tr>
+<tr><td>Job: unknown (404)</td><td>"unknown reaches its final text…", no auto-restart</td><td>404 after real restart: <code>integrated-restart-404.txt</code></td></tr>
+<tr><td>Job: conflict 409 / dedup</td><td>"HTTP 409 from POST /jobs…"</td><td>409 with <code>active</code>; same key returns the same job</td></tr>
+<tr><td>Action: start / cancel / retry / decide in the app</td><td>component level only</td><td>not reachable: F1</td></tr>
+<tr><td>Selectors: Compare empty / partial / independent group</td><td>"Compare selectors…"</td><td><code>screens/compare-configured-*.png</code></td></tr>
+</table></div>
+
+<h2>Keyboard, focus, names, no inference</h2>
+<ul>
+<li>Tests: every job control is reached by Tab. Blocked controls use <code>aria-disabled</code> and keep focus through polls. Enter on a blocked control does nothing. The panel is a named region.</li>
+<li>Tests: you can accept or reject a recommendation with the keyboard only. The confirm group is named "Confirm accept" and states the effect before you confirm. No "implemented" or "filed" claim is shown.</li>
+<li>Tests: absent evidence shows "not reported", "Not reported" or "unknown". It never shows 0, a %, or "yes". Unobserved usage with a stored 0 shows "unknown".</li>
+<li>Browser: Tab goes nav → back link → evidence <code>&lt;summary&gt;</code> on Run pages, and nav → the three selects on Compare. No horizontal overflow at 320px on any of the 6 pages (<code>scrollWidth == innerWidth</code>).</li>
+</ul>
+
+<h2>E03-AC3: real server refusals</h2>
+<div class="tw"><table>
+<tr><th>Request</th><th>Real reply</th></tr>
+<tr><td>POST jobs, no token / wrong token</td><td>403 "missing or invalid X-Guild-Action-Token"</td></tr>
+<tr><td>POST jobs, valid token, <code>Origin: http://evil.example</code></td><td>403 "foreign Origin"</td></tr>
+<tr><td>POST jobs, valid token, <code>Origin: null</code></td><td>403 "invalid Origin: null"</td></tr>
+<tr><td>GET artifacts, <code>Host: evil.example</code></td><td>403 "foreign Host"</td></tr>
+<tr><td>Second analyze while one is active</td><td>409 with the active job</td></tr>
+<tr><td>GET / cancel unknown job; old job after restart</td><td>404 "unknown job id (volatile; server may have restarted)"</td></tr>
+<tr><td>Any analysis route without a package</td><td>503 <code>analysis_package_unconfigured</code> with hint</td></tr>
+</table></div>
+<p>The UI keeps Start enabled and shows the server text for 403, 409 and 503 (test "server refusals drive the controls"). A 403 drops the in-memory token, so the next try fetches <code>/session</code> again.</p>
+
+<h2>AC2 grep</h2>
+<p>See <code>ac2-grep.txt</code>. The legacy analyzer path is still live (<code>lib/api.ts:160</code>, <code>ComparePage.tsx</code> <code>AnalysisPanel</code>). No source file mounts <code>&lt;AnalysisJobPanel</code> or <code>&lt;RecommendationPanel</code>. <code>/guild:maintain analyze</code> is absent from plugin <code>main</code> @ fbb3ac88 but present on the v3 team-b and team-c plugin branches, so it is tied to the v3 release and is not stale. No UI control sets "filed" or "implemented".</p>
+
+<h2>Checks</h2>
+<ul>
+<li><code>npm test -- src/__tests__/AnalysisExperience.test.tsx</code>: exit 0, 34 tests (<code>check-tests.txt</code>).</li>
+<li><code>npm run build</code>: exit 0 (<code>check-build.txt</code>). The first try failed on 2 unused test parameters (TS6133). This was fixed in the test file.</li>
+<li>Full UI suite <code>npx vitest run</code>: exit 0, 23 files, 255 tests (<code>full-suite.txt</code>).</li>
+</ul>
+
+<details><summary>Integrated run setup</summary>
+<p>Disposable root: <code>scratchpad/e03-root</code>, with 4 runs copied from benchmark and plugin <code>.guild/runs</code>. Servers: port 3971 without a package, port 3972 with <code>--guild-plugin-package</code>. Both served <code>ui/dist</code> from this worktree. All server PIDs were stopped (<code>server-pids.txt</code>; "remaining: []"). The first restart try was invalid: the kill did not run. It is kept as <code>integrated-restart-attempt1-INVALID.txt</code>. Screens come from headless Chrome 155 via puppeteer-core, because the shared DevTools browser was in use by another session. Real producer writes went only into the disposable root. The package worktree and the backend checkout have no changes.</p>
+</details>
+</main>
+</body>
+</html>
