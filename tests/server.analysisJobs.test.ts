@@ -54,7 +54,9 @@ if (args[0] === "run" && args[1] === "analyze") {
     const dir = path.join(root, ".guild", "analysis", "runs", id);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "analysis.json"), JSON.stringify({ schema_version: "guild.run_analysis.v1", run_id: id }));
-    ok({ analysis_id: "analysis:" + id + ":abc", eligible: true, written: ".guild/analysis/runs/" + id + "/analysis.json" });
+    fs.writeFileSync(path.join(dir, "analysis.md"), "# analysis");
+    // REAL producer shape (E03 F4): written is an OBJECT of ABSOLUTE paths.
+    ok({ analysis_id: "analysis:" + id + ":abc", eligible: true, written: { json: path.join(dir, "analysis.json"), markdown: path.join(dir, "analysis.md") } });
   }
   if (id.startsWith("run-hang")) {
     const dir = path.join(root, ".guild", "analysis", "runs", id);
@@ -198,7 +200,12 @@ describe("analysis jobs — happy path + dedup/conflict (D02-AC1)", () => {
     const done = await pollUntilTerminal(app, job.job_id as string);
     expect(done.state).toBe("succeeded");
     expect(done.exit_code).toBe(0);
-    expect(done.artifact_refs).toEqual([".guild/analysis/runs/run-ok-1/analysis.json"]);
+    // E03 F4 regression: the producer's object-form absolute `written` paths
+    // surface as relative artifact refs, never as [].
+    expect(done.artifact_refs).toEqual([
+      ".guild/analysis/runs/run-ok-1/analysis.json",
+      ".guild/analysis/runs/run-ok-1/analysis.md",
+    ]);
     // The producer (not benchmark) wrote exactly its artifact.
     expect(existsSync(join(projectRoot, ".guild", "analysis", "runs", "run-ok-1", "analysis.json"))).toBe(true);
     expect(spawnCount()).toBe(1);
@@ -263,7 +270,58 @@ describe("analysis jobs — happy path + dedup/conflict (D02-AC1)", () => {
     const decideArgv = argvLines.find((l) => l[0] === "recommendation");
     expect(decideArgv).toContain("--expected-analysis-id");
     expect(decideArgv).toContain("--expected-input-hash");
+    // E03 F3: a bare-hex guard is normalized to the canonical producer form.
+    expect(decideArgv?.[decideArgv.indexOf("--expected-input-hash") + 1]).toBe(`sha256:${"c".repeat(64)}`);
   }, 20_000);
+
+  it("E03 F3: recommendation_decide accepts the canonical sha256:<hex> input hash end-to-end", async () => {
+    const app = makeApp();
+    const token = await tokenFor(app);
+    const canonical = `sha256:${"d".repeat(64)}`;
+    const dec = await postJob(
+      app,
+      token,
+      jobBody({
+        operation: "recommendation_decide",
+        target_kind: "run",
+        ids: ["run-src"],
+        idempotency_key: "dec-canonical",
+        decision: "accept",
+        recommendation_id: "rec-1",
+        source_analysis_id: "analysis:run-src:abc",
+        source_input_hash: canonical,
+      }),
+    );
+    expect(dec.status).toBe(202); // was HTTP 400 before the F3 fix
+    const done = await pollUntilTerminal(app, ((await dec.json()) as Record<string, unknown>).job_id as string);
+    expect(done.state).toBe("succeeded");
+    const argvLines = readFileSync(spawnLog, "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
+    const decideArgv = argvLines.find((l) => l[0] === "recommendation");
+    expect(decideArgv?.[decideArgv.indexOf("--expected-input-hash") + 1]).toBe(canonical);
+  }, 20_000);
+
+  it("E03 F3: malformed sha256-prefixed hashes are still rejected before any spawn", async () => {
+    const app = makeApp();
+    const token = await tokenFor(app);
+    for (const bad of ["sha256:zz", `sha256:${"C".repeat(64)}`, `sha256:${"d".repeat(63)}`, `sha512:${"d".repeat(64)}`]) {
+      const res = await postJob(
+        app,
+        token,
+        jobBody({
+          operation: "recommendation_decide",
+          target_kind: "run",
+          ids: ["run-src"],
+          idempotency_key: `dec-bad-${bad.length}`,
+          decision: "accept",
+          recommendation_id: "rec-1",
+          source_analysis_id: "analysis:run-src:abc",
+          source_input_hash: bad,
+        }),
+      );
+      expect(res.status, bad).toBe(400);
+    }
+    expect(spawnCount()).toBe(0);
+  });
 });
 
 describe("analysis jobs — lifecycle bounds (D02-AC2)", () => {
@@ -382,8 +440,8 @@ describe("analysis jobs — closed request surface (D02-AC3)", () => {
     const token = await tokenFor(app);
     const res = await postJob(app, token, jobBody({ ids: ["run-ok-3"], idempotency_key: "w" }));
     await pollUntilTerminal(app, ((await res.json()) as Record<string, unknown>).job_id as string);
-    const files = readdirSync(join(projectRoot, ".guild", "analysis", "runs", "run-ok-3"));
-    expect(files).toEqual(["analysis.json"]); // exactly the producer's artifact
+    const files = readdirSync(join(projectRoot, ".guild", "analysis", "runs", "run-ok-3")).sort();
+    expect(files).toEqual(["analysis.json", "analysis.md"]); // exactly the producer's artifacts
   });
 
   it("without the packaged runtime every analysis route stays 503", async () => {
@@ -450,32 +508,107 @@ describe("analysis jobs — codex round-1 regressions", () => {
 
   it("F2: producer results must carry the operation's identity fields and honest refs", async () => {
     const { validateProducerSuccess } = await import("../src/analysis-jobs.js");
+    const root = "/canon/root";
     const analyzeReq = {
       source_guild: "project", operation: "analyze" as const, target_kind: "run" as const,
       ids: ["run-1"], idempotency_key: "k",
     };
-    expect(validateProducerSuccess(analyzeReq, { ok: true })).toEqual({ error: "analyze result missing analysis_id" });
-    expect(validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-1:abc", eligible: "yes" })).toEqual({ error: "analyze result missing eligible" });
-    expect(validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-1:abc", eligible: true })).toEqual({ refs: [] });
+    expect(validateProducerSuccess(analyzeReq, { ok: true }, root)).toEqual({ error: "analyze result missing analysis_id" });
+    expect(validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-1:abc", eligible: "yes" }, root)).toEqual({ error: "analyze result missing eligible" });
+    expect(validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-1:abc", eligible: true }, root)).toEqual({ refs: [] });
     const compareReq = { ...analyzeReq, operation: "compare" as const, target_kind: "runs" as const, ids: ["run-1", "run-2"] };
-    expect(validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1"] })).toEqual({ error: "comparison result does not cover the requested run ids" });
+    expect(validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1"] }, root)).toEqual({ error: "comparison result does not cover the requested run ids" });
     expect(
-      validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1", "run-2"], written: "/etc/passwd" }),
+      validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1", "run-2"], written: "/etc/passwd" }, root),
     ).toEqual({ error: "artifact ref escapes the canonical root: /etc/passwd" });
     expect(
-      validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1", "run-2"], written: "a/../../x" }),
+      validateProducerSuccess(compareReq, { ok: true, comparison_id: "c", run_ids: ["run-1", "run-2"], written: "a/../../x" }, root),
     ).toEqual({ error: "artifact ref escapes the canonical root: a/../../x" });
-    expect(validateProducerSuccess(analyzeReq, { ok: false, analysis_id: "analysis:run-1:abc", eligible: true })).toEqual({ error: "ok is not true" });
+    expect(validateProducerSuccess(analyzeReq, { ok: false, analysis_id: "analysis:run-1:abc", eligible: true }, root)).toEqual({ error: "ok is not true" });
     // r2: another run's analysis identity or artifact path is rejected.
     expect(
-      validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-OTHER:abc", eligible: true }),
+      validateProducerSuccess(analyzeReq, { ok: true, analysis_id: "analysis:run-OTHER:abc", eligible: true }, root),
     ).toEqual({ error: "analysis_id does not reference the requested run: analysis:run-OTHER:abc" });
     expect(
       validateProducerSuccess(analyzeReq, {
         ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
         written: ".guild/analysis/runs/run-OTHER/analysis.json",
-      }),
+      }, root),
     ).toEqual({ error: "artifact ref outside .guild/analysis/runs/run-1/: .guild/analysis/runs/run-OTHER/analysis.json" });
+  });
+
+  it("E03 F4: object-form absolute `written` paths relativize into refs; escapes still rejected", async () => {
+    const { validateProducerSuccess } = await import("../src/analysis-jobs.js");
+    const { realpathSync, symlinkSync } = await import("node:fs");
+    // Real on-disk root: absolute refs are physically resolved (codex F1).
+    mkdirSync(join(scratch, "f4-root"), { recursive: true });
+    const root = realpathSync(join(scratch, "f4-root"));
+    const runDir = join(root, ".guild", "analysis", "runs", "run-1");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "analysis.json"), "{}");
+    writeFileSync(join(runDir, "analysis.md"), "# a");
+    const analyzeReq = {
+      source_guild: "project", operation: "analyze" as const, target_kind: "run" as const,
+      ids: ["run-1"], idempotency_key: "k",
+    };
+    // The shipped producer's shape: written is an object of absolute paths.
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: {
+          json: join(runDir, "analysis.json"),
+          markdown: join(runDir, "analysis.md"),
+        },
+      }, root),
+    ).toEqual({
+      refs: [
+        ".guild/analysis/runs/run-1/analysis.json",
+        ".guild/analysis/runs/run-1/analysis.md",
+      ],
+    });
+    // Absolute path outside the canonical root is still an escape.
+    const outside = join(scratch, "f4-outside");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "analysis.json"), "{}");
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: { json: join(outside, "analysis.json") },
+      }, root),
+    ).toEqual({ error: `artifact ref escapes the canonical root: ${join(outside, "analysis.json")}` });
+    // A symlinked component under the run dir pointing outside the root is an
+    // escape PHYSICALLY even though it passes lexically (codex F1).
+    symlinkSync(outside, join(runDir, "link"));
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: { json: join(runDir, "link", "analysis.json") },
+      }, root),
+    ).toEqual({ error: `artifact ref escapes the canonical root: ${join(runDir, "link", "analysis.json")}` });
+    // An unresolvable path fails closed.
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: { json: join(runDir, "missing.json") },
+      }, root),
+    ).toEqual({ error: `artifact ref does not resolve on disk: ${join(runDir, "missing.json")}` });
+    // Absolute path inside the root but outside the run's analysis dir.
+    const otherDir = join(root, ".guild", "analysis", "runs", "run-OTHER");
+    mkdirSync(otherDir, { recursive: true });
+    writeFileSync(join(otherDir, "analysis.json"), "{}");
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: { json: join(otherDir, "analysis.json") },
+      }, root),
+    ).toEqual({ error: `artifact ref outside .guild/analysis/runs/run-1/: ${join(otherDir, "analysis.json")}` });
+    // Non-string entries inside the object are still rejected.
+    expect(
+      validateProducerSuccess(analyzeReq, {
+        ok: true, analysis_id: "analysis:run-1:abc", eligible: true,
+        written: { json: 42 },
+      }, root),
+    ).toEqual({ error: "written entries must be strings" });
   });
 
   it("F6: control characters in source_analysis_id are rejected before any spawn", async () => {
