@@ -369,12 +369,16 @@ describe("project-reader / project overview + live runs", () => {
       target_id: "initiative:workspace:guild-dashboard",
     });
     expect(analysis.signals.join(" ")).toMatch(/trace events/);
+    // D03: stale /guild:reflect and print-only /guild:evolve suggestions are
+    // replaced by versioned descriptors on live surfaces (C-CLI maintain route).
     expect(analysis.actions.map((action) => action.command)).toEqual(
       expect.arrayContaining([
-        "/guild:reflect --initiative guild-dashboard",
+        "/guild:maintain analyze initiative guild-dashboard",
         "/guild:learn",
-        "/guild:evolve <skill-name>",
       ]),
+    );
+    expect(analysis.actions.map((action) => action.label).join("\n")).toContain(
+      "/guild:maintain evolve",
     );
   });
 });
@@ -951,5 +955,275 @@ describe("project-reader / analysis hardening (codex r3 + security)", () => {
     const detail = await readProjectAnalysisArtifact(root, "run", "run-once");
     expect(detail.summary.validation).toBe("valid");
     expect(detail.artifact?.analysis_id).toBe("analysis:run-once:1b4f1c74f378");
+  });
+});
+
+// ---- D03 — versioned action descriptors (C-CLI / C-JOBS) ----------------------
+
+import { spawnSync as d03SpawnSync } from "node:child_process";
+import {
+  ANALYSIS_ACTION_VERSION,
+  analyzeProjectTarget as d03Analyze,
+  buildRecommendationActionDescriptor,
+  type AnalysisActionDescriptor,
+} from "../src/project-reader.js";
+import type { InspectOutcome, InspectResult } from "../src/analysis-process.js";
+
+/** Strict parser mirroring the REAL packaged run-analysis argv surface
+ * (plugin/scripts/run-analysis.ts dispatch + the C-CLI additive mappings) —
+ * exit 2 on anything outside it. Used to prove D03-AC1 by actually running
+ * each descriptor argv. */
+const STRICT_PARSER_JS = `
+const args = process.argv.slice(2);
+let cwd = null; const positional = [];
+const valueFlags = new Set(["--cwd", "--expected-analysis-id", "--expected-input-hash"]);
+for (let i = 0; i < args.length; i++) {
+  if (valueFlags.has(args[i])) { if (!args[i + 1]) process.exit(2); i++; }
+  else if (args[i].startsWith("--")) process.exit(2);
+  else positional.push(args[i]);
+}
+const [surface, action, ...ids] = positional;
+const ok =
+  (surface === "run" && action === "analyze" && ids.length === 1) ||
+  (surface === "run" && action === "compare" && ids.length >= 2) ||
+  (surface === "initiative" && action === "analyze" && ids.length === 1) ||
+  (surface === "independent-runs" && action === "analyze" && ids.length === 1) ||
+  (surface === "artifact" && action === "inspect" && ids.length === 2 && (ids[0] === "run" || ids[0] === "comparison")) ||
+  (surface === "recommendation" && action === "decide" && ids.length === 3 && (ids[2] === "accept" || ids[2] === "reject")) ||
+  (surface === "recommendation" && action === "status" && ids.length === 3);
+process.exit(ok ? 0 : 2);
+`;
+
+function currentInspect(sourceId: string): InspectOutcome {
+  const result: InspectResult = {
+    ok: true,
+    state: "current",
+    kind: "run",
+    source_id: sourceId,
+    artifact_ref: `.guild/analysis/runs/${sourceId}/analysis.json`,
+    schema_version: "guild.run_analysis.v1",
+    source_analysis_id: `analysis:${sourceId}:abc123`,
+    source_hash: "a".repeat(64),
+    current_source_hash: "a".repeat(64),
+    input_hash: "b".repeat(64),
+    current_input_hash: "b".repeat(64),
+    eligible: true,
+    reason: null,
+  };
+  return { ok: true, state: "current", result };
+}
+
+describe("project-reader / versioned action descriptors (D03)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "proj-actions-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  async function seedRunTarget(runId: string): Promise<void> {
+    await writeFileDeep(
+      join(root, ".guild", "runs", runId, "run.yaml"),
+      `run_id: ${runId}\nstarted_at: "2026-10-17T00:00:00Z"\n`,
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", runId, "logs", "v1.4-events.jsonl"),
+      '{"event":"x"}\n{"event":"y"}\n',
+    );
+    await writeFileDeep(
+      join(root, ".guild", "runs", runId, "provenance.json"),
+      JSON.stringify({ run_id: runId, status: "closed", benchmark_eligible: true }),
+    );
+  }
+
+  it("replaces retired surfaces: no /guild:reflect, no bare /guild:evolve; versioned + argv-bearing", async () => {
+    await seedRunTarget("run-d03-1");
+    const res = await d03Analyze(root, { target_kind: "run", target_id: "run-d03-1", source_guild: "project" });
+    const actions = res.actions as AnalysisActionDescriptor[];
+    const commands = actions.map((a) => a.command).join("\n");
+    expect(commands).not.toContain("/guild:reflect");
+    expect(commands).not.toMatch(/\/guild:evolve /);
+    expect(commands).toContain("/guild:maintain analyze run run-d03-1");
+    for (const action of actions) {
+      expect(action.descriptor_version).toBe(ANALYSIS_ACTION_VERSION);
+      expect(Array.isArray(action.argv)).toBe(true);
+      expect(typeof action.enabled).toBe("boolean");
+    }
+  });
+
+  it("AC1: every packaged-CLI argv parses against the strict C-CLI surface (plus server --cwd)", async () => {
+    await seedRunTarget("run-d03-2");
+    const res = await d03Analyze(root, { target_kind: "run", target_id: "run-d03-2", source_guild: "project" });
+    const parserPath = join(root, "strict-parser.cjs");
+    await writeFileDeep(parserPath, STRICT_PARSER_JS);
+    const enabledDecide = buildRecommendationActionDescriptor(
+      "run-d03-2",
+      "rec-1",
+      "accept",
+      currentInspect("run-d03-2"),
+    );
+    const argvs = [
+      ...(res.actions as AnalysisActionDescriptor[]).filter((a) => a.argv.length > 0).map((a) => a.argv),
+      enabledDecide.argv,
+    ];
+    expect(argvs.length).toBeGreaterThan(0);
+    for (const argv of argvs) {
+      const r = d03SpawnSync(process.execPath, [parserPath, ...argv, "--cwd", root], { encoding: "utf8" });
+      expect(r.status, JSON.stringify(argv)).toBe(0);
+    }
+  });
+
+  it("AC2: descriptors never carry a root and hostile ids are disabled, not interpolated", async () => {
+    await seedRunTarget("run-d03-3");
+    const res = await d03Analyze(root, { target_kind: "run", target_id: "run-d03-3", source_guild: "project" });
+    for (const action of res.actions as AnalysisActionDescriptor[]) {
+      expect(action.command).not.toContain("--cwd");
+      expect(action.argv).not.toContain("--cwd");
+    }
+    const hostile = buildRecommendationActionDescriptor("run; rm -rf /", "rec-1", "accept", currentInspect("x"));
+    expect(hostile.enabled).toBe(false);
+    expect(hostile.command).toBe("");
+    expect(hostile.argv).toEqual([]);
+    const hostileRec = buildRecommendationActionDescriptor("run-ok", "../rec", "reject", currentInspect("run-ok"));
+    expect(hostileRec.enabled).toBe(false);
+  });
+
+  it("AC3: decide stays disabled for stale/missing/unsupported/refused/unavailable/ineligible; enabled only when current + eligible + both guards", () => {
+    const cur = currentInspect("run-d03-4");
+    const enabled = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", cur);
+    expect(enabled.enabled).toBe(true);
+    expect(enabled.argv).toContain("--expected-analysis-id");
+    expect(enabled.argv).toContain("--expected-input-hash");
+    expect(enabled.command).toContain("--expected-analysis-id analysis:run-d03-4:abc123");
+
+    const mk = (patch: Partial<InspectResult>): InspectOutcome => {
+      const o = currentInspect("run-d03-4");
+      if (!o.ok) throw new Error("unreachable");
+      return { ok: true, state: (patch.state as InspectResult["state"]) ?? "current", result: { ...o.result, ...patch } };
+    };
+    for (const state of ["stale", "missing", "unsupported"] as const) {
+      const d = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", mk({ state }));
+      expect(d.enabled, state).toBe(false);
+      expect(d.disabled_reason).toContain(state);
+    }
+    for (const failState of ["refused", "unavailable", "error"] as const) {
+      const d = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", {
+        ok: false,
+        state: failState,
+        reason: "r",
+      });
+      expect(d.enabled, failState).toBe(false);
+      expect(d.disabled_reason).toContain(failState);
+    }
+    const ineligible = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", mk({ eligible: false }));
+    expect(ineligible.enabled).toBe(false);
+    expect(ineligible.disabled_reason).toContain("ineligible");
+    const noGuards = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", mk({ input_hash: null }));
+    expect(noGuards.enabled).toBe(false);
+    const noOutcome = buildRecommendationActionDescriptor("run-d03-4", "rec-9", "accept", undefined);
+    expect(noOutcome.enabled).toBe(false);
+    expect(noOutcome.disabled_reason).toContain("unavailable");
+  });
+
+  it("F1: malformed inspect guards disable the decide action instead of rendering", () => {
+    const base = currentInspect("run-inj");
+    if (!base.ok) throw new Error("unreachable");
+    const evil = {
+      ok: true as const,
+      state: "current" as const,
+      result: { ...base.result, source_id: "run-inj", source_analysis_id: "analysis; echo INJECTED #" },
+    };
+    const d = buildRecommendationActionDescriptor("run-inj", "rec-1", "accept", evil);
+    expect(d.enabled).toBe(false);
+    expect(d.command).toBe("");
+    const evilHash = {
+      ok: true as const,
+      state: "current" as const,
+      result: { ...base.result, source_id: "run-inj", input_hash: "x --cwd /tmp/other" },
+    };
+    const d2 = buildRecommendationActionDescriptor("run-inj", "rec-1", "accept", evilHash);
+    expect(d2.enabled).toBe(false);
+  });
+
+  it("F2: a current inspection of ANOTHER run cannot enable this decision", () => {
+    const other = currentInspect("run-A");
+    const d = buildRecommendationActionDescriptor("run-B", "rec-1", "accept", other);
+    expect(d.enabled).toBe(false);
+    expect(d.disabled_reason).toContain("does not match this source");
+  });
+
+  it("F3: the strict parser actually discriminates (negative controls)", async () => {
+    const parserPath = join(root, "strict-parser-neg.cjs");
+    await writeFileDeep(parserPath, STRICT_PARSER_JS);
+    const bad: string[][] = [
+      ["foo", "bar"],
+      ["run", "analyze"], // missing id
+      ["run", "analyze", "a", "b"], // too many ids
+      ["recommendation", "decide", "src", "rec", "maybe"], // bad decision
+      ["run", "analyze", "id", "--evil-flag"],
+    ];
+    for (const argv of bad) {
+      const r = d03SpawnSync(process.execPath, [parserPath, ...argv, "--cwd", root], { encoding: "utf8" });
+      expect(r.status, JSON.stringify(argv)).toBe(2);
+    }
+  });
+
+  it("F3: rendered command equals the exact normalized route for EVERY enabled CLI descriptor", async () => {
+    // Deterministic argv -> public-command normalization (C-CLI mappings).
+    const publicCommandFor = (argv: string[]): string => {
+      if (argv[0] === "run" && argv[1] === "analyze") return `/guild:maintain analyze run ${argv[2]}`;
+      if (argv[0] === "initiative" && argv[1] === "analyze") return `/guild:maintain analyze initiative ${argv[2]}`;
+      if (argv[0] === "independent-runs" && argv[1] === "analyze") return `/guild:maintain analyze independent ${argv[2]}`;
+      if (argv[0] === "run" && argv[1] === "compare") return `/guild:maintain analyze compare ${argv.slice(2).join(" ")}`;
+      if (argv[0] === "recommendation" && argv[1] === "decide") {
+        return `/guild:maintain analyze recommendation decide ${argv.slice(2).join(" ")}`;
+      }
+      throw new Error(`unmapped argv: ${JSON.stringify(argv)}`);
+    };
+    // Run target (analyze run).
+    await seedRunTarget("run-d03-6");
+    const runRes = await d03Analyze(root, { target_kind: "run", target_id: "run-d03-6", source_guild: "project" });
+    // Initiative target with two linked runs (analyze initiative + compare).
+    await seedRunTarget("run-d03-7a");
+    await seedRunTarget("run-d03-7b");
+    await writeFileDeep(
+      join(root, ".guild", "initiatives", "active", "init-d03", "initiative.yaml"),
+      ["id: init-d03", "title: D03 fixture", "run_ids:", "  - run-d03-7a", "  - run-d03-7b", ""].join("\n"),
+    );
+    const initRes = await d03Analyze(root, {
+      target_kind: "initiative",
+      target_id: "init-d03",
+      source_guild: "project",
+    });
+    const enabledCli = [...runRes.actions, ...initRes.actions]
+      .map((a) => a as AnalysisActionDescriptor)
+      .filter((a) => a.enabled && a.argv.length > 0);
+    // Coverage: analyze-run, analyze-initiative AND compare must all appear.
+    expect(enabledCli.map((a) => `${a.argv[0]}:${a.argv[1]}`).sort()).toEqual([
+      "initiative:analyze",
+      "run:analyze",
+      "run:compare",
+    ]);
+    for (const action of enabledCli) {
+      expect(action.command).toBe(publicCommandFor(action.argv));
+    }
+    const dec = buildRecommendationActionDescriptor("run-d03-6", "rec-2", "reject", currentInspect("run-d03-6"));
+    expect(dec.enabled).toBe(true);
+    expect(dec.command).toBe(publicCommandFor(dec.argv));
+  });
+
+  it("the target-level decide template is never directly executable", async () => {
+    await seedRunTarget("run-d03-5");
+    const res = await d03Analyze(root, { target_kind: "run", target_id: "run-d03-5", source_guild: "project" });
+    const template = (res.actions as AnalysisActionDescriptor[]).find((a) =>
+      a.label.includes("Decide a recommendation"),
+    );
+    expect(template).toBeDefined();
+    expect(template?.enabled).toBe(false);
+    expect(template?.command).toBe("");
+    expect(template?.argv).toEqual([]);
   });
 });

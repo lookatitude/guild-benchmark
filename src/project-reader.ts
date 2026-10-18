@@ -31,12 +31,14 @@ import {
   inspectArtifact,
   isSafeAnalysisId,
   type InspectKind,
+  type InspectOutcome,
   type PackagedRuntime,
 } from "./analysis-process.js";
 
 // Response shapes live in types.ts next to every other HTTP contract the UI
 // imports (see types.ts §"live-project knowledge routes").
 import type {
+  ProjectAnalysisAction,
   AnalysisArtifactFreshness,
   AnalysisArtifactSummary,
   AnalysisArtifactValidation,
@@ -489,6 +491,7 @@ export async function compareProjectTargets(
 export async function analyzeProjectTarget(
   projectRoot: string,
   req: ProjectAnalysisRequest,
+  runtime?: PackagedRuntime,
 ): Promise<ProjectAnalysisResponse> {
   const targets = await listProjectComparisonTargets(projectRoot);
   const expectedId = req.target_id.includes(":")
@@ -507,10 +510,21 @@ export async function analyzeProjectTarget(
     (run) => run.source_guild === target.source_guild && target.run_ids.includes(run.run_id),
   );
   const signals = buildAnalysisSignals(target, targetRuns);
+  // D03: producer-authoritative freshness feeds the decide descriptor's
+  // enablement when a runtime is configured; without one the descriptor
+  // stays disabled (never silently enabled).
+  let inspectOutcome: InspectOutcome | undefined;
+  if (target.kind === "run" && target.run_ids.length === 1) {
+    const sources = await resolveGuildSources(projectRoot);
+    const owner = sources.find((s) => s.name === target.source_guild);
+    if (owner) {
+      inspectOutcome = await inspectArtifact(runtime, owner.root, "run", target.run_ids[0]);
+    }
+  }
   return {
     target,
     signals,
-    actions: buildAnalysisActions(target),
+    actions: buildAnalysisActions(target, inspectOutcome),
   };
 }
 
@@ -774,30 +788,251 @@ function buildAnalysisSignals(target: ProjectComparisonTarget, runs: ProjectRunL
   return signals;
 }
 
-function buildAnalysisActions(target: ProjectComparisonTarget): ProjectAnalysisResponse["actions"] {
-  const primaryRef = target.kind === "run" ? `--run ${target.run_ids[0]}` : `--initiative ${target.id.split(":").pop() ?? target.id}`;
-  return [
-    {
-      label: "Reflect on mistakes and performance",
-      command: `/guild:reflect ${primaryRef}`.trim(),
-      intent: "reflect",
-    },
-    {
-      label: "Refresh project knowledge before evolving",
-      command: "/guild:learn",
-      intent: "learn",
-    },
-    {
-      label: "Promote accepted learnings into the wiki",
-      command: `/guild:wiki ingest ${primaryRef}`.trim(),
-      intent: "wiki",
-    },
-    {
-      label: "Evolve a skill after reflection names a target",
-      command: "/guild:evolve <skill-name>",
-      intent: "evolve",
-    },
-  ];
+// ---- D03 — versioned action descriptors (C-CLI / C-JOBS) ---------------------
+//
+// Replaces the stale `/guild:reflect` and print-only `/guild:evolve`
+// suggestions (both retired surfaces — C06/KTD14) with descriptors bound to
+// the packaged run-analysis CLI's closed mappings and the live `/guild:maintain`
+// route. Three invariants:
+//   AC1 — every copyable command parses against the packaged CLI / maintain
+//         route (argv below is the exact C-CLI mapping, minus --cwd).
+//   AC2 — only safe ids are ever interpolated and NO descriptor carries a
+//         root: the server appends the ONE server-selected canonical root at
+//         execution time, so a rendered command cannot pick another root or
+//         smuggle shell flags.
+//   AC3 — the recommendation-decide descriptor is enabled ONLY for a current,
+//         decision-eligible producer inspection carrying both expected
+//         guards; every other context (stale/missing/unsupported/refused/
+//         unavailable/error or ineligible) stays disabled with the reason.
+
+export const ANALYSIS_ACTION_VERSION = "guild.analysis_action.v1";
+
+export interface AnalysisActionDescriptor extends ProjectAnalysisAction {
+  descriptor_version: typeof ANALYSIS_ACTION_VERSION;
+  /**
+   * Packaged-CLI argv for the C-JOBS bridge (C-CLI mapping WITHOUT --cwd —
+   * the server appends the server-selected canonical root). Empty for
+   * host-dispatcher commands (/guild:learn, /guild:wiki, /guild:maintain
+   * evolve) that do not go through the packaged CLI.
+   */
+  argv: string[];
+  enabled: boolean;
+  disabled_reason?: string;
+}
+
+function descriptor(
+  base: ProjectAnalysisAction,
+  argv: string[],
+  enabled: boolean,
+  disabledReason?: string,
+): AnalysisActionDescriptor {
+  return {
+    ...base,
+    descriptor_version: ANALYSIS_ACTION_VERSION,
+    argv,
+    enabled,
+    ...(enabled ? {} : { disabled_reason: disabledReason ?? "disabled" }),
+  };
+}
+
+/**
+ * Decide-action descriptor for ONE recommendation (AC3). Consent context is
+ * the producer's INSPECT outcome: current state, decision-eligible, and both
+ * expected guards present — anything else is a disabled descriptor naming
+ * why. The descriptive label never doubles as the executable form.
+ */
+export function buildRecommendationActionDescriptor(
+  sourceId: string,
+  recommendationId: string,
+  decision: "accept" | "reject",
+  outcome: InspectOutcome | undefined,
+): AnalysisActionDescriptor {
+  const base: ProjectAnalysisAction = {
+    label: `Record your ${decision} decision for ${recommendationId} (requires current producer context)`,
+    command: "",
+    intent: "evolve",
+  };
+  if (!isSafeAnalysisId(sourceId) || !isSafeAnalysisId(recommendationId)) {
+    return descriptor(base, [], false, "unsafe source or recommendation id");
+  }
+  if (!outcome) {
+    return descriptor(base, [], false, "producer freshness unavailable");
+  }
+  if (!outcome.ok) {
+    return descriptor(base, [], false, `producer inspection ${outcome.state}: ${outcome.reason}`);
+  }
+  if (outcome.state !== "current") {
+    return descriptor(base, [], false, `artifact is ${outcome.state}; re-analyze before deciding`);
+  }
+  // Identity binding (security F2): the inspection must be FOR this source —
+  // a current inspection of another run cannot enable this decision.
+  if (outcome.result.kind !== "run" || outcome.result.source_id !== sourceId) {
+    return descriptor(base, [], false, "producer inspection does not match this source");
+  }
+  if (outcome.result.eligible !== true) {
+    return descriptor(base, [], false, "producer reports decision-ineligible context");
+  }
+  const expectedAnalysisId = outcome.result.source_analysis_id;
+  const expectedInputHash = outcome.result.input_hash;
+  // Guard FORMAT validation (codex/security F1): guards flow into a copyable
+  // command string, so anything outside the producer's known shapes (opaque
+  // analysis identity, sha256 hex) disables the action instead of rendering.
+  if (
+    !expectedAnalysisId ||
+    !/^[A-Za-z0-9:._-]{1,256}$/.test(expectedAnalysisId) ||
+    !expectedInputHash ||
+    !/^[a-f0-9]{64}$/.test(expectedInputHash)
+  ) {
+    return descriptor(base, [], false, "producer inspection lacks well-formed expected-context guards");
+  }
+  const command =
+    `/guild:maintain analyze recommendation decide ${sourceId} ${recommendationId} ${decision} ` +
+    `--expected-analysis-id ${expectedAnalysisId} --expected-input-hash ${expectedInputHash}`;
+  return descriptor({ ...base, command }, [
+    "recommendation",
+    "decide",
+    sourceId,
+    recommendationId,
+    decision,
+    "--expected-analysis-id",
+    expectedAnalysisId,
+    "--expected-input-hash",
+    expectedInputHash,
+  ], true);
+}
+
+function buildAnalysisActions(
+  target: ProjectComparisonTarget,
+  inspectOutcome?: InspectOutcome,
+): ProjectAnalysisResponse["actions"] {
+  const actions: AnalysisActionDescriptor[] = [];
+  const rawTargetId =
+    target.kind === "run"
+      ? target.run_ids[0]
+      : decodeURIComponent(target.id.split(":").pop() ?? "");
+  const idSafe = rawTargetId !== undefined && isSafeAnalysisId(rawTargetId);
+
+  // Analyze — the packaged diagnostic producer via the maintain route
+  // (replaces the retired /guild:reflect suggestion).
+  if (target.kind === "run") {
+    actions.push(
+      idSafe
+        ? descriptor(
+            {
+              label: "Analyze this run with the packaged diagnostic producer",
+              command: `/guild:maintain analyze run ${rawTargetId}`,
+              intent: "reflect",
+            },
+            ["run", "analyze", rawTargetId],
+            true,
+          )
+        : descriptor(
+            { label: "Analyze this run with the packaged diagnostic producer", command: "", intent: "reflect" },
+            [],
+            false,
+            "target id is not a safe analysis id",
+          ),
+    );
+  } else {
+    actions.push(
+      idSafe
+        ? descriptor(
+            {
+              label: "Analyze this initiative's linked runs together",
+              command: `/guild:maintain analyze initiative ${rawTargetId}`,
+              intent: "reflect",
+            },
+            ["initiative", "analyze", rawTargetId],
+            true,
+          )
+        : descriptor(
+            { label: "Analyze this initiative's linked runs together", command: "", intent: "reflect" },
+            [],
+            false,
+            "target id is not a safe analysis id",
+          ),
+    );
+  }
+
+  // Compare — only when the target actually carries 2..100 safe run ids.
+  if (target.run_ids.length >= 2 && target.run_ids.length <= 100) {
+    const allSafe = target.run_ids.every((id) => isSafeAnalysisId(id));
+    actions.push(
+      allSafe
+        ? descriptor(
+            {
+              label: "Compare the linked runs for repeated failure signatures",
+              command: `/guild:maintain analyze compare ${target.run_ids.join(" ")}`,
+              intent: "reflect",
+            },
+            ["run", "compare", ...target.run_ids],
+            true,
+          )
+        : descriptor(
+            { label: "Compare the linked runs for repeated failure signatures", command: "", intent: "reflect" },
+            [],
+            false,
+            "a linked run id is not a safe analysis id",
+          ),
+    );
+  }
+
+  // Live host dispatchers (NOT packaged-CLI argv): learn and wiki survive
+  // KTD14; evolve is reachable only as the maintain sub-verb now.
+  actions.push(
+    descriptor(
+      { label: "Refresh project knowledge before evolving", command: "/guild:learn", intent: "learn" },
+      [],
+      true,
+    ),
+    descriptor(
+      {
+        label: "Promote accepted learnings into the wiki",
+        command: idSafe && target.kind === "run" ? `/guild:wiki ingest --run ${rawTargetId}` : "/guild:wiki ingest",
+        intent: "wiki",
+      },
+      [],
+      true,
+    ),
+    // Template, not an executable action (codex F2): no concrete skill is
+    // bound here, so it ships disabled with the spelling in the label only.
+    descriptor(
+      {
+        label: "Evolve a skill after analysis names a target (run `/guild:maintain evolve <skill-name>`)",
+        command: "",
+        intent: "evolve",
+      },
+      [],
+      false,
+      "bind a specific skill name first",
+    ),
+  );
+
+  // Recommendation consent (AC3) — a template descriptor at target level:
+  // enabled only through buildRecommendationActionDescriptor with a specific
+  // recommendation and a current producer inspection. Here it surfaces the
+  // CURRENT enablement context so the UI can show why deciding is (un)available.
+  if (target.kind === "run") {
+    const probe = buildRecommendationActionDescriptor(
+      rawTargetId ?? "",
+      "rec-id",
+      "accept",
+      inspectOutcome,
+    );
+    actions.push({
+      ...probe,
+      label: "Decide a recommendation (needs a current, eligible analysis)",
+      // The template is NEVER directly executable: no concrete recommendation
+      // is bound at target level.
+      command: "",
+      argv: [],
+      enabled: false,
+      disabled_reason: probe.enabled
+        ? "choose a specific recommendation to decide"
+        : probe.disabled_reason ?? "disabled",
+    });
+  }
+  return actions;
 }
 
 function compareRunRows(a: ProjectRunListRow, b: ProjectRunListRow): number {

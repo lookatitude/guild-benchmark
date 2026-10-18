@@ -171,8 +171,11 @@ describe("server / /api/project/* — live-project knowledge routes", () => {
       );
       expect(analyzeRes.status).toBe(200);
       const analysis = (await analyzeRes.json()) as ProjectAnalysisResponse;
-      expect(analysis.actions.map((action) => action.command)).toContain(
-        "/guild:evolve <skill-name>",
+      // D03: the print-only /guild:evolve alias is retired (C06/KTD14); the
+      // evolve pointer is now a DISABLED template naming the live maintain
+      // sub-verb in its label (no placeholder command is copyable).
+      expect(analysis.actions.map((action) => action.label).join("\n")).toContain(
+        "/guild:maintain evolve",
       );
     });
   });
