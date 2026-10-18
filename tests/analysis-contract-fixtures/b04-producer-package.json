@@ -1,0 +1,24 @@
+{
+  "comment": "Consumer conformance binding (D04-AC1/step 3): the exact producer package Team D's bridge consumes, as established by B04 (team-b-B04.md) over the C05 final payload (team-c-C05.md). The benchmark validator's requirements below must stay satisfiable by this package.",
+  "producer": {
+    "plugin_name": "guild",
+    "plugin_version": "3.1.0-beta.1",
+    "native_identity": "sha256:9a6a1af4d68c77641fc8f5023c371db17df05b9bc7e94b4ac9f07ca16599c96c",
+    "payload_commit": "1fc993e7",
+    "evidence": ".guild/runs/run-20261017-160817-guild/handoffs/{team-b-B04.md,team-c-C05.md}"
+  },
+  "consumer_requirements": {
+    "supported_plugin_major": 3,
+    "supported_inventory_schema": "guild.inventory.v1",
+    "required_files": [
+      ".claude-plugin/plugin.json",
+      "guild.inventory.json",
+      "runtime/scripts/run-analysis.js"
+    ],
+    "inventory_must_declare": { "id": "run-analysis", "kind": "cli" }
+  },
+  "b04_constraints_carried": [
+    "P6 plugin-complete was REJECTED by B04 (16/35 producer classes unwired): the bridge validates package identity and entry, it does not assert producer completeness.",
+    "F4: consume inspect.eligible for decisions, never analysis.eligible."
+  ]
+}

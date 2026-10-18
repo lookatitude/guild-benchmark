@@ -1,0 +1,28 @@
+{
+  "schema_version": "guild.recommendation.v1",
+  "id": "rec-a6e61633056fba7d",
+  "source_id": "run-20261017-010000-example-a",
+  "source_analysis_id": "analysis:run-20261017-010000-example-a:1b4f1c74f378",
+  "scope": "project",
+  "kind": "clarify_prompt_contract",
+  "confidence": "high",
+  "severity": "high",
+  "evidence_refs": [
+    ".guild/runs/run-20261017-010000-example-a/logs/v1.4-events.jsonl#line:8",
+    ".guild/runs/run-20261017-010000-example-a/logs/v1.4-events.jsonl#line:9"
+  ],
+  "evidence_signature": "5ab52c7fd47e96688bfb43e979eca10620a1280098d56e4d45aa1d7b8a7156ee",
+  "affected_runs": [
+    "run-20261017-010000-example-a"
+  ],
+  "proposed_action": "The same failed action recurred 2 times.",
+  "status": "proposed",
+  "suggested_owner": "project",
+  "next_action": "queue_proposal_only",
+  "requires_user_approval": true,
+  "routing": {
+    "action": "queue_proposal_only",
+    "requires_user_approval": true,
+    "target": "project-local"
+  }
+}
