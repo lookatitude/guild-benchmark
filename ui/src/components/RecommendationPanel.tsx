@@ -30,10 +30,32 @@ export interface RecommendationRow {
 
 const WRAP: CSSProperties = { overflowWrap: "anywhere", wordBreak: "break-word", minWidth: 0 };
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
-const SHA256_HEX = /^[a-f0-9]{64}$/;
+// The server and the producer still disagree on "sha256:<hex>" vs bare hex
+// (E03 F3). Accept both and send the hash exactly as the artifact reports it.
+const INPUT_HASH = /^(sha256:)?[a-f0-9]{64}$/;
 
 /** Confirmed decision attempts one row allows before it asks for a reload. */
 export const MAX_DECISION_ATTEMPTS = 3;
+
+// Attempt counts and unverified blocks must survive remounts: the parent
+// unmounts this panel while an analysis re-read is loading, and component
+// state alone would reset the cap and reuse attempt-1 idempotency keys.
+// Keyed by context|status|row-id, so a changed expected context or row
+// status legitimately starts fresh. Bounded: oldest entries drop past 512.
+const attemptStore = new Map<string, number>();
+const unverifiedStore = new Map<string, Record<string, unknown>>();
+function storeSet<V>(store: Map<string, V>, key: string, value: V) {
+  if (!store.has(key) && store.size >= 512) {
+    const oldest = store.keys().next().value;
+    if (oldest !== undefined) store.delete(oldest);
+  }
+  store.set(key, value);
+}
+/** Test-only: forget persisted attempt/unverified state. */
+export function resetDecisionStores() {
+  attemptStore.clear();
+  unverifiedStore.clear();
+}
 
 const isStr = (v: unknown): v is string => typeof v === "string";
 
@@ -122,7 +144,7 @@ export function decisionBlockedReason(ctx: DecisionContext, row: RecommendationR
   if (!SAFE_ID.test(row.id)) return `unsupported recommendation id: ${row.id}`;
   if (!SAFE_ID.test(ctx.sourceId)) return `unsupported source id: ${ctx.sourceId}`;
   if (!ctx.sourceAnalysisId) return "the analysis identity is not reported";
-  if (!ctx.sourceInputHash || !SHA256_HEX.test(ctx.sourceInputHash)) return "the analysis input hash is not reported";
+  if (!ctx.sourceInputHash || !INPUT_HASH.test(ctx.sourceInputHash)) return "the analysis input hash is not reported";
   if (row.source_id !== ctx.sourceId) return "this recommendation belongs to another source";
   if (row.source_analysis_id !== ctx.sourceAnalysisId) {
     return "this recommendation was made by an older analysis; analyze again first";
@@ -168,7 +190,7 @@ export function decisionResultText(job: AnalysisJobView): string {
 // row.id is bounded to 64 chars plus a hash of the full id, so the decision
 // and attempt suffix always survive the 128-char limit.
 function idempotencyKey(row: RecommendationRow, decision: string, hash: string, attempt: number): string {
-  return `decide-${row.id.slice(0, 64)}-${decision}-${hash.slice(0, 16)}-${shortHash(row.id)}-${attempt}`;
+  return `decide-${row.id.slice(0, 64)}-${decision}-${hash.replace(/^sha256:/, "").slice(0, 16)}-${shortHash(row.id)}-${attempt}`;
 }
 
 function RecommendationItem({
@@ -189,22 +211,45 @@ function RecommendationItem({
 }) {
   const { state, start, reset } = useAnalysisJob(pollIntervalMs);
   const [pending, setPending] = useState<"accept" | "reject" | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const notified = useRef<string | null>(null);
-  // The record that was current when an outcome became unverified. The row
-  // stays blocked while the parent still passes that same record.
-  const [unverifiedFor, setUnverifiedFor] = useState<Record<string, unknown> | null>(null);
-  const awaitingReread = unverifiedFor !== null && unverifiedFor === source;
   const contextKey = `${ctx.sourceAnalysisId ?? ""}|${ctx.sourceInputHash ?? ""}`;
 
   // The attempt cap and a 503 block hold until the row or its context changes.
-  const rowKey = `${contextKey}|${row.status}`;
+  // Full artifact identity (source guild/kind/id) is part of the key: the same
+  // recommendation/analysis/hash ids under a different source are a different
+  // decision and must not inherit another source's exhausted cap or block.
+  // JSON-encoded tuple: unvalidated fields (sourceGuild, analysis id, status)
+  // cannot collide keys with a crafted '|'.
+  const rowKey = JSON.stringify([ctx.sourceGuild, ctx.sourceKind, ctx.sourceId, contextKey, row.status]);
+  // Remount-persistent identity: the parent unmounts the panel during an
+  // analysis re-read, so attempts and the unverified block live in the
+  // module stores and component state only mirrors them.
+  const persistKey = `${rowKey}|${row.id}`;
+  const [attempt, setAttemptState] = useState(() => attemptStore.get(persistKey) ?? 0);
+  const setAttempt = (n: number) => {
+    storeSet(attemptStore, persistKey, n);
+    setAttemptState(n);
+  };
+  // The record that was current when an outcome became unverified. The row
+  // stays blocked while the parent still passes that same record (a re-read
+  // delivers a new object and lifts the block).
+  const [unverifiedFor, setUnverifiedForState] = useState<Record<string, unknown> | null>(
+    () => unverifiedStore.get(persistKey) ?? null,
+  );
+  const setUnverifiedFor = (rec: Record<string, unknown>) => {
+    storeSet(unverifiedStore, persistKey, rec);
+    setUnverifiedForState(rec);
+  };
+  const awaitingReread = unverifiedFor !== null && unverifiedFor === source;
   const seenKey = useRef(rowKey);
   useEffect(() => {
     if (seenKey.current === rowKey) return;
     seenKey.current = rowKey;
-    setAttempt(0);
+    setAttemptState(attemptStore.get(persistKey) ?? 0);
+    setUnverifiedForState(unverifiedStore.get(persistKey) ?? null);
     if (state.phase === "unconfigured") reset();
+    // persistKey changes exactly when rowKey does (it extends it with row.id).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rowKey, state.phase, reset]);
 
   const exhausted = attempt >= MAX_DECISION_ATTEMPTS;

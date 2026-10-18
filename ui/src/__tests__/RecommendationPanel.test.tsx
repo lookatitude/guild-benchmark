@@ -2,8 +2,8 @@
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import RecommendationPanel, { MAX_DECISION_ATTEMPTS } from "../components/RecommendationPanel";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import RecommendationPanel, { MAX_DECISION_ATTEMPTS, resetDecisionStores } from "../components/RecommendationPanel";
 import type { AnalysisJobView } from "../components/AnalysisJobPanel";
 
 const TOKEN = "a".repeat(64);
@@ -101,6 +101,10 @@ function mount(props: Partial<Parameters<typeof RecommendationPanel>[0]> = {}) {
     />,
   );
 }
+
+beforeEach(() => {
+  resetDecisionStores();
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -347,6 +351,47 @@ describe("RecommendationPanel — expected-context guards", () => {
     expect(new Set(keys).size).toBe(MAX_DECISION_ATTEMPTS);
   });
 
+  it("EFIX-R1 unmounting during the re-read preserves attempts and idempotency sequence", async () => {
+    // The composed pages unmount the whole panel while the analysis re-read
+    // is loading; the cap and key sequence must survive that, not reset.
+    const failed = job({ state: "failed", closed_at: "2026-10-18T00:00:01Z", exit_code: 1, reason: "producer exited 1" });
+    const f = installFetch({ status: 202, body: failed });
+    for (let i = 0; i < MAX_DECISION_ATTEMPTS; i++) {
+      const view = mount();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Accept…" })).not.toHaveAttribute("aria-disabled"));
+      await userEvent.click(screen.getByRole("button", { name: "Accept…" }));
+      await userEvent.click(screen.getByRole("button", { name: "Confirm accept" }));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("unverified"));
+      view.unmount();
+    }
+    mount();
+    await waitFor(() => expect(screen.getByTestId("recommendation-blocked")).toHaveTextContent("decision attempt limit reached (3)"));
+    expect(screen.getByRole("button", { name: "Accept…" })).toHaveAttribute("aria-disabled", "true");
+    expect(f.posts()).toHaveLength(MAX_DECISION_ATTEMPTS);
+    const keys = f.posts().map((p) => (p.body as Record<string, string>).idempotency_key);
+    expect(new Set(keys).size).toBe(MAX_DECISION_ATTEMPTS);
+  });
+
+  it("EFIX-R2 an exhausted cap in one source does not block the same ids under another source", async () => {
+    const failed = job({ state: "failed", closed_at: "2026-10-18T00:00:01Z", exit_code: 1, reason: "producer exited 1" });
+    installFetch({ status: 202, body: failed });
+    for (let i = 0; i < MAX_DECISION_ATTEMPTS; i++) {
+      const view = mount();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Accept…" })).not.toHaveAttribute("aria-disabled"));
+      await userEvent.click(screen.getByRole("button", { name: "Accept…" }));
+      await userEvent.click(screen.getByRole("button", { name: "Confirm accept" }));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("unverified"));
+      view.unmount();
+    }
+    const blockedView = mount();
+    await waitFor(() => expect(screen.getByTestId("recommendation-blocked")).toHaveTextContent("decision attempt limit reached (3)"));
+    blockedView.unmount();
+    // Same analysis id, hash and recommendation id, different source guild.
+    mount({ sourceGuild: "other-root" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Accept…" })).not.toHaveAttribute("aria-disabled"));
+    expect(screen.queryByTestId("recommendation-blocked")).toBeNull();
+  });
+
   it("a 128-char recommendation id keeps distinct, bounded keys per attempt", async () => {
     const longId = "r" + "x".repeat(127);
     const failed = job({ state: "failed", closed_at: "2026-10-18T00:00:01Z", exit_code: 1, reason: "producer exited 1" });
@@ -418,5 +463,28 @@ describe("RecommendationPanel — expected-context guards", () => {
     mount({ recommendations: [rec(), { id: "bad", scope: "remote" }] });
     expect(screen.getByTestId("recommendation-invalid")).toHaveTextContent("1 recommendation row could not be read");
     expect(screen.queryByTestId("recommendation-bad")).toBeNull();
+  });
+});
+
+// E03 F3 (Team D): server and producer disagree on the hash format. The guard
+// accepts both forms and the UI sends the artifact's hash unchanged.
+describe("RecommendationPanel — input hash format (E-FIX)", () => {
+  it.each([
+    ["bare hex", HASH],
+    ["sha256: prefixed", `sha256:${HASH}`],
+  ])("sends a %s input hash exactly as the artifact reports it", async (_label, hash) => {
+    const f = installFetch({ status: 202, body: job() });
+    mount({ sourceInputHash: hash });
+    expect(screen.queryByTestId("recommendation-blocked")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Accept…" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm accept" }));
+    await waitFor(() => expect(f.posts()).toHaveLength(1));
+    expect((f.posts()[0].body as Record<string, unknown>).source_input_hash).toBe(hash);
+  });
+
+  it("still blocks a hash that is neither form", () => {
+    installFetch({ status: 202, body: job() });
+    mount({ sourceInputHash: "md5:abc" });
+    expect(screen.getByTestId("recommendation-blocked")).toHaveTextContent("input hash is not reported");
   });
 });

@@ -15,7 +15,7 @@
 // drains the interval tick + the setState chain that follows useFetch's
 // resolved promise.
 
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -684,7 +684,8 @@ describe("RunDetailPage — E01 diagnostic analysis", () => {
       },
     });
     mount(LIVE);
-    expect(await screen.findByRole("alert")).toHaveTextContent("404");
+    // Mounted job panels add their own (empty) alert regions.
+    await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /404/.test(a.textContent ?? ""))).toBe(true));
     expect(await screen.findByTestId("analysis-detail")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Score components" })).toBeNull();
     const row = screen.getByTestId("analysis-action-analyze-run");
@@ -722,7 +723,8 @@ describe("RunDetailPage — E01 diagnostic analysis", () => {
     expect(screen.queryByTestId("run-diagnostics")).toBeNull();
 
     await userEvent.click(screen.getByText("go live"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("404");
+    // Mounted job panels add their own (empty) alert regions.
+    await waitFor(() => expect(screen.getAllByRole("alert").some((a) => /404/.test(a.textContent ?? ""))).toBe(true));
     const detail = await screen.findByTestId("analysis-detail");
     expect(detail).toHaveTextContent(LIVE);
     // The previous run's benchmark data is not shown under the new id.
@@ -820,3 +822,130 @@ describe("RunDetailPage — E01 diagnostic analysis", () => {
   });
 });
 
+
+// ---- E-FIX (E03 F1/F5/F6): mounted job + recommendation panels ------------
+
+function jobView(overrides: Record<string, unknown> = {}) {
+  return {
+    job_id: "job-1",
+    source_guild: "plugin",
+    operation: "analyze",
+    state: "queued",
+    created_at: "2026-10-18T00:00:00Z",
+    started_at: null,
+    closed_at: null,
+    exit_code: null,
+    signal: null,
+    stdout_excerpt: "",
+    stderr_excerpt: "",
+    artifact_refs: [],
+    reason: null,
+    ...overrides,
+  };
+}
+
+function mountWithJobs(detail: unknown) {
+  const posts: Array<{ url: string; body: unknown }> = [];
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const handle = installMockFetch({
+    override: (url, init) => {
+      if (url.includes("/api/project/analysis/artifacts")) return json(detail);
+      if (url.endsWith("/project/analysis/session")) return json({ action_token: "tok" });
+      if (init?.method === "POST" && url.endsWith("/project/analysis/jobs")) {
+        const body = JSON.parse(String(init.body));
+        posts.push({ url, body });
+        return json(jobView({ operation: body.operation }), 202);
+      }
+      return undefined;
+    },
+  });
+  mount();
+  return { handle, posts };
+}
+
+describe("RunDetailPage — E-FIX mounted analysis panels", () => {
+  let handle: ReturnType<typeof installMockFetch> | undefined;
+
+  afterEach(() => {
+    handle?.reset();
+  });
+
+  it("F1: the analyze action mounts a job panel that submits the exact E01 request", async () => {
+    const m = mountWithJobs(runDetailResponse());
+    handle = m.handle;
+    const row = await screen.findByTestId("analysis-action-analyze-run");
+    await waitFor(() => expect(row).toHaveAttribute("data-action-state", "ready"));
+    const start = within(within(row).getByTestId("analysis-job-panel")).getByRole("button", { name: "Analyze this run" });
+    expect(start).not.toHaveAttribute("aria-disabled");
+    await userEvent.click(start);
+    await waitFor(() => expect(m.posts).toHaveLength(1));
+    expect(m.posts[0].body).toMatchObject({
+      source_guild: "plugin",
+      operation: "analyze",
+      target_kind: "run",
+      ids: [RUN_ID],
+      idempotency_key: expect.stringMatching(/^ui-/),
+    });
+    // Inspect is not a job: no panel, no submit control.
+    expect(within(screen.getByTestId("analysis-action-inspect-run")).queryByTestId("analysis-job-panel")).toBeNull();
+  });
+
+  it("F1: a blocked action keeps the panel start control gated and sends no job", async () => {
+    const m = mountWithJobs(runDetailResponse({ freshness: { state: "unavailable", reason: null } }));
+    handle = m.handle;
+    const row = await screen.findByTestId("analysis-action-analyze-run");
+    await waitFor(() => expect(row).toHaveTextContent("Disabled: analysis freshness is unavailable"));
+    const start = within(row).getByRole("button", { name: "Analyze this run" });
+    expect(start).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(start);
+    expect(m.posts).toHaveLength(0);
+  });
+
+  it("F1: the recommendation panel is mounted and sends the input hash exactly as reported", async () => {
+    const hash = `sha256:${"ab".repeat(32)}`;
+    const body = runDetailResponse({ artifact: runArtifact({ diagnostics: { input_hash: hash } }) });
+    // The D01 fixture row (run-analysis.json) also carries scope, kind and severity.
+    Object.assign(body.recommendations[0], { scope: "project", kind: "clarify_prompt_contract", severity: "high" });
+    const m = mountWithJobs(body);
+    handle = m.handle;
+    const panel = await screen.findByTestId("recommendation-panel");
+    await userEvent.click(within(panel).getByRole("button", { name: "Accept…" }));
+    await userEvent.click(within(panel).getByRole("button", { name: "Confirm accept" }));
+    await waitFor(() => expect(m.posts).toHaveLength(1));
+    expect(m.posts[0].body).toMatchObject({
+      operation: "recommendation_decide",
+      target_kind: "run",
+      ids: [RUN_ID],
+      recommendation_id: "rec-a6e61633056fba7d",
+      source_analysis_id: `analysis:${RUN_ID}:1b4f1c74f378`,
+      source_input_hash: hash,
+    });
+  });
+
+  it("F6: explains why artifact and decision eligibility differ", async () => {
+    const body = runDetailResponse();
+    body.summary.artifact_eligible = false;
+    handle = mountWithAnalysis(body);
+    const note = await screen.findByTestId("eligibility-note");
+    expect(note).toHaveTextContent("Artifact eligibility comes from freshness and validation.");
+    expect(screen.getByTestId("artifact-eligible")).toHaveTextContent("no");
+    expect(screen.getByTestId("decision-eligible")).toHaveTextContent("yes");
+  });
+
+  it("F6: no note when both eligibilities agree", async () => {
+    handle = mountWithAnalysis(runDetailResponse());
+    await screen.findByTestId("analysis-detail");
+    expect(screen.queryByTestId("eligibility-note")).toBeNull();
+  });
+
+  it("F5: the unconfigured banner says 'start serve with' at most once", async () => {
+    handle = mountWithAnalysis(
+      { error: "analysis_package_unconfigured", hint: "start serve with --guild-plugin-package <abs>" },
+      503,
+    );
+    const banner = await screen.findByTestId("analysis-unconfigured");
+    expect(banner).toHaveTextContent("Start the server with --guild-plugin-package <abs>.");
+    expect((banner.textContent ?? "").match(/serve(r)? with/gi)).toHaveLength(1);
+  });
+});

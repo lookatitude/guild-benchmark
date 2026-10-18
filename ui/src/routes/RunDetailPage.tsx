@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useRunStatus } from "../hooks/useRunStatus";
 import { useFetch } from "../hooks/useFetch";
@@ -8,6 +8,8 @@ import { MetricBreakdown } from "../components/MetricBreakdown";
 import { ScoreCard } from "../components/ScoreCard";
 import { LifecycleTimeline } from "../components/LifecycleTimeline";
 import { api } from "../lib/api";
+import AnalysisJobPanel from "../components/AnalysisJobPanel";
+import RecommendationPanel from "../components/RecommendationPanel";
 import type { LifecycleRunRecord, MetricsJson } from "../../../src/types";
 
 export default function RunDetailPage() {
@@ -323,7 +325,11 @@ export function isAnalysisDetailResponse(v: unknown): v is AnalysisDetailRespons
 /** Fetch that keeps the HTTP status meaning: 503 analysis_package_unconfigured
  * is a disabled state, 404 is "not available here", not an error. A 2xx body
  * that fails `validate` is "malformed" and never reaches render. */
-export function useAnalysisRead<T>(url: string | null, validate: (body: unknown) => body is T): AnalysisRead<T> {
+export function useAnalysisRead<T>(
+  url: string | null,
+  validate: (body: unknown) => body is T,
+  reload = 0,
+): AnalysisRead<T> {
   const [read, setRead] = useState<AnalysisRead<T>>(url ? { state: "loading" } : { state: "idle" });
   useEffect(() => {
     if (!url) {
@@ -353,7 +359,7 @@ export function useAnalysisRead<T>(url: string | null, validate: (body: unknown)
         setRead({ state: "error", message: err instanceof Error ? err.message : String(err) });
       });
     return () => ac.abort();
-  }, [url]);
+  }, [url, reload]);
   return read;
 }
 
@@ -571,6 +577,8 @@ function boolText(v: boolean | null | undefined, yes: string, no: string) {
 }
 
 function Eligibility({ detail }: { detail: AnalysisDetailResponse }) {
+  const artifact = detail.summary.artifact_eligible;
+  const decision = detail.freshness.decision_eligible;
   return (
     <>
       <dt>Artifact eligible</dt>
@@ -579,8 +587,17 @@ function Eligibility({ detail }: { detail: AnalysisDetailResponse }) {
       </dd>
       <dt>Decision eligible</dt>
       <dd data-testid="decision-eligible">
-        {boolText(detail.freshness.decision_eligible, "yes (producer inspection)", "no")}
+        {boolText(decision, "yes (producer inspection)", "no")}
       </dd>
+      {typeof artifact === "boolean" && typeof decision === "boolean" && artifact !== decision ? (
+        <>
+          <dt>Why they differ</dt>
+          <dd className="muted" data-testid="eligibility-note">
+            Artifact eligibility comes from freshness and validation. Decision eligibility is the producer&apos;s
+            expected-context check for each recommendation.
+          </dd>
+        </>
+      ) : null}
     </>
   );
 }
@@ -884,19 +901,26 @@ export function buildAnalysisAction(
   return { key, label, request, disabledReason: null };
 }
 
-/** Lists actions with their exact job request. Execution belongs to the
- * analysis job panel; this view only states what would run and why not. */
+/** Lists actions with their exact job request. Each job action mounts an
+ * analysis job panel that can start only when the action is ready. Inspect
+ * is not a job: the server runs it on every analysis read. */
 export function AnalysisActionList({
   actions,
   blockedReason,
+  onJobClosed,
+  pollIntervalMs,
 }: {
   actions: AnalysisActionItem[];
   blockedReason: string | null;
+  onJobClosed?: () => void;
+  pollIntervalMs?: number;
 }) {
   return (
     <div className="command-list" data-testid="analysis-actions">
       {actions.map((action) => {
         const reason = blockedReason ?? action.disabledReason;
+        const request = action.request;
+        const job = request && request.operation !== "inspect" ? { ...request, operation: request.operation } : null;
         return (
           <div
             key={action.key}
@@ -908,7 +932,23 @@ export function AnalysisActionList({
           >
             <span>{action.label}</span>
             {action.request ? <code style={WRAP}>{JSON.stringify(action.request)}</code> : null}
-            <span className="muted">{reason ? `Disabled: ${reason}` : "Ready for the analysis job panel"}</span>
+            {job ? (
+              <div style={{ ...WRAP, flexBasis: "100%" }}>
+                <AnalysisJobPanel
+                  title={action.label}
+                  startLabel={action.label}
+                  request={reason ? null : job}
+                  contextKey={JSON.stringify(job)}
+                  disabledReason={reason}
+                  pollIntervalMs={pollIntervalMs}
+                  onClosed={onJobClosed}
+                />
+              </div>
+            ) : (
+              <span className="muted">
+                {reason ? `Disabled: ${reason}` : "Runs when this page reads the analysis. No job is started."}
+              </span>
+            )}
           </div>
         );
       })}
@@ -945,6 +985,44 @@ export function analysisDetailBlockedReason(read: AnalysisRead<AnalysisDetailRes
   return null;
 }
 
+/** The server hint already says "start serve with"; the banner says it once. */
+function serveFlag(hint: string | null): string {
+  const flag = (hint ?? "").replace(/^start (the )?serve(r)? with\s+/i, "").trim();
+  return flag || "--guild-plugin-package <absolute-packaged-plugin-root>";
+}
+
+/** Expected input hash for decisions, exactly as the artifact reports it. */
+export function analysisInputHash(detail: AnalysisDetailResponse): string | null {
+  return str(rec(detail.artifact?.diagnostics)?.input_hash) ?? null;
+}
+
+/** Explicit recommendation decisions for one shown analysis artifact. */
+export function AnalysisDecisions({
+  detail,
+  onReread,
+  pollIntervalMs,
+}: {
+  detail: AnalysisDetailResponse;
+  onReread: () => void;
+  pollIntervalMs?: number;
+}) {
+  if (!SHOWN_VALIDATION.includes(detail.summary.validation) || !detail.artifact) return null;
+  return (
+    <RecommendationPanel
+      recommendations={detail.recommendations}
+      sourceGuild={detail.summary.source_guild}
+      sourceKind={detail.summary.kind}
+      sourceId={detail.summary.id}
+      sourceAnalysisId={detail.summary.analysis_id}
+      sourceInputHash={analysisInputHash(detail)}
+      decisionEligible={detail.freshness.decision_eligible}
+      pollIntervalMs={pollIntervalMs}
+      onDecided={onReread}
+      onUnverified={onReread}
+    />
+  );
+}
+
 /** Shared state banner for every non-ok read. */
 export function AnalysisReadState({ read, emptyLabel }: { read: AnalysisRead<unknown>; emptyLabel: string }) {
   switch (read.state) {
@@ -956,7 +1034,7 @@ export function AnalysisReadState({ read, emptyLabel }: { read: AnalysisRead<unk
       return (
         <div className="empty" role="status" data-testid="analysis-unconfigured">
           Analysis is unavailable: no analysis package is configured. Start the server with{" "}
-          <code style={WRAP}>{read.hint ?? "--guild-plugin-package <absolute-packaged-plugin-root>"}</code>.
+          <code style={WRAP}>{serveFlag(read.hint)}</code>.
           Analysis actions are disabled.
         </div>
       );
@@ -985,7 +1063,9 @@ export function AnalysisReadState({ read, emptyLabel }: { read: AnalysisRead<unk
 
 function RunDiagnosticSection({ runId, guild }: { runId: string; guild?: string }) {
   const safe = isSafeAnalysisId(runId);
-  const read = useAnalysisRead(safe ? analysisApi.detail("run", runId, guild) : null, isAnalysisDetailResponse);
+  const [reload, setReload] = useState(0);
+  const reread = useCallback(() => setReload((n) => n + 1), []);
+  const read = useAnalysisRead(safe ? analysisApi.detail("run", runId, guild) : null, isAnalysisDetailResponse, reload);
   const sourceGuild = read.state === "ok" ? read.data.summary.source_guild : guild ?? "";
   const actions = [
     buildAnalysisAction(
@@ -1012,7 +1092,10 @@ function RunDiagnosticSection({ runId, guild }: { runId: string; guild?: string 
           Unsupported run id for analysis: <code style={WRAP}>{runId}</code>
         </div>
       ) : read.state === "ok" ? (
-        <AnalysisDetailView detail={read.data} />
+        <>
+          <AnalysisDetailView detail={read.data} />
+          <AnalysisDecisions detail={read.data} onReread={reread} />
+        </>
       ) : (
         <AnalysisReadState read={read} emptyLabel="No analysis requested." />
       )}
@@ -1020,6 +1103,7 @@ function RunDiagnosticSection({ runId, guild }: { runId: string; guild?: string 
       <AnalysisActionList
         actions={actions}
         blockedReason={safe ? analysisDetailBlockedReason(read) : "unsupported run id"}
+        onJobClosed={reread}
       />
     </section>
   );

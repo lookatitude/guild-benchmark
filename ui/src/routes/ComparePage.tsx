@@ -1,19 +1,19 @@
 import { useSearchParams } from "react-router-dom";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   Comparison,
-  ProjectAnalysisResponse,
   ProjectComparisonResponse,
   ProjectComparisonTarget,
   ProjectComparisonTargetsResponse,
 } from "../../../src/types";
 import { useFetch } from "../hooks/useFetch";
-import { analyzeProjectTarget, api } from "../lib/api";
+import { api } from "../lib/api";
 import { DeltaChart } from "../components/DeltaChart";
 import { DeltaTable } from "../components/DeltaTable";
 import { ReflectionBadge } from "../components/ReflectionBadge";
 import {
   AnalysisActionList,
+  AnalysisDecisions,
   AnalysisDetailView,
   AnalysisReadState,
   analysisApi,
@@ -33,9 +33,6 @@ export default function ComparePage() {
   const [params, setParams] = useSearchParams();
   const baseline = params.get("baseline") ?? "";
   const candidate = params.get("candidate") ?? "";
-  const [analysis, setAnalysis] = useState<ProjectAnalysisResponse | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisStatus, setAnalysisStatus] = useState<"idle" | "loading">("idle");
 
   const targets = useFetch<ProjectComparisonTargetsResponse>(api.projectComparisonTargets());
   const liveMode = targets.status === "success";
@@ -80,24 +77,6 @@ export default function ComparePage() {
     setParams(next);
   }
 
-  async function analyze(target: ProjectComparisonTarget) {
-    setAnalysisStatus("loading");
-    setAnalysisError(null);
-    try {
-      const result = await analyzeProjectTarget({
-        target_kind: target.kind,
-        target_id: target.id,
-        source_guild: target.source_guild,
-      });
-      setAnalysis(result);
-    } catch (err) {
-      setAnalysis(null);
-      setAnalysisError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAnalysisStatus("idle");
-    }
-  }
-
   return (
     <section>
       <header className="page-header">
@@ -131,10 +110,7 @@ export default function ComparePage() {
                 id="compare-baseline"
                 name="compare-baseline"
                 value={baseline}
-                onChange={(e) => {
-                  updateBaseline(e.target.value);
-                  setAnalysis(null);
-                }}
+                onChange={(e) => updateBaseline(e.target.value)}
               >
                 <option value="">Select a run or initiative</option>
                 {renderTargetOptions(liveTargets)}
@@ -146,10 +122,7 @@ export default function ComparePage() {
                 id="compare-candidate"
                 name="compare-candidate"
                 value={candidateTarget ? candidate : ""}
-                onChange={(e) => {
-                  update("candidate", e.target.value);
-                  setAnalysis(null);
-                }}
+                onChange={(e) => update("candidate", e.target.value)}
                 disabled={!baselineTarget}
               >
                 <option value="">
@@ -157,24 +130,6 @@ export default function ComparePage() {
                 </option>
                 {renderTargetOptions(candidateOptions)}
               </select>
-            </div>
-            <div className="compare-actions">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={!baselineTarget || analysisStatus === "loading"}
-                onClick={() => baselineTarget && analyze(baselineTarget)}
-              >
-                Analyze baseline
-              </button>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={!candidateTarget || analysisStatus === "loading"}
-                onClick={() => candidateTarget && analyze(candidateTarget)}
-              >
-                Analyze candidate
-              </button>
             </div>
           </form>
         )
@@ -207,14 +162,8 @@ export default function ComparePage() {
         </form>
       ) : null}
 
-      {liveMode && analysis ? <AnalysisPanel analysis={analysis} /> : null}
       {liveMode ? (
         <DiagnosticSection baseline={baselineTarget} candidate={candidateTarget} />
-      ) : null}
-      {analysisError ? (
-        <div className="error" role="alert">
-          {analysisError}
-        </div>
       ) : null}
 
       {!baseline || !candidate ? (
@@ -270,30 +219,6 @@ function renderTargetOptions(targets: ProjectComparisonTarget[]) {
         </optgroup>
       ) : null}
     </>
-  );
-}
-
-function AnalysisPanel({ analysis }: { analysis: ProjectAnalysisResponse }) {
-  return (
-    <section className="analysis-panel" data-testid="analysis-panel">
-      <div>
-        <p className="eyebrow">Analysis handoff</p>
-        <h2>{analysis.target.label}</h2>
-      </div>
-      <ul>
-        {analysis.signals.map((signal) => (
-          <li key={signal}>{signal}</li>
-        ))}
-      </ul>
-      <div className="command-list">
-        {analysis.actions.map((action) => (
-          <div key={`${action.intent}-${action.command}`} className="command-row">
-            <span>{action.label}</span>
-            <code>{action.command}</code>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -515,7 +440,9 @@ function DiagnosticSection({
   baseline: ProjectComparisonTarget | undefined;
   candidate: ProjectComparisonTarget | undefined;
 }) {
-  const list = useAnalysisRead(analysisApi.list(), isAnalysisListResponse);
+  const [reload, setReload] = useState(0);
+  const reread = useCallback(() => setReload((n) => n + 1), []);
+  const list = useAnalysisRead(analysisApi.list(), isAnalysisListResponse, reload);
   const [scope, setScope] = useState<DiagnosticScope>("targets");
   const [groupId, setGroupId] = useState("");
   const [groupGuild, setGroupGuild] = useState("");
@@ -526,6 +453,7 @@ function DiagnosticSection({
   const detail = useAnalysisRead(
     selected ? analysisApi.detail(selected.kind, selected.id, selected.source_guild) : null,
     isAnalysisDetailResponse,
+    reload,
   );
   const guilds = [
     ...new Set(
@@ -618,7 +546,7 @@ function DiagnosticSection({
       </form>
 
       <h3>Analysis actions</h3>
-      <AnalysisActionList actions={actions} blockedReason={analysisBlockedReason(list)} />
+      <AnalysisActionList actions={actions} blockedReason={analysisBlockedReason(list)} onJobClosed={reread} />
 
       <h3>Analysis artifacts</h3>
       {list.state !== "ok" ? (
@@ -656,7 +584,10 @@ function DiagnosticSection({
 
       {selected ? (
         detail.state === "ok" ? (
-          <AnalysisDetailView detail={detail.data} />
+          <>
+            <AnalysisDetailView detail={detail.data} />
+            <AnalysisDecisions detail={detail.data} onReread={reread} />
+          </>
         ) : (
           <AnalysisReadState read={detail} emptyLabel="Select an analysis artifact." />
         )

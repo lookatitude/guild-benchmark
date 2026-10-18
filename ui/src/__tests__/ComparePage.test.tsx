@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -162,13 +162,12 @@ describe("ComparePage — surface", () => {
 
     expect(await screen.findByRole("heading", { name: "Summary" })).toBeInTheDocument();
     expect(screen.getByText("+7")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Analyze baseline" }));
-    expect(await screen.findByTestId("analysis-panel")).toHaveTextContent(
-      "/guild:reflect --initiative guild-dashboard",
-    );
-    expect(screen.getByTestId("analysis-panel")).toHaveTextContent(
-      "/guild:evolve <skill-name>",
-    );
+    // E-FIX F2: the legacy POST /api/project/analyze handoff is gone; the
+    // only "Analyze baseline" control is the C-JOBS job panel.
+    const analyze = screen.getAllByRole("button", { name: "Analyze baseline" });
+    expect(analyze).toHaveLength(1);
+    expect(within(screen.getByTestId("analysis-action-analyze-baseline")).getByTestId("analysis-job-panel")).toContainElement(analyze[0]);
+    expect(screen.queryByTestId("analysis-panel")).toBeNull();
   });
 });
 
@@ -589,5 +588,102 @@ describe("ComparePage — E01 diagnostic evidence", () => {
     handle = mountDiagnostics(() => jsonResponse({ artifacts: [{ kind: "run" }], total: 1 }));
     expect(await screen.findByTestId("analysis-malformed")).toBeInTheDocument();
     expect(screen.getByTestId("analysis-action-analyze-baseline")).toHaveAttribute("data-action-state", "disabled");
+  });
+});
+
+// ---- E-FIX (E03 F1/F2): mounted job panels, no legacy analyzer ------------
+
+describe("ComparePage — E-FIX mounted analysis panels", () => {
+  let handle: ReturnType<typeof installMockFetch> | undefined;
+
+  afterEach(() => {
+    handle?.reset();
+  });
+
+  function mountJobs(initial: string[]) {
+    const posts: Array<{ url: string; body: unknown }> = [];
+    handle = installMockFetch({
+      override: (url, init) => {
+        if (init?.method === "POST") {
+          posts.push({ url, body: init.body ? JSON.parse(String(init.body)) : null });
+          if (url.endsWith("/project/analysis/jobs")) {
+            return jsonResponse(
+              {
+                job_id: "job-c",
+                source_guild: "plugin",
+                operation: "compare",
+                state: "queued",
+                created_at: "2026-10-18T00:00:00Z",
+                started_at: null,
+                closed_at: null,
+                exit_code: null,
+                signal: null,
+                stdout_excerpt: "",
+                stderr_excerpt: "",
+                artifact_refs: [],
+                reason: null,
+              },
+              202,
+            );
+          }
+          return jsonResponse({ error: "unexpected POST" }, 500);
+        }
+        if (url.endsWith("/project/analysis/session")) return jsonResponse({ action_token: "tok" });
+        if (url.includes("/api/project/analysis/")) return diagnosticsOk(url);
+        if (url.match(/\/api\/project\/comparison-targets$/)) return jsonResponse(DIAG_TARGETS);
+        if (url.match(/\/api\/project\/comparisons/)) return jsonResponse(PROJECT_COMPARISON);
+        return undefined;
+      },
+    });
+    mount(initial);
+    return posts;
+  }
+
+  it("F2: live Compare has no legacy analyze buttons and never POSTs /api/project/analyze", async () => {
+    const posts = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:plugin:run-plugin-2"]);
+    const row = await screen.findByTestId("analysis-action-analyze-baseline");
+    await waitFor(() => expect(row).toHaveAttribute("data-action-state", "ready"));
+    for (const name of ["Analyze baseline", "Analyze candidate"]) {
+      const buttons = screen.getAllByRole("button", { name });
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0].closest('[data-testid="analysis-job-panel"]')).not.toBeNull();
+    }
+    expect(document.querySelector(".compare-actions")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Analyze baseline" }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0].url).toMatch(/\/project\/analysis\/jobs$/);
+    expect(posts.some((p) => p.url.endsWith("/project/analyze"))).toBe(false);
+  });
+
+  it("F1: the compare action submits its exact request; an unready action stays gated", async () => {
+    const posts = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:website:run-web-1"]);
+    const cross = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(cross).toHaveTextContent("different sources"));
+    // No request can be built, so no submit control is mounted at all.
+    expect(within(cross).queryByRole("button", { name: "Compare selected runs" })).toBeNull();
+    const candidateRow = screen.getByTestId("analysis-action-analyze-candidate");
+    await waitFor(() => expect(candidateRow).toHaveAttribute("data-action-state", "ready"));
+    expect(posts).toHaveLength(0);
+    handle?.reset();
+    cleanup();
+
+    const next = mountJobs(["/compare?baseline=run:plugin:run-plugin&candidate=run:plugin:run-plugin-2"]);
+    const compare = await screen.findByTestId("analysis-action-compare-runs");
+    await waitFor(() => expect(compare).toHaveAttribute("data-action-state", "ready"));
+    await userEvent.click(within(compare).getByRole("button", { name: "Compare selected runs" }));
+    await waitFor(() => expect(next).toHaveLength(1));
+    expect(next[0].body).toMatchObject({
+      source_guild: "plugin",
+      operation: "compare",
+      target_kind: "runs",
+      ids: ["run-plugin", "run-plugin-2"],
+    });
+  });
+
+  it("F1: a selected comparison artifact mounts the recommendation panel", async () => {
+    mountJobs(["/compare"]);
+    const select = await screen.findByRole("combobox", { name: "Analysis artifact" });
+    await userEvent.selectOptions(select, `comparison|${summary("comparison", CMP_ID).source_guild}|${CMP_ID}`);
+    expect(await screen.findByTestId("recommendation-panel")).toBeInTheDocument();
   });
 });
