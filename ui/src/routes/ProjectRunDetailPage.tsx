@@ -2,12 +2,40 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { ProjectRunDetailResponse } from "../../../src/types";
 import { useFetch } from "../hooks/useFetch";
 import { api } from "../lib/api";
+import { evidenceLinkTarget } from "./RunDetailPage";
+
+/** A `?ref=` run-relative path opens through the project-run artifact route
+ * only when E01's evidence-ref rules contain it; otherwise it stays text. */
+function RunRef({ runId, refPath, guild }: { runId: string; refPath: string; guild?: string }) {
+  const target = evidenceLinkTarget(`.guild/runs/${runId}/${refPath}`, [runId]);
+  return (
+    <div className="card" data-testid="run-ref">
+      <h2>Referenced file</h2>
+      {"path" in target ? (
+        <a
+          href={api.projectRunArtifact(runId, target.path, guild)}
+          data-testid="run-ref-file-link"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ overflowWrap: "anywhere" }}
+        >
+          <code>{target.path}</code>
+        </a>
+      ) : (
+        <span data-testid="run-ref-unlinked" style={{ overflowWrap: "anywhere" }}>
+          <code>{refPath}</code> <span className="muted">(not linked: {target.refused})</span>
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function ProjectRunDetailPage() {
   const params = useParams<{ run_id: string }>();
   const [searchParams] = useSearchParams();
   const runId = params.run_id;
   const guild = searchParams.get("guild") ?? undefined;
+  const refPath = searchParams.get("ref");
   const { data, error, status } = useFetch<ProjectRunDetailResponse>(
     runId ? api.projectRunDetail(runId, guild) : null,
   );
@@ -54,6 +82,8 @@ export default function ProjectRunDetailPage() {
               </strong>
             </div>
           </div>
+
+          {refPath && runId ? <RunRef runId={runId} refPath={refPath} guild={guild} /> : null}
 
           <div className="card">
             <h2>Metadata</h2>

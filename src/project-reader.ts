@@ -20,8 +20,8 @@
 //   - Path traversal on wiki page reads is rejected with the same
 //     safeJoinUnder pattern server.ts uses for artifacts.
 
-import { existsSync, lstatSync, realpathSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { constants as fsConstants, existsSync, lstatSync, realpathSync, statSync } from "node:fs";
+import { open, readFile, readdir } from "node:fs/promises";
 import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 
@@ -536,6 +536,26 @@ export async function readProjectRun(
   if (!isSafeRunId(runId)) {
     throw new ProjectReadError("bad_request", "invalid run_id");
   }
+  const run = await resolveProjectRunRow(projectRoot, runId, guildName);
+  const runYaml = await readMaybeYaml(join(run.path, "run.yaml"));
+  const provenance = await readMaybeJson(join(run.path, "provenance.json"));
+  const tracePath = pickTracePath(run.path);
+  const tracePreview = tracePath ? await readJsonlPreview(tracePath, 50) : [];
+  const eventCount = tracePath ? await countJsonlEvents(tracePath) : 0;
+  return {
+    run,
+    ...(runYaml !== undefined ? { run_yaml: runYaml } : {}),
+    ...(provenance !== undefined ? { provenance } : {}),
+    event_count: eventCount,
+    trace_preview: tracePreview,
+  };
+}
+
+async function resolveProjectRunRow(
+  projectRoot: string,
+  runId: string,
+  guildName?: string,
+): Promise<ProjectRunListRow> {
   const list = await listProjectRuns(projectRoot);
   const matches = list.runs.filter(
     (run) => run.run_id === runId && (!guildName || run.source_guild === guildName),
@@ -549,19 +569,78 @@ export async function readProjectRun(
       "guild query parameter is required when multiple sources contain the same run_id",
     );
   }
-  const run = matches[0];
-  const runYaml = await readMaybeYaml(join(run.path, "run.yaml"));
-  const provenance = await readMaybeJson(join(run.path, "provenance.json"));
-  const tracePath = pickTracePath(run.path);
-  const tracePreview = tracePath ? await readJsonlPreview(tracePath, 50) : [];
-  const eventCount = tracePath ? await countJsonlEvents(tracePath) : 0;
-  return {
-    run,
-    ...(runYaml !== undefined ? { run_yaml: runYaml } : {}),
-    ...(provenance !== undefined ? { provenance } : {}),
-    event_count: eventCount,
-    trace_preview: tracePreview,
-  };
+  return matches[0];
+}
+
+/**
+ * Read one file under a live project run's directory (E01-AC3 followup).
+ * `segments` are the already-decoded path segments. Fail closed: any empty,
+ * `.`/`..`, slash/backslash/NUL-bearing segment, a scheme/drive-like first
+ * segment, a run directory reached through a symlink, or a realpath outside
+ * the run directory (symlink escape) is refused; an unknown run is not_found.
+ */
+export async function readProjectRunArtifact(
+  projectRoot: string,
+  runId: string,
+  segments: readonly string[],
+  guildName?: string,
+): Promise<{ path: string; body: Buffer }> {
+  if (!isSafeRunId(runId)) {
+    throw new ProjectReadError("bad_request", "invalid run_id");
+  }
+  if (
+    segments.length === 0 ||
+    segments.some((seg) => seg === "" || seg === "." || seg === ".." || /[\\/\0]/.test(seg)) ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(segments[0])
+  ) {
+    throw new ProjectReadError("bad_request", "artifact path refused");
+  }
+  const run = await resolveProjectRunRow(projectRoot, runId, guildName);
+  let rootReal: string;
+  let runReal: string;
+  let targetReal: string;
+  try {
+    rootReal = realpathSync(projectRoot);
+    runReal = realpathSync(run.path);
+    targetReal = realpathSync(join(run.path, ...segments));
+  } catch {
+    throw new ProjectReadError("not_found", "artifact not found");
+  }
+  // The run directory must sit physically where it sits lexically under the
+  // project root: a symlinked `.guild/runs`, sub-guild, or run dir is refused.
+  if (runReal !== resolve(rootReal, relative(resolve(projectRoot), run.path))) {
+    throw new ProjectReadError("bad_request", "run directory escapes the project root");
+  }
+  const rel = relative(runReal, targetReal);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new ProjectReadError("bad_request", "artifact path escapes the run directory");
+  }
+  // Open without following a final symlink, then confirm the lexical path
+  // still resolves to the same contained inode, so a component swapped to a
+  // symlink between the check and the open is refused.
+  let handle;
+  try {
+    handle = await open(targetReal, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  } catch {
+    throw new ProjectReadError("bad_request", "artifact path escapes the run directory");
+  }
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile()) throw new ProjectReadError("not_found", "artifact not found");
+    let again: string;
+    try {
+      again = realpathSync(join(run.path, ...segments));
+    } catch {
+      throw new ProjectReadError("bad_request", "artifact path escapes the run directory");
+    }
+    const current = statSync(again);
+    if (again !== targetReal || current.dev !== opened.dev || current.ino !== opened.ino) {
+      throw new ProjectReadError("bad_request", "artifact path escapes the run directory");
+    }
+    return { path: segments.join("/"), body: await handle.readFile() };
+  } finally {
+    await handle.close();
+  }
 }
 
 async function listRunDirs(runsRoot: string): Promise<string[]> {

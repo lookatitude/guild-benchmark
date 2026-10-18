@@ -47,6 +47,12 @@ export const api = {
     `${API_BASE}/project/runs/${encodeURIComponent(runId)}${
       guild ? `?guild=${encodeURIComponent(guild)}` : ""
     }`,
+  // One file under a live run's directory; each path segment is encoded.
+  projectRunArtifact: (runId: string, path: string, guild?: string) =>
+    `${API_BASE}/project/runs/${encodeURIComponent(runId)}/artifacts/${path
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`,
   projectInitiatives: () => `${API_BASE}/project/initiatives`,
   projectComparisonTargets: () => `${API_BASE}/project/comparison-targets`,
   projectComparison: (baseline: string, candidate: string) =>

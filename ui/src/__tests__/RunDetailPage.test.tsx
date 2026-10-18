@@ -577,11 +577,18 @@ describe("RunDetailPage — E01 diagnostic analysis", () => {
 
     const finding = screen.getByTestId("analysis-finding");
     const links = finding.querySelectorAll("a");
-    expect(links.length).toBe(1);
-    // No server route serves project-run file contents: the ref opens in
-    // place and links only to the run overview.
-    expect(links[0].getAttribute("href")).toBe(`/project-runs/${RUN_ID}?guild=plugin`);
-    expect(links[0]).toHaveAttribute("data-ref-path", "logs/v1.4-events.jsonl");
+    expect(links.length).toBe(2);
+    // The contained ref opens the file through the project-run artifact
+    // route and hands the ref to the run overview.
+    const fileLink = finding.querySelector('[data-testid="evidence-file-link"]') as HTMLAnchorElement;
+    expect(fileLink.getAttribute("href")).toBe(
+      `/api/project/runs/${RUN_ID}/artifacts/logs/v1.4-events.jsonl?guild=plugin`,
+    );
+    const overview = finding.querySelector('[data-testid="evidence-link"]') as HTMLAnchorElement;
+    expect(overview.getAttribute("href")).toBe(
+      `/project-runs/${RUN_ID}?guild=plugin&ref=${encodeURIComponent("logs/v1.4-events.jsonl")}`,
+    );
+    expect(overview).toHaveAttribute("data-ref-path", "logs/v1.4-events.jsonl");
     const ref = finding.querySelector('[data-testid="evidence-ref"]') as HTMLDetailsElement;
     expect(ref.querySelector("summary")).toHaveTextContent(REF(8));
     const panel = ref.querySelector('[data-testid="evidence-ref-panel"]') as HTMLElement;

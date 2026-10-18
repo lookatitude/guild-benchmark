@@ -22,6 +22,7 @@ import {
   listProjectWikiPages,
   readProjectKnowledgeGraph,
   readProjectRun,
+  readProjectRunArtifact,
   readProjectWikiPage,
 } from "./project-reader.js";
 import { randomBytes } from "node:crypto";
@@ -672,6 +673,40 @@ export function createApp(opts: ServerOpts): Hono {
         c.req.query("guild"),
       );
       return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs/:run_id/artifacts/*[?guild=<name>] → one file under
+  // that run's directory. Read-only and fail-closed (readProjectRunArtifact);
+  // served inert (text/plain unless JSON, nosniff, sandbox CSP) so a run file
+  // can never execute as a same-origin page.
+  app.get("/api/project/runs/:run_id/artifacts/*", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const m = /^\/api\/project\/runs\/[^/]+\/artifacts\/(.*)$/.exec(new URL(c.req.url).pathname);
+    let segments: string[];
+    try {
+      segments = (m?.[1] ?? "").split("/").map((seg) => decodeURIComponent(seg));
+    } catch {
+      return c.json({ error: "artifact path refused" }, 400);
+    }
+    try {
+      const file = await readProjectRunArtifact(
+        projectRoot,
+        c.req.param("run_id"),
+        segments,
+        c.req.query("guild"),
+      );
+      const json = extname(file.path).toLowerCase() === ".json";
+      return new Response(new Uint8Array(file.body), {
+        status: 200,
+        headers: {
+          "content-type": json ? "application/json; charset=utf-8" : "text/plain; charset=utf-8",
+          "x-content-type-options": "nosniff",
+          "content-security-policy": "sandbox; default-src 'none'",
+        },
+      });
     } catch (err) {
       return projectErrorResponse(c, err);
     }
