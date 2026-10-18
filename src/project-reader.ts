@@ -20,14 +20,31 @@
 //   - Path traversal on wiki page reads is rejected with the same
 //     safeJoinUnder pattern server.ts uses for artifacts.
 
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 
+// D01 — freshness comes ONLY from the packaged producer's inspect transport
+// (D00). No plugin source import; no hash/detector reimplementation.
+import {
+  inspectArtifact,
+  isSafeAnalysisId,
+  type InspectKind,
+  type InspectOutcome,
+  type PackagedRuntime,
+} from "./analysis-process.js";
+
 // Response shapes live in types.ts next to every other HTTP contract the UI
 // imports (see types.ts §"live-project knowledge routes").
 import type {
+  ProjectAnalysisAction,
+  AnalysisArtifactFreshness,
+  AnalysisArtifactSummary,
+  AnalysisArtifactValidation,
+  GuildRecommendationMirror,
+  ProjectAnalysisArtifactDetailResponse,
+  ProjectAnalysisArtifactsResponse,
   ProjectKnowledgeGraphResponse,
   ProjectAnalysisRequest,
   ProjectAnalysisResponse,
@@ -474,6 +491,7 @@ export async function compareProjectTargets(
 export async function analyzeProjectTarget(
   projectRoot: string,
   req: ProjectAnalysisRequest,
+  runtime?: PackagedRuntime,
 ): Promise<ProjectAnalysisResponse> {
   const targets = await listProjectComparisonTargets(projectRoot);
   const expectedId = req.target_id.includes(":")
@@ -492,10 +510,21 @@ export async function analyzeProjectTarget(
     (run) => run.source_guild === target.source_guild && target.run_ids.includes(run.run_id),
   );
   const signals = buildAnalysisSignals(target, targetRuns);
+  // D03: producer-authoritative freshness feeds the decide descriptor's
+  // enablement when a runtime is configured; without one the descriptor
+  // stays disabled (never silently enabled).
+  let inspectOutcome: InspectOutcome | undefined;
+  if (target.kind === "run" && target.run_ids.length === 1) {
+    const sources = await resolveGuildSources(projectRoot);
+    const owner = sources.find((s) => s.name === target.source_guild);
+    if (owner) {
+      inspectOutcome = await inspectArtifact(runtime, owner.root, "run", target.run_ids[0]);
+    }
+  }
   return {
     target,
     signals,
-    actions: buildAnalysisActions(target),
+    actions: buildAnalysisActions(target, inspectOutcome),
   };
 }
 
@@ -759,30 +788,251 @@ function buildAnalysisSignals(target: ProjectComparisonTarget, runs: ProjectRunL
   return signals;
 }
 
-function buildAnalysisActions(target: ProjectComparisonTarget): ProjectAnalysisResponse["actions"] {
-  const primaryRef = target.kind === "run" ? `--run ${target.run_ids[0]}` : `--initiative ${target.id.split(":").pop() ?? target.id}`;
-  return [
-    {
-      label: "Reflect on mistakes and performance",
-      command: `/guild:reflect ${primaryRef}`.trim(),
-      intent: "reflect",
-    },
-    {
-      label: "Refresh project knowledge before evolving",
-      command: "/guild:learn",
-      intent: "learn",
-    },
-    {
-      label: "Promote accepted learnings into the wiki",
-      command: `/guild:wiki ingest ${primaryRef}`.trim(),
-      intent: "wiki",
-    },
-    {
-      label: "Evolve a skill after reflection names a target",
-      command: "/guild:evolve <skill-name>",
-      intent: "evolve",
-    },
-  ];
+// ---- D03 — versioned action descriptors (C-CLI / C-JOBS) ---------------------
+//
+// Replaces the stale `/guild:reflect` and print-only `/guild:evolve`
+// suggestions (both retired surfaces — C06/KTD14) with descriptors bound to
+// the packaged run-analysis CLI's closed mappings and the live `/guild:maintain`
+// route. Three invariants:
+//   AC1 — every copyable command parses against the packaged CLI / maintain
+//         route (argv below is the exact C-CLI mapping, minus --cwd).
+//   AC2 — only safe ids are ever interpolated and NO descriptor carries a
+//         root: the server appends the ONE server-selected canonical root at
+//         execution time, so a rendered command cannot pick another root or
+//         smuggle shell flags.
+//   AC3 — the recommendation-decide descriptor is enabled ONLY for a current,
+//         decision-eligible producer inspection carrying both expected
+//         guards; every other context (stale/missing/unsupported/refused/
+//         unavailable/error or ineligible) stays disabled with the reason.
+
+export const ANALYSIS_ACTION_VERSION = "guild.analysis_action.v1";
+
+export interface AnalysisActionDescriptor extends ProjectAnalysisAction {
+  descriptor_version: typeof ANALYSIS_ACTION_VERSION;
+  /**
+   * Packaged-CLI argv for the C-JOBS bridge (C-CLI mapping WITHOUT --cwd —
+   * the server appends the server-selected canonical root). Empty for
+   * host-dispatcher commands (/guild:learn, /guild:wiki, /guild:maintain
+   * evolve) that do not go through the packaged CLI.
+   */
+  argv: string[];
+  enabled: boolean;
+  disabled_reason?: string;
+}
+
+function descriptor(
+  base: ProjectAnalysisAction,
+  argv: string[],
+  enabled: boolean,
+  disabledReason?: string,
+): AnalysisActionDescriptor {
+  return {
+    ...base,
+    descriptor_version: ANALYSIS_ACTION_VERSION,
+    argv,
+    enabled,
+    ...(enabled ? {} : { disabled_reason: disabledReason ?? "disabled" }),
+  };
+}
+
+/**
+ * Decide-action descriptor for ONE recommendation (AC3). Consent context is
+ * the producer's INSPECT outcome: current state, decision-eligible, and both
+ * expected guards present — anything else is a disabled descriptor naming
+ * why. The descriptive label never doubles as the executable form.
+ */
+export function buildRecommendationActionDescriptor(
+  sourceId: string,
+  recommendationId: string,
+  decision: "accept" | "reject",
+  outcome: InspectOutcome | undefined,
+): AnalysisActionDescriptor {
+  const base: ProjectAnalysisAction = {
+    label: `Record your ${decision} decision for ${recommendationId} (requires current producer context)`,
+    command: "",
+    intent: "evolve",
+  };
+  if (!isSafeAnalysisId(sourceId) || !isSafeAnalysisId(recommendationId)) {
+    return descriptor(base, [], false, "unsafe source or recommendation id");
+  }
+  if (!outcome) {
+    return descriptor(base, [], false, "producer freshness unavailable");
+  }
+  if (!outcome.ok) {
+    return descriptor(base, [], false, `producer inspection ${outcome.state}: ${outcome.reason}`);
+  }
+  if (outcome.state !== "current") {
+    return descriptor(base, [], false, `artifact is ${outcome.state}; re-analyze before deciding`);
+  }
+  // Identity binding (security F2): the inspection must be FOR this source —
+  // a current inspection of another run cannot enable this decision.
+  if (outcome.result.kind !== "run" || outcome.result.source_id !== sourceId) {
+    return descriptor(base, [], false, "producer inspection does not match this source");
+  }
+  if (outcome.result.eligible !== true) {
+    return descriptor(base, [], false, "producer reports decision-ineligible context");
+  }
+  const expectedAnalysisId = outcome.result.source_analysis_id;
+  const expectedInputHash = outcome.result.input_hash;
+  // Guard FORMAT validation (codex/security F1): guards flow into a copyable
+  // command string, so anything outside the producer's known shapes (opaque
+  // analysis identity, sha256 hex) disables the action instead of rendering.
+  if (
+    !expectedAnalysisId ||
+    !/^[A-Za-z0-9:._-]{1,256}$/.test(expectedAnalysisId) ||
+    !expectedInputHash ||
+    !/^[a-f0-9]{64}$/.test(expectedInputHash)
+  ) {
+    return descriptor(base, [], false, "producer inspection lacks well-formed expected-context guards");
+  }
+  const command =
+    `/guild:maintain analyze recommendation decide ${sourceId} ${recommendationId} ${decision} ` +
+    `--expected-analysis-id ${expectedAnalysisId} --expected-input-hash ${expectedInputHash}`;
+  return descriptor({ ...base, command }, [
+    "recommendation",
+    "decide",
+    sourceId,
+    recommendationId,
+    decision,
+    "--expected-analysis-id",
+    expectedAnalysisId,
+    "--expected-input-hash",
+    expectedInputHash,
+  ], true);
+}
+
+function buildAnalysisActions(
+  target: ProjectComparisonTarget,
+  inspectOutcome?: InspectOutcome,
+): ProjectAnalysisResponse["actions"] {
+  const actions: AnalysisActionDescriptor[] = [];
+  const rawTargetId =
+    target.kind === "run"
+      ? target.run_ids[0]
+      : decodeURIComponent(target.id.split(":").pop() ?? "");
+  const idSafe = rawTargetId !== undefined && isSafeAnalysisId(rawTargetId);
+
+  // Analyze — the packaged diagnostic producer via the maintain route
+  // (replaces the retired /guild:reflect suggestion).
+  if (target.kind === "run") {
+    actions.push(
+      idSafe
+        ? descriptor(
+            {
+              label: "Analyze this run with the packaged diagnostic producer",
+              command: `/guild:maintain analyze run ${rawTargetId}`,
+              intent: "reflect",
+            },
+            ["run", "analyze", rawTargetId],
+            true,
+          )
+        : descriptor(
+            { label: "Analyze this run with the packaged diagnostic producer", command: "", intent: "reflect" },
+            [],
+            false,
+            "target id is not a safe analysis id",
+          ),
+    );
+  } else {
+    actions.push(
+      idSafe
+        ? descriptor(
+            {
+              label: "Analyze this initiative's linked runs together",
+              command: `/guild:maintain analyze initiative ${rawTargetId}`,
+              intent: "reflect",
+            },
+            ["initiative", "analyze", rawTargetId],
+            true,
+          )
+        : descriptor(
+            { label: "Analyze this initiative's linked runs together", command: "", intent: "reflect" },
+            [],
+            false,
+            "target id is not a safe analysis id",
+          ),
+    );
+  }
+
+  // Compare — only when the target actually carries 2..100 safe run ids.
+  if (target.run_ids.length >= 2 && target.run_ids.length <= 100) {
+    const allSafe = target.run_ids.every((id) => isSafeAnalysisId(id));
+    actions.push(
+      allSafe
+        ? descriptor(
+            {
+              label: "Compare the linked runs for repeated failure signatures",
+              command: `/guild:maintain analyze compare ${target.run_ids.join(" ")}`,
+              intent: "reflect",
+            },
+            ["run", "compare", ...target.run_ids],
+            true,
+          )
+        : descriptor(
+            { label: "Compare the linked runs for repeated failure signatures", command: "", intent: "reflect" },
+            [],
+            false,
+            "a linked run id is not a safe analysis id",
+          ),
+    );
+  }
+
+  // Live host dispatchers (NOT packaged-CLI argv): learn and wiki survive
+  // KTD14; evolve is reachable only as the maintain sub-verb now.
+  actions.push(
+    descriptor(
+      { label: "Refresh project knowledge before evolving", command: "/guild:learn", intent: "learn" },
+      [],
+      true,
+    ),
+    descriptor(
+      {
+        label: "Promote accepted learnings into the wiki",
+        command: idSafe && target.kind === "run" ? `/guild:wiki ingest --run ${rawTargetId}` : "/guild:wiki ingest",
+        intent: "wiki",
+      },
+      [],
+      true,
+    ),
+    // Template, not an executable action (codex F2): no concrete skill is
+    // bound here, so it ships disabled with the spelling in the label only.
+    descriptor(
+      {
+        label: "Evolve a skill after analysis names a target (run `/guild:maintain evolve <skill-name>`)",
+        command: "",
+        intent: "evolve",
+      },
+      [],
+      false,
+      "bind a specific skill name first",
+    ),
+  );
+
+  // Recommendation consent (AC3) — a template descriptor at target level:
+  // enabled only through buildRecommendationActionDescriptor with a specific
+  // recommendation and a current producer inspection. Here it surfaces the
+  // CURRENT enablement context so the UI can show why deciding is (un)available.
+  if (target.kind === "run") {
+    const probe = buildRecommendationActionDescriptor(
+      rawTargetId ?? "",
+      "rec-id",
+      "accept",
+      inspectOutcome,
+    );
+    actions.push({
+      ...probe,
+      label: "Decide a recommendation (needs a current, eligible analysis)",
+      // The template is NEVER directly executable: no concrete recommendation
+      // is bound at target level.
+      command: "",
+      argv: [],
+      enabled: false,
+      disabled_reason: probe.enabled
+        ? "choose a specific recommendation to decide"
+        : probe.disabled_reason ?? "disabled",
+    });
+  }
+  return actions;
 }
 
 function compareRunRows(a: ProjectRunListRow, b: ProjectRunListRow): number {
@@ -872,6 +1122,450 @@ function stringField(value: Record<string, unknown> | undefined, key: string): s
 
 function isSafeRunId(runId: string): boolean {
   return /^[A-Za-z0-9._-]+$/.test(runId);
+}
+
+// ---- D01 (C-ANALYSIS) — plugin-produced analysis artifacts -------------------
+//
+// Read-only mirrors over `.guild/analysis/{runs,comparisons}/**` and
+// `.guild/recommendations/*.jsonl` across the server-enumerated guild
+// sources. Validation is STRUCTURAL (schema id, identity fields, row shape);
+// freshness/eligibility authority stays with the packaged producer via the
+// D00 inspect transport. Benchmark duplicates no hash algorithm and no
+// detector (D01-AC1): hashes are only passed through / compared for equality
+// by the PRODUCER, never recomputed here.
+
+const RUN_ANALYSIS_SCHEMA = "guild.run_analysis.v1";
+const RUN_COMPARISON_SCHEMA = "guild.run_comparison.v1";
+const RECOMMENDATION_SCHEMA = "guild.recommendation.v1";
+
+/** Read budgets (security review F2): an analysis artifact or recommendation
+ * ledger beyond this size, or any non-regular file (FIFO/device), is refused
+ * rather than slurped. */
+const MAX_ANALYSIS_FILE_BYTES = 8 * 1024 * 1024;
+
+async function readBoundedRegularFile(
+  path: string,
+  maxBytes: number,
+): Promise<string | null> {
+  try {
+    const st = lstatSync(path);
+    if (!st.isFile() || st.size > maxBytes) return null;
+    return await readFile(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+function analysisRootFor(source: GuildSource, kind: InspectKind): string {
+  return kind === "run"
+    ? join(source.root, ".guild", "analysis", "runs")
+    : join(source.root, ".guild", "analysis", "comparisons");
+}
+
+/** Containment check for an artifact file: realpath must stay under the
+ * (realpathed) source root — a symlinked artifact escaping the project is
+ * rejected (D01-AC2), matching the safeJoinUnder discipline. */
+function isContainedRealpath(sourceRoot: string, file: string): boolean {
+  try {
+    const physRoot = realpathSync(sourceRoot);
+    const physFile = realpathSync(file);
+    const rel = relative(physRoot, physFile);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  } catch {
+    return false;
+  }
+}
+
+function validateRecommendationRow(
+  raw: unknown,
+  binding?: { sourceId: string; sourceAnalysisId?: string },
+): GuildRecommendationMirror | null {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  if (obj.schema_version !== RECOMMENDATION_SCHEMA) return null;
+  if (typeof obj.id !== "string" || obj.id.length === 0) return null;
+  if (typeof obj.source_id !== "string" || obj.source_id.length === 0) return null;
+  if (typeof obj.source_analysis_id !== "string" || obj.source_analysis_id.length === 0) return null;
+  if (typeof obj.status !== "string" || obj.status.length === 0) return null;
+  if (obj.requires_user_approval !== true) return null;
+  if (!Array.isArray(obj.evidence_refs) || obj.evidence_refs.some((r) => typeof r !== "string")) {
+    return null;
+  }
+  // Canonical source binding (codex F2): a recommendation embedded in or
+  // filed for artifact X must name X as its source — a row from another
+  // run/comparison never validates here.
+  if (binding) {
+    if (obj.source_id !== binding.sourceId) return null;
+    if (
+      binding.sourceAnalysisId !== undefined &&
+      obj.source_analysis_id !== binding.sourceAnalysisId
+    ) {
+      return null;
+    }
+  }
+  return obj as unknown as GuildRecommendationMirror;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+interface ArtifactValidationOutcome {
+  validation: AnalysisArtifactValidation;
+  analysisId: string | null;
+  schemaVersion: string | null;
+  artifactEligible: boolean | null;
+  recommendationCount: number;
+  findingCount: number;
+  invalidRecommendationRows: number;
+  artifact?: Record<string, unknown>;
+}
+
+/** Structural validation of one on-disk analysis/comparison artifact against
+ * the type-only mirror. `expectedId` is the owning directory name — a
+ * mismatching run_id/comparison_id is a wrong-source artifact (D01-AC2). */
+function validateAnalysisArtifact(
+  raw: unknown,
+  kind: InspectKind,
+  expectedId: string,
+): ArtifactValidationOutcome {
+  const malformed: ArtifactValidationOutcome = {
+    validation: "malformed",
+    analysisId: null,
+    schemaVersion: null,
+    artifactEligible: null,
+    recommendationCount: 0,
+    findingCount: 0,
+    invalidRecommendationRows: 0,
+  };
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return malformed;
+  const obj = raw as Record<string, unknown>;
+  const schemaVersion = typeof obj.schema_version === "string" ? obj.schema_version : null;
+  const expectedSchema = kind === "run" ? RUN_ANALYSIS_SCHEMA : RUN_COMPARISON_SCHEMA;
+  if (schemaVersion !== expectedSchema) {
+    return { ...malformed, validation: "unsupported_schema", schemaVersion };
+  }
+  if (kind === "run") {
+    if (
+      typeof obj.analysis_id !== "string" ||
+      typeof obj.run_id !== "string" ||
+      typeof obj.source_hash !== "string" ||
+      typeof obj.eligible !== "boolean" ||
+      // Contract-fixture required blocks (codex F1): identity/completeness/
+      // usage must be objects and every finding row must be an object.
+      !isPlainObject(obj.identity) ||
+      !isPlainObject(obj.completeness) ||
+      !isPlainObject(obj.usage) ||
+      !Array.isArray(obj.findings) ||
+      obj.findings.some((f) => !isPlainObject(f)) ||
+      !Array.isArray(obj.recommendations)
+    ) {
+      return { ...malformed, schemaVersion };
+    }
+    if (obj.run_id !== expectedId) {
+      return {
+        ...malformed,
+        validation: "wrong_source",
+        schemaVersion,
+        analysisId: obj.analysis_id,
+      };
+    }
+    const binding = { sourceId: obj.run_id, sourceAnalysisId: obj.analysis_id };
+    const invalidRows = obj.recommendations.filter(
+      (r) => validateRecommendationRow(r, binding) === null,
+    ).length;
+    return {
+      validation: invalidRows > 0 ? "partial" : "valid",
+      analysisId: obj.analysis_id,
+      schemaVersion,
+      artifactEligible: obj.eligible,
+      recommendationCount: obj.recommendations.length,
+      findingCount: obj.findings.length,
+      invalidRecommendationRows: invalidRows,
+      artifact: obj,
+    };
+  }
+  if (
+    typeof obj.comparison_id !== "string" ||
+    !Array.isArray(obj.run_ids) ||
+    obj.run_ids.some((r) => typeof r !== "string") ||
+    !Array.isArray(obj.source_hashes) ||
+    obj.source_hashes.some((h) => typeof h !== "string") ||
+    !Array.isArray(obj.recommendations)
+  ) {
+    return { ...malformed, schemaVersion };
+  }
+  if (obj.comparison_id !== expectedId) {
+    return {
+      ...malformed,
+      validation: "wrong_source",
+      schemaVersion,
+      analysisId: obj.comparison_id,
+    };
+  }
+  // A comparison recommendation's source_analysis_id IS the comparison_id
+  // (contract example): bind both fields, not source_id alone.
+  const comparisonBinding = {
+    sourceId: obj.comparison_id as string,
+    sourceAnalysisId: obj.comparison_id as string,
+  };
+  const invalidRows = obj.recommendations.filter(
+    (r) => validateRecommendationRow(r, comparisonBinding) === null,
+  ).length;
+  return {
+    validation: invalidRows > 0 ? "partial" : "valid",
+    analysisId: obj.comparison_id,
+    schemaVersion,
+    artifactEligible: null,
+    recommendationCount: obj.recommendations.length,
+    findingCount: 0,
+    invalidRecommendationRows: invalidRows,
+    artifact: obj,
+  };
+}
+
+/** Single-read artifact load (security review F1: the file is lstat-checked,
+ * containment-checked, then read and parsed ONCE; the detail endpoint reuses
+ * this parse instead of reopening the path). */
+async function readArtifactDetailCore(
+  source: GuildSource,
+  kind: InspectKind,
+  dir: string,
+): Promise<{ summary: AnalysisArtifactSummary; artifact?: Record<string, unknown> } | null> {
+  const id = basename(dir);
+  const fileName = kind === "run" ? "analysis.json" : "comparison.json";
+  const path = join(dir, fileName);
+  if (!existsSync(path)) return null;
+  const base = {
+    kind,
+    id,
+    source_guild: source.name,
+    path,
+  };
+  const emptySummary = (validation: AnalysisArtifactValidation) => ({
+    ...base,
+    analysis_id: null,
+    schema_version: null,
+    artifact_eligible: null,
+    validation,
+    invalid_recommendation_rows: 0,
+    recommendation_count: 0,
+    finding_count: 0,
+  });
+  if (!isSafeAnalysisId(id)) {
+    return { summary: emptySummary("wrong_source") };
+  }
+  if (!isContainedRealpath(source.root, path)) {
+    // Symlink escape — surfaced as malformed rather than silently skipped so
+    // the dashboard shows the artifact exists but is refused.
+    return { summary: emptySummary("malformed") };
+  }
+  const raw = await readBoundedRegularFile(path, MAX_ANALYSIS_FILE_BYTES);
+  if (raw === null) {
+    // Oversized / non-regular / unreadable — refused, never parsed.
+    return { summary: emptySummary("malformed") };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { summary: emptySummary("malformed") };
+  }
+  const outcome = validateAnalysisArtifact(parsed, kind, id);
+  return {
+    summary: {
+      ...base,
+      analysis_id: outcome.analysisId,
+      schema_version: outcome.schemaVersion,
+      artifact_eligible: outcome.artifactEligible,
+      validation: outcome.validation,
+      invalid_recommendation_rows: outcome.invalidRecommendationRows,
+      recommendation_count: outcome.recommendationCount,
+      finding_count: outcome.findingCount,
+    },
+    ...(outcome.artifact ? { artifact: outcome.artifact } : {}),
+  };
+}
+
+/**
+ * Enumerate validated analysis/comparison artifacts across every
+ * server-enumerated guild source. Listing performs NO producer calls —
+ * freshness is resolved per-artifact in readProjectAnalysisArtifact.
+ */
+export async function listProjectAnalysisArtifacts(
+  projectRoot: string,
+): Promise<ProjectAnalysisArtifactsResponse> {
+  const sources = await resolveGuildSources(projectRoot);
+  const artifacts: AnalysisArtifactSummary[] = [];
+  const outSources: ProjectSource[] = [];
+  for (const source of sources) {
+    for (const kind of ["run", "comparison"] as const) {
+      const root = analysisRootFor(source, kind);
+      let entries;
+      try {
+        entries = await readdir(root, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      outSources.push({ guild: source.name, path: root, kind: `analysis-${kind}s` });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const core = await readArtifactDetailCore(source, kind, join(root, entry.name));
+        if (core) artifacts.push(core.summary);
+      }
+    }
+  }
+  artifacts.sort((a, b) =>
+    a.source_guild === b.source_guild
+      ? a.kind === b.kind
+        ? a.id.localeCompare(b.id)
+        : a.kind === "run"
+          ? -1
+          : 1
+      : a.source_guild.localeCompare(b.source_guild),
+  );
+  return { artifacts, total: artifacts.length, sources: outSources };
+}
+
+function freshnessFromInspect(
+  outcome: Awaited<ReturnType<typeof inspectArtifact>>,
+): AnalysisArtifactFreshness {
+  if (outcome.ok) {
+    return {
+      state: outcome.state,
+      reason: outcome.result.reason,
+      // B04 F4: browser decision eligibility comes from INSPECT, never from
+      // the stored artifact's own eligible flag.
+      decision_eligible: outcome.result.eligible,
+    };
+  }
+  return { state: outcome.state, reason: outcome.reason };
+}
+
+async function readRecommendationLines(
+  source: GuildSource,
+  kind: InspectKind,
+  sourceId: string,
+): Promise<{ rows: GuildRecommendationMirror[]; invalid: number }> {
+  const path = join(source.root, ".guild", "recommendations", `${sourceId}.jsonl`);
+  if (!existsSync(path) || !isContainedRealpath(source.root, path)) {
+    return { rows: [], invalid: 0 };
+  }
+  const raw = await readBoundedRegularFile(path, MAX_ANALYSIS_FILE_BYTES);
+  if (raw === null) {
+    // Oversized / non-regular ledger — the whole file is refused as one
+    // invalid unit rather than parsed.
+    return { rows: [], invalid: 1 };
+  }
+  // A run's ledger legitimately spans analysis generations (different
+  // source_analysis_id per re-analysis), so runs bind source_id only. A
+  // comparison recommendation's source_analysis_id IS the comparison_id
+  // (contract example) — bind both.
+  const binding =
+    kind === "comparison"
+      ? { sourceId, sourceAnalysisId: sourceId }
+      : { sourceId };
+  const rows: GuildRecommendationMirror[] = [];
+  let invalid = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      invalid += 1;
+      continue;
+    }
+    const row = validateRecommendationRow(parsed, binding);
+    if (row) rows.push(row);
+    else invalid += 1;
+  }
+  return { rows, invalid };
+}
+
+/**
+ * Read one analysis artifact with its recommendation ledger and
+ * producer-authoritative freshness. `runtime` is the D00 packaged transport;
+ * absent ⇒ freshness `unavailable` (never silently "current").
+ */
+export async function readProjectAnalysisArtifact(
+  projectRoot: string,
+  kind: InspectKind,
+  id: string,
+  guildName?: string,
+  runtime?: PackagedRuntime,
+): Promise<ProjectAnalysisArtifactDetailResponse> {
+  if (!isSafeAnalysisId(id)) {
+    throw new ProjectReadError("bad_request", "invalid artifact id");
+  }
+  const sources = await resolveGuildSources(projectRoot);
+  const candidates: Array<{ source: GuildSource; dir: string }> = [];
+  for (const source of sources) {
+    if (guildName && source.name !== guildName) continue;
+    const dir = join(analysisRootFor(source, kind), id);
+    if (existsSync(join(dir, kind === "run" ? "analysis.json" : "comparison.json"))) {
+      candidates.push({ source, dir });
+    }
+  }
+  if (candidates.length === 0) {
+    // No local artifact (codex F3): still consult the producer so freshness
+    // can carry the AUTHORITATIVE `missing` (or `unavailable` without a
+    // runtime). Needs one unambiguous owning root.
+    const owners = guildName ? sources.filter((s) => s.name === guildName) : sources;
+    if (guildName && owners.length === 0) {
+      throw new ProjectReadError("not_found", `unknown guild: ${guildName}`);
+    }
+    if (owners.length !== 1) {
+      throw new ProjectReadError(
+        "ambiguous_guild",
+        "guild parameter is required to inspect an absent artifact across multiple sources",
+      );
+    }
+    const owner = owners[0];
+    const ledger = await readRecommendationLines(owner, kind, id);
+    const freshness = freshnessFromInspect(await inspectArtifact(runtime, owner.root, kind, id));
+    return {
+      summary: {
+        kind,
+        id,
+        source_guild: owner.name,
+        path: join(analysisRootFor(owner, kind), id),
+        analysis_id: null,
+        schema_version: null,
+        artifact_eligible: null,
+        validation: "absent",
+        invalid_recommendation_rows: 0,
+        recommendation_count: 0,
+        finding_count: 0,
+      },
+      recommendations: ledger.rows,
+      invalid_recommendation_lines: ledger.invalid,
+      freshness,
+    };
+  }
+  if (candidates.length > 1) {
+    throw new ProjectReadError(
+      "ambiguous_guild",
+      "guild parameter is required when multiple sources contain the same artifact id",
+    );
+  }
+  const { source, dir } = candidates[0];
+  const core = await readArtifactDetailCore(source, kind, dir);
+  if (!core) {
+    throw new ProjectReadError("not_found", `analysis artifact not found: ${kind}/${id}`);
+  }
+  const { summary, artifact } = core;
+  const ledger = await readRecommendationLines(source, kind, id);
+  const freshness = freshnessFromInspect(
+    await inspectArtifact(runtime, source.root, kind, id),
+  );
+  return {
+    summary,
+    ...(artifact ? { artifact } : {}),
+    recommendations: ledger.rows,
+    invalid_recommendation_lines: ledger.invalid,
+    freshness,
+  };
 }
 
 // ---- wiki list --------------------------------------------------------------

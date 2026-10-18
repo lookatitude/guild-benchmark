@@ -484,7 +484,15 @@ export interface DeferredResponse {
 export interface ProjectSource {
   guild: string;
   path: string;
-  kind?: "knowledge-graph" | "codebase-map" | "wiki" | "runs" | "initiatives";
+  kind?:
+    | "knowledge-graph"
+    | "codebase-map"
+    | "wiki"
+    | "runs"
+    | "initiatives"
+    // D01 — plugin-produced analysis artifact roots.
+    | "analysis-runs"
+    | "analysis-comparisons";
 }
 
 /**
@@ -630,6 +638,111 @@ export interface ProjectAnalysisResponse {
   target: ProjectComparisonTarget;
   signals: string[];
   actions: ProjectAnalysisAction[];
+}
+
+// ---- D01 (C-ANALYSIS) — plugin-produced analysis artifact mirrors ----------
+//
+// TYPE-ONLY mirrors of the plugin's shipped v1 analysis wire contract,
+// transcribed from the planning contract fixtures
+// (.guild/plan/v3-completion-program/contracts/{C-ANALYSIS.json,examples/}),
+// NEVER imported from plugin source. Benchmark validates shape and passes
+// producer values through; it computes no hash, detector or finding itself.
+// Unknown producer fields pass through untouched via the index signature.
+
+export interface GuildRecommendationMirror {
+  schema_version: "guild.recommendation.v1";
+  id: string;
+  source_id: string;
+  source_analysis_id: string;
+  status: string;
+  requires_user_approval: true;
+  evidence_refs: string[];
+  [key: string]: unknown;
+}
+
+export interface GuildRunAnalysisMirror {
+  schema_version: "guild.run_analysis.v1";
+  analysis_id: string;
+  run_id: string;
+  source_hash: string;
+  eligible: boolean;
+  findings: Array<Record<string, unknown>>;
+  recommendations: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface GuildRunComparisonMirror {
+  schema_version: "guild.run_comparison.v1";
+  comparison_id: string;
+  run_ids: string[];
+  source_hashes: string[];
+  recommendations: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+/** How the on-disk artifact fared against the mirror validator. `partial`
+ * means the core artifact validates but some contained recommendation rows
+ * do not (counted, never silently dropped into "valid"). `absent` means no
+ * local artifact exists — the detail endpoint still asks the producer so
+ * freshness can report the authoritative `missing`. */
+export type AnalysisArtifactValidation =
+  | "valid"
+  | "partial"
+  | "malformed"
+  | "unsupported_schema"
+  | "wrong_source"
+  | "absent";
+
+/** Producer-authoritative freshness via the packaged inspect transport —
+ * benchmark never recomputes source/input hashes (C-ANALYSIS rule 7).
+ * `unavailable` = no packaged runtime configured; `error` = transport/
+ * producer failure. `decision_eligible` carries the INSPECT result's
+ * eligible flag (B04 F4: inspect.eligible, not analysis.eligible, gates
+ * browser decisions). */
+export interface AnalysisArtifactFreshness {
+  state:
+    | "current"
+    | "stale"
+    | "missing"
+    | "unsupported"
+    | "refused"
+    | "unavailable"
+    | "error";
+  reason: string | null;
+  decision_eligible?: boolean;
+}
+
+export interface AnalysisArtifactSummary {
+  kind: "run" | "comparison";
+  /** run_id or comparison_id (safe id, equals its directory name). */
+  id: string;
+  source_guild: string;
+  analysis_id: string | null;
+  schema_version: string | null;
+  /** Artifact's own eligible flag (analysis.eligible — NOT decision authority). */
+  artifact_eligible: boolean | null;
+  validation: AnalysisArtifactValidation;
+  /** Count of contained recommendation rows failing the mirror validator. */
+  invalid_recommendation_rows: number;
+  recommendation_count: number;
+  finding_count: number;
+  path: string;
+}
+
+export interface ProjectAnalysisArtifactsResponse {
+  artifacts: AnalysisArtifactSummary[];
+  total: number;
+  sources: ProjectSource[];
+}
+
+export interface ProjectAnalysisArtifactDetailResponse {
+  summary: AnalysisArtifactSummary;
+  /** Full producer artifact, passed through untouched (valid/partial only). */
+  artifact?: Record<string, unknown>;
+  /** Validated rows from `.guild/recommendations/<source-id>.jsonl`. */
+  recommendations: GuildRecommendationMirror[];
+  invalid_recommendation_lines: number;
+  freshness: AnalysisArtifactFreshness;
 }
 
 export interface WikiPageSummary {

@@ -1,0 +1,60 @@
+{
+  "schema_version": "guild.run_comparison.v1",
+  "comparison_id": "comparison-abac869491a330d9",
+  "run_ids": [
+    "run-20261017-010000-example-a",
+    "run-20261017-010100-example-b"
+  ],
+  "source_hashes": [
+    "1b4f1c74f378d71d89f706b4e019468486321894419facec6c7661b48370628a",
+    "998e28e3f03f8a4ba536b2ee0e78d8c4d5268846d1e17858cec94ffd6370c55d"
+  ],
+  "completeness": {
+    "eligible_runs": 2,
+    "total_runs": 2,
+    "average_score": 100
+  },
+  "repeated_signatures": [
+    {
+      "signature": "Bash|fixture failing check|fixture error",
+      "runs": [
+        "run-20261017-010000-example-a",
+        "run-20261017-010100-example-b"
+      ],
+      "occurrences": 2
+    }
+  ],
+  "recommendations": [
+    {
+      "schema_version": "guild.recommendation.v1",
+      "id": "rec-da35bafbcf69c4cd",
+      "source_id": "comparison-abac869491a330d9",
+      "source_analysis_id": "comparison-abac869491a330d9",
+      "scope": "project",
+      "kind": "update_workflow",
+      "confidence": "high",
+      "severity": "medium",
+      "evidence_refs": [
+        ".guild/runs/run-20261017-010000-example-a/logs/v1.4-events.jsonl#line:8",
+        ".guild/runs/run-20261017-010000-example-a/logs/v1.4-events.jsonl#line:9",
+        ".guild/runs/run-20261017-010100-example-b/logs/v1.4-events.jsonl#line:8",
+        ".guild/runs/run-20261017-010100-example-b/logs/v1.4-events.jsonl#line:9"
+      ],
+      "evidence_signature": "976a063dd80f12762aa56b42619c59da8efb3e316c7d3a4e22f538ceda922ed5",
+      "affected_runs": [
+        "run-20261017-010000-example-a",
+        "run-20261017-010100-example-b"
+      ],
+      "proposed_action": "Address repeated cross-run signature Bash|fixture failing check|fixture error",
+      "status": "proposed",
+      "suggested_owner": "project",
+      "next_action": "queue_proposal_only",
+      "requires_user_approval": true,
+      "routing": {
+        "action": "queue_proposal_only",
+        "requires_user_approval": true,
+        "target": "project-local"
+      }
+    }
+  ]
+}

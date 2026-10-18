@@ -6,6 +6,11 @@ import { importFixture, loadRunRecord } from "./artifact-importer.js";
 import { importLifecycleRun } from "./lifecycle-importer.js";
 import { compareSets } from "./compare.js";
 import { persistScore, scoreRun } from "./scorer.js";
+import {
+  AnalysisPackageError,
+  resolvePackagedRuntime,
+  type PackagedRuntime,
+} from "./analysis-process.js";
 import { serverDefaultsFromEnv, startServer } from "./server.js";
 import { formatDryRunReport, planRun, runBenchmark } from "./runner.js";
 import {
@@ -519,6 +524,29 @@ async function commandServe(args: ParsedArgs): Promise<void> {
       throw new Error(`serve: --project-root directory not found: ${projectRoot}`);
     }
   }
+  // D00 (C-JOBS §startup) — optional packaged-producer bridge. Only the
+  // explicit absolute flag selects the package: no env override, registry
+  // search, sibling/source discovery or auto-compile. An explicit but
+  // invalid/unsupported package REFUSES startup here, before listen; an
+  // absent flag leaves every existing read route intact with analysis
+  // routes answering 503 analysis_package_unconfigured.
+  const pluginPackageFlag = args.flags.get("guild-plugin-package");
+  let guildPluginPackage: PackagedRuntime | undefined;
+  if (pluginPackageFlag !== undefined) {
+    if (pluginPackageFlag === "true" || pluginPackageFlag.trim().length === 0) {
+      throw new Error(
+        "serve: --guild-plugin-package requires an absolute packaged-plugin directory",
+      );
+    }
+    try {
+      guildPluginPackage = resolvePackagedRuntime(pluginPackageFlag);
+    } catch (err) {
+      if (err instanceof AnalysisPackageError) {
+        throw new Error(`serve: ${err.message}`);
+      }
+      throw err;
+    }
+  }
   const handle = await startServer({
     runsDir,
     casesDir,
@@ -526,6 +554,7 @@ async function commandServe(args: ParsedArgs): Promise<void> {
     hostname: defaults.hostname,
     ...(uiDistDir ? { uiDistDir } : {}),
     ...(projectRoot ? { projectRoot } : {}),
+    ...(guildPluginPackage ? { guildPluginPackage } : {}),
   });
   process.stdout.write(
     [
@@ -538,6 +567,10 @@ async function commandServe(args: ParsedArgs): Promise<void> {
       projectRoot
         ? `  project-root: ${projectRoot} (live /api/project/* knowledge routes enabled, read-only)`
         : "  project-root: <not set> — /api/project/* routes return 404 (pass --project-root <abs>)",
+      guildPluginPackage
+        ? `  guild-plugin-package: ${guildPluginPackage.packageRoot} ` +
+          `(${guildPluginPackage.pluginName}@${guildPluginPackage.pluginVersion}; analysis bridge enabled)`
+        : "  guild-plugin-package: <not set> — analysis routes return 503 analysis_package_unconfigured (pass --guild-plugin-package <abs>)",
       "",
     ].join("\n"),
   );
@@ -560,9 +593,12 @@ function printUsage(): void {
       "  benchmark score    --run-id <id> [--fixture <path>] [--case <path>] [--runs-dir <path>]",
       "  benchmark compare  --baseline <set> --candidate <set> [--runs-dir <path>] [--output <path>]",
       "  benchmark serve    [--port <n>] [--runs-dir <path>] [--cases-dir <path>] [--ui-dist <path>]",
-      "                     [--project-root <abs-path>]",
+      "                     [--project-root <abs-path>] [--guild-plugin-package <abs-path>]",
       "                          (binds 127.0.0.1; BENCHMARK_PORT env or --port; default 3055;",
-      "                           --project-root enables read-only /api/project/{knowledge-graph,wiki,wiki/page})",
+      "                           --project-root enables read-only /api/project/{knowledge-graph,wiki,wiki/page};",
+      "                           --guild-plugin-package selects the ONE packaged plugin whose compiled",
+      "                           run-analysis CLI backs /api/project/analysis/* — absolute dir, validated",
+      "                           at startup; absent ⇒ those routes return 503)",
       "  benchmark run      --case <slug> [--run-id <id>] [--dry-run] [--cleanup]",
       "                          [--runs-dir <path>] [--cases-dir <path>]",
       "                          (--dry-run prints the resolved plan; never spawns claude)",
