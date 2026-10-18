@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { extname, join, normalize, relative, resolve, sep } from "node:path";
 import { serve } from "@hono/node-server";
@@ -24,7 +24,18 @@ import {
   readProjectRun,
   readProjectWikiPage,
 } from "./project-reader.js";
+import { randomBytes } from "node:crypto";
 import type { PackagedRuntime } from "./analysis-process.js";
+import {
+  AnalysisJobManager,
+  parseAnalysisJobRequest,
+  type AnalysisJobLimits,
+} from "./analysis-jobs.js";
+import {
+  listProjectAnalysisArtifacts,
+  readProjectAnalysisArtifact,
+  resolveGuildSources,
+} from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -78,6 +89,8 @@ export interface ServerOpts {
    * 503 analysis_package_unconfigured.
    */
   guildPluginPackage?: PackagedRuntime;
+  /** D02 test override for job bounds; clamped to the C-JOBS caps. */
+  analysisJobLimits?: AnalysisJobLimits;
 }
 
 export interface ServerHandle {
@@ -436,6 +449,180 @@ export function createApp(opts: ServerOpts): Hono {
       );
     }
     await next();
+  });
+
+  // ---- /api/project/analysis/* — C-JOBS endpoints (D02) -------------------
+  // One process-local job manager per app over the ONE validated packaged
+  // runtime. Job ids are volatile: a restart yields 404 (C-JOBS controls).
+  const jobManager = analysisRuntime
+    ? new AnalysisJobManager(analysisRuntime, opts.analysisJobLimits ?? {})
+    : undefined;
+  // Per-server random action token for mutative routes, handed only to the
+  // local UI through a same-origin GET; never written anywhere durable.
+  const actionToken = randomBytes(32).toString("hex");
+
+  /** C-JOBS controls: loopback Host only; absent Origin is fine (same-origin
+   * fetch / curl), but a present Origin must itself be loopback — "null" and
+   * foreign origins are rejected. */
+  const loopbackViolation = (c: Context): string | null => {
+    const host = c.req.header("host") ?? "";
+    const hostName = host.replace(/:\d+$/, "");
+    if (hostName !== "127.0.0.1" && hostName !== "localhost" && hostName !== "[::1]") {
+      return `foreign Host: ${host}`;
+    }
+    const origin = c.req.header("origin");
+    if (origin === undefined) return null;
+    let originHost: string;
+    try {
+      originHost = new URL(origin).hostname;
+    } catch {
+      return `invalid Origin: ${origin}`; // includes the literal "null"
+    }
+    if (originHost !== "127.0.0.1" && originHost !== "localhost" && originHost !== "[::1]") {
+      return `foreign Origin: ${origin}`;
+    }
+    return null;
+  };
+
+  // All analysis routes require a loopback caller; mutative POSTs also
+  // require the per-server action token.
+  app.use("/api/project/analysis/*", async (c, next) => {
+    const violation = loopbackViolation(c);
+    if (violation) return c.json({ error: violation }, 403);
+    if (c.req.method === "POST") {
+      if (c.req.header("x-guild-action-token") !== actionToken) {
+        return c.json({ error: "missing or invalid X-Guild-Action-Token" }, 403);
+      }
+    }
+    await next();
+  });
+
+  // GET /api/project/analysis/session → hands the local UI the action token
+  // (same-origin only; foreign pages cannot read it without CORS headers).
+  app.get("/api/project/analysis/session", (c) => c.json({ action_token: actionToken }));
+
+  // GET /api/project/analysis/artifacts[?kind=&id=&guild=] — validated
+  // artifact metadata (D01 readers). With kind+id returns the artifact
+  // detail incl. producer-authoritative freshness.
+  app.get("/api/project/analysis/artifacts", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const kind = c.req.query("kind");
+    const id = c.req.query("id");
+    try {
+      if (kind !== undefined || id !== undefined) {
+        if ((kind !== "run" && kind !== "comparison") || !id) {
+          return c.json({ error: "detail read requires kind=run|comparison and id" }, 400);
+        }
+        const detail = await readProjectAnalysisArtifact(
+          projectRoot,
+          kind,
+          id,
+          c.req.query("guild"),
+          analysisRuntime,
+        );
+        return c.json(detail);
+      }
+      const body = await listProjectAnalysisArtifacts(projectRoot);
+      return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // POST /api/project/analysis/jobs — create/deduplicate a producer job.
+  app.post("/api/project/analysis/jobs", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    if (!jobManager || !analysisRuntime) {
+      return c.json({ error: "analysis_package_unconfigured" }, 503);
+    }
+    // Enforce the 64KiB request cap BEFORE buffering (codex F4): a declared
+    // oversize is rejected from the header, and an undeclared/chunked body is
+    // streamed with an incremental cap instead of slurped.
+    const lengthHeader = Number.parseInt(c.req.header("content-length") ?? "", 10);
+    if (Number.isInteger(lengthHeader) && lengthHeader > 65536) {
+      return c.json({ error: "request body exceeds 65536 bytes" }, 413);
+    }
+    const bodyStream = c.req.raw.body;
+    let rawText = "";
+    if (bodyStream) {
+      const reader = bodyStream.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > 65536) {
+          await reader.cancel();
+          return c.json({ error: "request body exceeds 65536 bytes" }, 413);
+        }
+        rawText += decoder.decode(value, { stream: true });
+      }
+      rawText += decoder.decode();
+    }
+    let raw: unknown;
+    try {
+      raw = JSON.parse(rawText);
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+    const parsed = parseAnalysisJobRequest(raw);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    const req = parsed.value;
+    // Canonical roots derive ONLY from the configured source enumeration —
+    // never from the request body.
+    const sources = await resolveGuildSources(projectRoot);
+    const source = sources.find((s) => s.name === req.source_guild);
+    if (!source) {
+      return c.json({ error: `unknown source_guild: ${req.source_guild}` }, 400);
+    }
+    // Realpath containment (codex F1): the canonical root is the PHYSICAL
+    // source root and must live inside the physical project root — a
+    // symlinked sub-guild pointing elsewhere is rejected, and aliases of the
+    // same directory collapse to one root for the one-active-job rule.
+    let canonicalRoot: string;
+    try {
+      const physProject = realpathSync(projectRoot);
+      canonicalRoot = realpathSync(source.root);
+      const rel = relative(physProject, canonicalRoot);
+      if (rel !== "" && (rel.startsWith("..") || resolve(physProject, rel) !== canonicalRoot)) {
+        return c.json({ error: "source root escapes the project root" }, 400);
+      }
+    } catch {
+      return c.json({ error: "source root is not resolvable" }, 400);
+    }
+    const result = jobManager.createJob(req, canonicalRoot);
+    switch (result.kind) {
+      case "invalid":
+        return c.json({ error: result.error }, 400);
+      case "conflict":
+        return c.json(
+          { error: "another analysis job is active for this canonical root", active: result.active },
+          409,
+        );
+      case "deduplicated":
+        return c.json(result.job, 202);
+      case "created":
+        c.header("Location", `/api/project/analysis/jobs/${result.job.job_id}`);
+        return c.json(result.job, 202);
+    }
+  });
+
+  // GET /api/project/analysis/jobs/:id — poll volatile state.
+  app.get("/api/project/analysis/jobs/:job_id", (c) => {
+    if (!jobManager) return c.json({ error: "analysis_package_unconfigured" }, 503);
+    const job = jobManager.getJob(c.req.param("job_id"));
+    if (!job) return c.json({ error: "unknown job id (volatile; server may have restarted)" }, 404);
+    return c.json(job);
+  });
+
+  // POST /api/project/analysis/jobs/:id/cancel — request abort; 202 until
+  // the actual child close turns the job terminal.
+  app.post("/api/project/analysis/jobs/:job_id/cancel", (c) => {
+    if (!jobManager) return c.json({ error: "analysis_package_unconfigured" }, 503);
+    const job = jobManager.cancelJob(c.req.param("job_id"));
+    if (!job) return c.json({ error: "unknown job id (volatile; server may have restarted)" }, 404);
+    return c.json(job, 202);
   });
 
   const noProjectRoot = (c: Context) =>
