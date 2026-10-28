@@ -69,7 +69,10 @@ jobs:
           # Carry the regenerated files onto the existing sync branch so commits
           # reviewers added there (page fixes, wiki updates) are never discarded.
           TMP=$(mktemp -d); tar cf "$TMP/gen.tar" $PATHS
-          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null; then
+          # Reuse the branch only while its PR is open; a merged or closed
+          # branch is restarted from main so reruns report "current".
+          OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
+          if [ -n "$OPEN_PR" ]; then
             git checkout -q -- $PATHS 2>/dev/null || true; git clean -fdq -- $PATHS
             git fetch -q origin "$BRANCH"; git checkout -q -B "$BRANCH" "origin/$BRANCH"
           else
@@ -86,7 +89,7 @@ jobs:
             echo "no new changes for $BRANCH" | tee -a "$GITHUB_STEP_SUMMARY"
           else
             git commit -q -m "chore(sync): vendor guild-workspace ${ws:0:12}"
-            git push origin "$BRANCH"
+            if [ -n "$OPEN_PR" ]; then git push origin "$BRANCH"; else git push -f origin "$BRANCH"; fi
           fi
           PR=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
           if [ -n "$PR" ]; then gh pr edit "$PR" --body-file /tmp/body.md; else
