@@ -1,0 +1,84 @@
+# Vendor workspace design tokens into ui/src/styles/system and open or update
+# ONE PR on sync/workspace. Same workspace SHA twice
+# = no new commit. Trap: the workspace repo is private; without
+# GUILD_SYNC_TOKEN this fails as "blocked" instead of silently skipping.
+name: workspace-sync
+
+on:
+  repository_dispatch:
+    types: [workspace-sync]
+  workflow_dispatch:
+    inputs:
+      workspace_ref:
+        description: "guild-workspace commit or branch"
+        required: false
+        default: "main"
+  schedule:
+    - cron: "41 6 * * 1" # weekly fallback for missed dispatches
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: workspace-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: sync/workspace
+      REF: ${{ github.event.client_payload.workspace_ref || github.event.inputs.workspace_ref || 'main' }}
+    steps:
+      - name: Require token
+        env:
+          TOKEN: ${{ secrets.GUILD_SYNC_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::status: blocked. GUILD_SYNC_TOKEN missing; cannot read lookatitude/guild-workspace"
+            echo "status: **blocked** (no GUILD_SYNC_TOKEN). Local fallback: \`node ../guild-workspace/scripts/distribute.mjs --profile benchmark --target .\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GUILD_SYNC_TOKEN }}
+      - uses: actions/checkout@v4
+        with:
+          repository: lookatitude/guild-workspace
+          ref: ${{ env.REF }}
+          path: _workspace
+          token: ${{ secrets.GUILD_SYNC_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Vendor
+        run: |
+          set -euo pipefail
+          node _workspace/scripts/distribute.mjs --profile benchmark --target .
+          WS=$(git -C _workspace rev-parse HEAD)
+          echo "Vendored design tokens from lookatitude/guild-workspace@$WS. Never auto-merged." > /tmp/body.md
+          echo "ws=$WS" >> "$GITHUB_ENV"
+      - name: Open or update the sync PR
+        env:
+          GH_TOKEN: ${{ secrets.GUILD_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          PATHS="ui/src/styles/system"
+          if git diff --quiet -- $PATHS; then echo "status: current" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null; then
+            git fetch -q origin "$BRANCH"
+            if git diff --quiet "origin/$BRANCH" -- $PATHS; then echo "status: pending (identical sync already open)" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          fi
+          git config user.name "guild-workspace-sync"
+          git config user.email "guild-workspace-sync@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add $PATHS
+          git commit -q -m "chore(sync): vendor guild-workspace ${ws:0:12}"
+          git push -f origin "$BRANCH"
+          PR=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
+          if [ -n "$PR" ]; then gh pr edit "$PR" --body-file /tmp/body.md; else
+            gh pr create --head "$BRANCH" --base main --title "chore(sync): workspace design tokens" --body-file /tmp/body.md
+          fi
+          echo "status: pending (sync PR open)" | tee -a "$GITHUB_STEP_SUMMARY"

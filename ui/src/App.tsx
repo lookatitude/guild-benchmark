@@ -9,16 +9,40 @@ import ImportAuditPage from "./routes/ImportAuditPage";
 import DemoPage from "./routes/DemoPage";
 import KnowledgePage from "./routes/KnowledgePage";
 import WikiPage from "./routes/WikiPage";
+import InitiativesPage from "./routes/InitiativesPage";
 
-const NAV: { to: string; label: string; end?: boolean }[] = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/runs", label: "Runs" },
-  { to: "/knowledge", label: "Knowledge" },
-  { to: "/wiki", label: "Wiki" },
-  { to: "/compare", label: "Compare" },
-  { to: "/cases", label: "Trigger" },
-  { to: "/import", label: "Import" },
-  { to: "/demo", label: "Demo" },
+// Grouped by what an operator is exploring. Guild components (agents, skills,
+// workflow graphs, hooks, adapters) have no read API yet, so no entry.
+const NAV: { group: string; items: { to: string; label: string; end?: boolean }[] }[] = [
+  { group: "Overview", items: [{ to: "/", label: "Overview", end: true }] },
+  {
+    group: "Work",
+    items: [
+      { to: "/initiatives", label: "Initiatives" },
+      { to: "/runs", label: "Runs" },
+    ],
+  },
+  {
+    group: "Knowledge",
+    items: [
+      { to: "/knowledge", label: "Graph" },
+      { to: "/wiki", label: "Wiki" },
+    ],
+  },
+  {
+    group: "Evaluations",
+    items: [
+      { to: "/compare", label: "Compare" },
+      { to: "/demo", label: "Demo" },
+    ],
+  },
+  {
+    group: "Operations",
+    items: [
+      { to: "/cases", label: "Trigger" },
+      { to: "/import", label: "Import" },
+    ],
+  },
 ];
 
 export default function App() {
@@ -33,21 +57,27 @@ export default function App() {
             aria-hidden="true"
           />
           <span className="brand">
-            Guild
-            <span>Dashboard</span>
+            Guild Stack
+            <span>Console</span>
           </span>
         </div>
         <div className="nav-links">
-          {NAV.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end}>
-              {item.label}
-            </NavLink>
+          {NAV.map((section) => (
+            <div className="nav-group" key={section.group} role="group" aria-label={section.group}>
+              <span className="nav-group-label">{section.group}</span>
+              {section.items.map((item) => (
+                <NavLink key={item.to} to={item.to} end={item.end}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </div>
       </nav>
       <main className="app-main">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/initiatives" element={<InitiativesPage />} />
           <Route path="/runs" element={<RunsListPage />} />
           <Route path="/runs/:run_id" element={<RunDetailPage />} />
           <Route path="/project-runs/:run_id" element={<ProjectRunDetailPage />} />

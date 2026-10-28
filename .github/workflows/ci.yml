@@ -1,0 +1,38 @@
+# Typecheck, tests and UI build. Trap: three hook tests execute the plugin's
+# hooks from ../../plugin and cannot run in a standalone checkout; they are
+# excluded by name here until they move to the plugin repo.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: >-
+          npx vitest run
+          --exclude tests/pre-tool-use.test.ts
+          --exclude tests/post-tool-use-widened.test.ts
+          --exclude tests/pre-compact.test.ts
+      - name: Vendored design tokens unchanged
+        run: cd ui/src/styles/system && shasum -a 256 -c SHA256SUMS
+      - run: npm ci
+        working-directory: ui
+      - run: npm test
+        working-directory: ui
+      - run: npm run build
+        working-directory: ui

@@ -1,0 +1,365 @@
+/* ==========================================================================
+   Guild design system v2.4 — tokens.css
+   Framework-portable CSS custom properties. No build step, no runtime.
+   Palette derived from design/guildstack-logo-transparent.png:
+   the logo is a gradient indigo #3a1efa → azure #026cff → cyan #00ddf9
+   (programmatically sampled, hue-band means of opaque pixels).
+   Themes: light is the default; dark applies via prefers-color-scheme
+   or an explicit [data-theme="dark"] on any ancestor. [data-theme="light"]
+   forces light inside a dark context.
+   Contrast: every fg/bg pair used by components is validated to WCAG AA
+   by design/system/check-contrast.mjs (run: node check-contrast.mjs).
+   v2.1 (design-direction-v2.1, deltas D1-D9): Atlas type families, display
+   scale, route/artifact radii, the fixed Atlas semantic palette (--atlas-*,
+   mapped onto --color-*; authored in oklch() per DESIGN.md §4, the hex
+   reference kept as a trailing comment), canvas textures,
+   instrument-glow alpha, packet-relay timing. Gradient text is removed (D2).
+   v2.3: every semantic color is authored in oklch() (hex reference in the
+   trailing comment); --color-code-comment adds an AA comment hue for the
+   github-dark code plate (5.8:1 on #24292e).
+   ========================================================================== */
+
+:root {
+  /* ----- Brand (theme-invariant, decorative only — never body text) ----- */
+  --brand-indigo: #3a1efa;
+  --brand-azure: #026cff;
+  --brand-cyan: #00ddf9;
+  --brand-gradient: linear-gradient(135deg, var(--brand-indigo) 0%, var(--brand-azure) 55%, var(--brand-cyan) 100%);
+
+  /* ----- Primitive neutral scale (cool, hue ≈ logo's indigo) ----- */
+  --gray-0: #ffffff;
+  --gray-50: #f7f8fb;
+  --gray-100: #eef0f6;
+  --gray-200: #dfe3ec;
+  --gray-300: #c3c9d9;
+  --gray-400: #9aa3ba;
+  --gray-500: #6e7891;
+  --gray-600: #525c75;
+  --gray-700: #3b4258;
+  --gray-800: #262c3f;
+  --gray-900: #141828;
+  --gray-950: #0c0f1a;
+
+  /* ----- Primitive accent scale (azure family from #026cff) ----- */
+  --azure-50: #eaf2ff;
+  --azure-100: #d4e4ff;
+  --azure-200: #a9c9ff;
+  --azure-300: #76a9ff;
+  --azure-400: #4288ff;
+  --azure-500: #146bff;
+  --azure-600: #0a55cf;
+  --azure-700: #0845ab;
+  --azure-800: #0c337a;
+  --azure-900: #0c2d66;
+
+  /* ----- Type ----- */
+  /* Operational Atlas families: condensed display, reading sans, evidence mono */
+  --font-display: "Roboto Condensed", "Arial Narrow", ui-sans-serif, system-ui, sans-serif;
+  --font-text: "Public Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Azeret Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Modular type scale (1.25 ratio, 16px base) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.563rem;
+  --text-2xl: 1.953rem;
+  --text-3xl: 2.441rem;
+  --text-4xl: 3.052rem;
+  /* D7 display scale: hero h1 and section h2, Roboto Condensed 600, <=3 lines */
+  --text-display: clamp(44px, 7vw, 88px);
+  --text-section: clamp(28px, 3.5vw, 44px);
+  --leading-display: 1.02;
+  --leading-tight: 1.2;
+  --leading-normal: 1.6;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ----- Spacing (4px base) ----- */
+  --space-1: 0.25rem;  /*  4px */
+  --space-2: 0.5rem;   /*  8px */
+  --space-3: 0.75rem;  /* 12px */
+  --space-4: 1rem;     /* 16px */
+  --space-6: 1.5rem;   /* 24px */
+  --space-8: 2rem;     /* 32px */
+  --space-12: 3rem;    /* 48px */
+  --space-16: 4rem;    /* 64px */
+  --space-24: 6rem;    /* 96px */
+
+  /* ----- Radii ----- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  /* Atlas corner rule: route/action/nav/ticket/diagram = 0-2px;
+     embedded artifacts (terminal, file, reader, evidence) = 6px */
+  --radius-route: 2px;
+  --radius-artifact: 6px;
+
+  /* ----- Layout ----- */
+  --header-h: 64px;
+  --header-h-mobile: 56px;
+  --measure: 68ch; /* ~75 average characters in Public Sans */
+  /* Shell: content caps at --shell-max; side padding grows with the viewport.
+     Docs: sidebar | prose (--measure) with full-column breakouts | rail. */
+  --shell-max: 1720px;
+  --shell-pad: clamp(16px, 2.5vw, 48px);
+  --docs-sidebar: 280px;
+  --docs-rail: 240px;
+  /* Vertical rhythm: stack < flow < block < section < chapter. No gap between
+     two blocks goes below --rhythm-stack. Sections alternate section/chapter
+     on purpose, so the page does not repeat one gap. */
+  --rhythm-stack: var(--space-4);   /* 16: siblings in one group */
+  --rhythm-flow: var(--space-6);    /* 24: prose <-> artifact in reading flow */
+  --rhythm-block: var(--space-8);   /* 32: heading group -> its artifact; above a CTA */
+  --rhythm-section: clamp(4rem, 2.5rem + 4vw, 7rem);  /* 64-112 */
+  --rhythm-chapter: clamp(5rem, 3rem + 6vw, 9rem);    /* 80-144 */
+
+  /* ----- Motion ----- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  /* D4 per-asset cycles (contract band 4-8s). A1 packet relay: 4.5s travel
+     + 1.5s rest = 6s. The controller starts at 35% visibility. */
+  --motion-relay-cycle: 6s;
+  --motion-relay-travel: 75%;
+  --motion-type-duration: 1.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
+
+/* ==========================================================================
+   Semantic tokens — LIGHT (default)
+   Scoped to both :root and [data-theme="light"] so a light island can be
+   nested inside a dark page.
+   ========================================================================== */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Operational Atlas v3.0.0 fixed semantic palette — LIGHT (design-direction
+     v2.1: "the twelve semantic color tokens are fixed"). */
+  --atlas-canvas: oklch(98.14% 0.0045 258.32); /* #F7F9FC */
+  --atlas-surface: oklch(99.16% 0.0026 286.35); /* #FCFCFE */
+  --atlas-raised: oklch(95.26% 0.0114 252.09); /* #EAF0F7 */
+  --atlas-ink: oklch(25.91% 0.0249 261.09); /* #1D2430 */
+  --atlas-muted-ink: oklch(51.85% 0.0296 261.07); /* #5F697A */
+  --atlas-line: oklch(86.46% 0.0200 260.17); /* #CBD3E0 */
+  --atlas-cyan: oklch(53.96% 0.0953 215.01); /* #007C91 */
+  --atlas-blue: oklch(50.07% 0.1784 261.96); /* #245BC7 */
+  --atlas-violet: oklch(53.11% 0.2306 285.29); /* #6845E8 */
+  --atlas-green: oklch(50.82% 0.1094 158.98); /* #16784E */
+  --atlas-amber: oklch(48.14% 0.1063 67.08); /* #855000 */
+  --atlas-red: oklch(48.94% 0.1747 17.77); /* #AD2039 */
+
+  --color-bg: var(--atlas-canvas);
+  --color-bg-subtle: var(--atlas-raised);
+  --color-surface: var(--atlas-surface);
+  --color-surface-raised: var(--atlas-raised);
+
+  --color-fg: var(--atlas-ink);
+  --color-fg-muted: var(--atlas-muted-ink);
+  --color-fg-subtle: var(--atlas-muted-ink);
+
+  --color-border: var(--atlas-line);
+  --color-border-strong: oklch(72.15% 0.0295 258.37); /* #9AA6B8 */
+
+  /* Links / accent text (AA on bg, bg-subtle, surface) */
+  --color-accent: var(--atlas-blue);
+  /* Solid accent fill (buttons) + text on it */
+  --color-accent-strong: var(--atlas-blue);
+  --color-on-accent: oklch(100.00% 0.0000 0); /* #FFFFFF */
+  /* Accent tint (badges, selected states) + text on it */
+  --color-accent-bg: oklch(93.85% 0.0220 263.19); /* #E3EBFA */
+  --color-on-accent-bg: oklch(41.67% 0.1440 262.05); /* #1C4699 */
+
+  /* Signal hues (D5 accent span, D6 kicker, active rules; violet = control
+     depth / version badge) + instrument-glow alpha (D2: 12% light) */
+  --color-cyan: var(--atlas-cyan);
+  --color-violet: var(--atlas-violet);
+  --glow-alpha: 12%;
+
+  /* Code / terminal (dark panel in both themes) */
+  --color-code-bg: var(--gray-900);
+  --color-code-fg: oklch(94.04% 0.0125 271.28); /* #E8EBF4 */
+  --color-code-muted: oklch(71.59% 0.0350 268.54); /* #9AA3BA */
+  --color-code-accent: oklch(80.22% 0.1094 242.16); /* #7CC7FF */
+  --color-code-comment: oklch(71.59% 0.0350 268.54); /* #9AA3BA; Shiki comments, replaces #6A737D */
+
+  /* Callouts */
+  --color-info-bg: oklch(95.89% 0.0195 260.17); /* #EAF2FF */
+  --color-info-fg: oklch(34.34% 0.1287 261.28); /* #0C337A */
+  --color-info-border: oklch(83.16% 0.0838 260.76); /* #A9C9FF */
+  --color-success-bg: oklch(95.71% 0.0231 161.74); /* #E4F6EC */
+  --color-success-fg: var(--atlas-green);
+  --color-success-border: oklch(83.42% 0.0739 159.68); /* #9FD8B8 */
+  --color-warning-bg: oklch(96.59% 0.0320 87.29); /* #FDF3DC */
+  --color-warning-fg: var(--atlas-amber);
+  --color-warning-border: oklch(86.14% 0.0936 86.95); /* #ECCE89 */
+  --color-danger-bg: oklch(95.46% 0.0196 13.63); /* #FDEBEC */
+  --color-danger-fg: var(--atlas-red);
+  --color-danger-border: oklch(82.65% 0.0738 12.46); /* #F2B3B9 */
+
+  --shadow-1: 0 1px 2px rgb(12 15 26 / 0.06);
+  --shadow-2: 0 2px 8px rgb(12 15 26 / 0.08), 0 1px 2px rgb(12 15 26 / 0.06);
+  --shadow-3: 0 8px 24px rgb(12 15 26 / 0.12), 0 2px 8px rgb(12 15 26 / 0.08);
+}
+
+/* ==========================================================================
+   Semantic tokens — DARK
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    /* Operational Atlas v3.0.0 fixed semantic palette — DARK */
+    --atlas-canvas: oklch(15.10% 0.0155 271.91); /* #090B12 */
+    --atlas-surface: oklch(20.36% 0.0288 259.86); /* #0F1724 */
+    --atlas-raised: oklch(23.74% 0.0325 258.30); /* #151F2E */
+    --atlas-ink: oklch(98.43% 0.0074 260.73); /* #F7FAFF */
+    --atlas-muted-ink: oklch(77.19% 0.0295 256.51); /* #A9B6C8 */
+    --atlas-line: oklch(34.57% 0.0473 258.30); /* #2A3A52 */
+    --atlas-cyan: oklch(73.82% 0.1257 210.21); /* #12BFD6 */
+    --atlas-blue: oklch(57.69% 0.2299 262.40); /* #246BFE */
+    --atlas-violet: oklch(61.45% 0.2075 291.85); /* #8B63F4 */
+    --atlas-green: oklch(81.30% 0.1151 160.56); /* #79D9A9 */
+    --atlas-amber: oklch(86.05% 0.1181 82.80); /* #F7CA72 */
+    --atlas-red: oklch(79.51% 0.1200 12.41); /* #FF9BA7 */
+
+    --color-bg: var(--atlas-canvas);
+    --color-bg-subtle: var(--atlas-surface);
+    --color-surface: var(--atlas-surface);
+    --color-surface-raised: var(--atlas-raised);
+
+    --color-fg: var(--atlas-ink);
+    --color-fg-muted: var(--atlas-muted-ink);
+    --color-fg-subtle: var(--atlas-muted-ink);
+
+    --color-border: var(--atlas-line);
+    --color-border-strong: oklch(45.18% 0.0648 260.87); /* #41567A */
+
+    --color-accent: var(--atlas-cyan);
+    --color-accent-strong: var(--atlas-blue);
+    --color-on-accent: oklch(100.00% 0.0000 0); /* #FFFFFF */
+    --color-accent-bg: oklch(26.16% 0.0554 260.31); /* #14243F */
+    --color-on-accent-bg: oklch(82.14% 0.0887 265.42); /* #A9C4FF */
+    --color-cyan: var(--atlas-cyan);
+    --color-violet: var(--atlas-violet);
+    --glow-alpha: 24%;
+
+    --color-code-bg: oklch(18.99% 0.0249 273.04); /* #10131F */
+    --color-code-fg: oklch(94.04% 0.0125 271.28); /* #E8EBF4 */
+    --color-code-muted: oklch(71.59% 0.0350 268.54); /* #9AA3BA */
+    --color-code-accent: oklch(80.22% 0.1094 242.16); /* #7CC7FF */
+    --color-code-comment: oklch(71.59% 0.0350 268.54); /* #9AA3BA; Shiki comments, replaces #6A737D */
+
+    --color-info-bg: oklch(26.48% 0.0663 261.45); /* #122445 */
+    --color-info-fg: oklch(80.90% 0.0961 259.70); /* #9CC2FF */
+    --color-info-border: oklch(39.48% 0.1011 262.17); /* #27447C */
+    --color-success-bg: oklch(26.20% 0.0441 160.06); /* #0E2B1D */
+    --color-success-fg: var(--atlas-green);
+    --color-success-border: oklch(40.14% 0.0746 157.66); /* #1E5438 */
+    --color-warning-bg: oklch(26.91% 0.0367 86.69); /* #2E2510 */
+    --color-warning-fg: var(--atlas-amber);
+    --color-warning-border: oklch(41.78% 0.0676 87.63); /* #5C4A1C */
+    --color-danger-bg: oklch(24.21% 0.0486 10.88); /* #33151A */
+    --color-danger-fg: var(--atlas-red);
+    --color-danger-border: oklch(38.03% 0.0930 15.15); /* #6B2A32 */
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-3: 0 8px 24px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.45);
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Operational Atlas v3.0.0 fixed semantic palette — DARK */
+  --atlas-canvas: oklch(15.10% 0.0155 271.91); /* #090B12 */
+  --atlas-surface: oklch(20.36% 0.0288 259.86); /* #0F1724 */
+  --atlas-raised: oklch(23.74% 0.0325 258.30); /* #151F2E */
+  --atlas-ink: oklch(98.43% 0.0074 260.73); /* #F7FAFF */
+  --atlas-muted-ink: oklch(77.19% 0.0295 256.51); /* #A9B6C8 */
+  --atlas-line: oklch(34.57% 0.0473 258.30); /* #2A3A52 */
+  --atlas-cyan: oklch(73.82% 0.1257 210.21); /* #12BFD6 */
+  --atlas-blue: oklch(57.69% 0.2299 262.40); /* #246BFE */
+  --atlas-violet: oklch(61.45% 0.2075 291.85); /* #8B63F4 */
+  --atlas-green: oklch(81.30% 0.1151 160.56); /* #79D9A9 */
+  --atlas-amber: oklch(86.05% 0.1181 82.80); /* #F7CA72 */
+  --atlas-red: oklch(79.51% 0.1200 12.41); /* #FF9BA7 */
+
+  --color-bg: var(--atlas-canvas);
+  --color-bg-subtle: var(--atlas-surface);
+  --color-surface: var(--atlas-surface);
+  --color-surface-raised: var(--atlas-raised);
+
+  --color-fg: var(--atlas-ink);
+  --color-fg-muted: var(--atlas-muted-ink);
+  --color-fg-subtle: var(--atlas-muted-ink);
+
+  --color-border: var(--atlas-line);
+  --color-border-strong: oklch(45.18% 0.0648 260.87); /* #41567A */
+
+  --color-accent: var(--atlas-cyan);
+  --color-accent-strong: var(--atlas-blue);
+  --color-on-accent: oklch(100.00% 0.0000 0); /* #FFFFFF */
+  --color-accent-bg: oklch(26.16% 0.0554 260.31); /* #14243F */
+  --color-on-accent-bg: oklch(82.14% 0.0887 265.42); /* #A9C4FF */
+
+  --color-cyan: var(--atlas-cyan);
+  --color-violet: var(--atlas-violet);
+  --glow-alpha: 24%;
+
+  --color-code-bg: oklch(18.99% 0.0249 273.04); /* #10131F */
+  --color-code-fg: oklch(94.04% 0.0125 271.28); /* #E8EBF4 */
+  --color-code-muted: oklch(71.59% 0.0350 268.54); /* #9AA3BA */
+  --color-code-accent: oklch(80.22% 0.1094 242.16); /* #7CC7FF */
+  --color-code-comment: oklch(71.59% 0.0350 268.54); /* #9AA3BA; Shiki comments, replaces #6A737D */
+
+  --color-info-bg: oklch(26.48% 0.0663 261.45); /* #122445 */
+  --color-info-fg: oklch(80.90% 0.0961 259.70); /* #9CC2FF */
+  --color-info-border: oklch(39.48% 0.1011 262.17); /* #27447C */
+  --color-success-bg: oklch(26.20% 0.0441 160.06); /* #0E2B1D */
+  --color-success-fg: var(--atlas-green);
+  --color-success-border: oklch(40.14% 0.0746 157.66); /* #1E5438 */
+  --color-warning-bg: oklch(26.91% 0.0367 86.69); /* #2E2510 */
+  --color-warning-fg: var(--atlas-amber);
+  --color-warning-border: oklch(41.78% 0.0676 87.63); /* #5C4A1C */
+  --color-danger-bg: oklch(24.21% 0.0486 10.88); /* #33151A */
+  --color-danger-fg: var(--atlas-red);
+  --color-danger-border: oklch(38.03% 0.0930 15.15); /* #6B2A32 */
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 2px 8px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-3: 0 8px 24px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.45);
+}
+
+/* ==========================================================================
+   D1 canvas textures. Declared on every theme root so var(--color-border)
+   ("line") resolves per theme, including nested [data-theme] islands.
+   Canvas only: never on surface/raised, never behind running prose (>40
+   words) — constrain with a container, not a fade.
+   ========================================================================== */
+:root,
+[data-theme] {
+  --color-line: var(--color-border);
+  --texture-dot: radial-gradient(circle at 1px 1px, color-mix(in oklch, var(--color-line) 55%, transparent) 1px, transparent 1px);
+  --texture-dot-size: 24px 24px;
+  --texture-grid:
+    linear-gradient(color-mix(in oklch, var(--color-line) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--color-line) 10%, transparent) 1px, transparent 1px);
+  --texture-grid-size: 48px 48px;
+}

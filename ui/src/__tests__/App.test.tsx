@@ -23,13 +23,14 @@ describe("App — routing shell", () => {
     handle = installMockFetch();
     mount(["/"]);
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Overview" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Initiatives" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Runs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Compare" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Trigger" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Demo" })).toBeInTheDocument();
     // SC-12 — live-project knowledge views.
-    expect(screen.getByRole("link", { name: "Knowledge" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Graph" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Wiki" })).toBeInTheDocument();
   });
 

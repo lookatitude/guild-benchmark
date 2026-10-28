@@ -18,6 +18,7 @@ import { COMPONENT_KEYS } from "../../../src/types";
 import { useFetch } from "../hooks/useFetch";
 import { api } from "../lib/api";
 import { ScoreCard } from "../components/ScoreCard";
+import { prefersReducedMotion } from "../lib/motion";
 
 interface DemoBarRow {
   component: ComponentKey;
@@ -101,7 +102,7 @@ export default function DemoPage() {
                   <XAxis dataKey="component" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="weighted" fill="#0a58ca" />
+                  <Bar dataKey="weighted" fill="var(--color-accent)" isAnimationActive={!prefersReducedMotion} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
