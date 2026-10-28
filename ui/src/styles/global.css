@@ -1246,3 +1246,8 @@ button.badge-source {
 .wiki-content td {
   min-width: 120px;
 }
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}

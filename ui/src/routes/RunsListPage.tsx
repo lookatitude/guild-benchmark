@@ -174,6 +174,7 @@ export default function RunsListPage() {
                     ({activeLabel}; no status filter).
                   </p>
                 )}
+                <div className="table-scroll">
                 <table>
                   <thead>
                     <tr>
@@ -249,6 +250,7 @@ export default function RunsListPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </>
             );
           })()

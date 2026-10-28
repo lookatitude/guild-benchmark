@@ -27,6 +27,7 @@ export default function InitiativesPage() {
         <div className="empty">No initiatives found in the configured sources.</div>
       ) : null}
       {status === "success" && data && data.initiatives.length > 0 ? (
+        <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -70,6 +71,7 @@ export default function InitiativesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       ) : null}
     </section>
   );
