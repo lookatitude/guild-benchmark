@@ -11,6 +11,7 @@ import {
   parseRunJson,
 } from "./artifact-importer.js";
 import { importLifecycleRun } from "./lifecycle-importer.js";
+import { listProjectComponents, listProjectMemory } from "./guild-components-reader.js";
 import {
   ProjectReadError,
   analyzeProjectTarget,
@@ -802,6 +803,26 @@ export function createApp(opts: ServerOpts): Hono {
     try {
       const body = await readProjectWikiPage(projectRoot, path, guild);
       return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/components[?guild=<name>] → { components, total, sources }
+  app.get("/api/project/components", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      return c.json(await listProjectComponents(projectRoot, c.req.query("guild")));
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/memory[?guild=<name>] → { entries, total, sources }
+  app.get("/api/project/memory", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      return c.json(await listProjectMemory(projectRoot, c.req.query("guild")));
     } catch (err) {
       return projectErrorResponse(c, err);
     }

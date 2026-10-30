@@ -32,6 +32,8 @@ describe("App — routing shell", () => {
     // SC-12 — live-project knowledge views.
     expect(screen.getByRole("link", { name: "Graph" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Wiki" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Components" })).toHaveAttribute("href", "/components");
+    expect(screen.getByRole("link", { name: "Memory" })).toHaveAttribute("href", "/memory");
   });
 
   it("renders the unknown-route fallback for an unmatched path", () => {
