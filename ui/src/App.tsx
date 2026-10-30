@@ -10,9 +10,10 @@ import DemoPage from "./routes/DemoPage";
 import KnowledgePage from "./routes/KnowledgePage";
 import WikiPage from "./routes/WikiPage";
 import InitiativesPage from "./routes/InitiativesPage";
+import ComponentsPage from "./routes/ComponentsPage";
+import MemoryPage from "./routes/MemoryPage";
 
-// Grouped by what an operator is exploring. Guild components (agents, skills,
-// workflow graphs, hooks, adapters) have no read API yet, so no entry.
+// Grouped by what an operator is exploring.
 const NAV: { group: string; items: { to: string; label: string; end?: boolean }[] }[] = [
   { group: "Overview", items: [{ to: "/", label: "Overview", end: true }] },
   {
@@ -27,6 +28,8 @@ const NAV: { group: string; items: { to: string; label: string; end?: boolean }[
     items: [
       { to: "/knowledge", label: "Graph" },
       { to: "/wiki", label: "Wiki" },
+      { to: "/components", label: "Components" },
+      { to: "/memory", label: "Memory" },
     ],
   },
   {
@@ -88,6 +91,8 @@ export default function App() {
           <Route path="/demo/:case_slug" element={<DemoPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/wiki" element={<WikiPage />} />
+          <Route path="/components" element={<ComponentsPage />} />
+          <Route path="/memory" element={<MemoryPage />} />
           <Route
             path="*"
             element={

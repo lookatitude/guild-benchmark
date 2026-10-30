@@ -475,6 +475,14 @@ th {
   flex: 1;
 }
 
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
 .field-compact {
   width: 132px;
 }
