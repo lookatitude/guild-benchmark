@@ -766,6 +766,62 @@ export interface ProjectWikiPageResponse {
   content: string;
 }
 
+// ---- live-project Guild components + memory (read-only) ----------------
+//
+// GET /api/project/components and GET /api/project/memory
+// (guild-components-reader.ts). Fields are only present when the source file
+// states them; nothing is defaulted or inferred.
+
+export type GuildComponentKind = "agent" | "skill" | "workflow" | "loop" | "team";
+
+export interface GuildComponentRow {
+  kind: GuildComponentKind;
+  name: string;
+  source_guild: string;
+  /** posix path relative to the source's repo root, e.g. `.guild/agents/x.md`. */
+  path: string;
+  description?: string;
+  tier?: string;
+  model?: string;
+}
+
+export interface GuildComponentsSource {
+  guild: string;
+  /** which `.guild/` component files/dirs were present for this source. */
+  present: GuildComponentKind[];
+}
+
+export interface ProjectComponentsResponse {
+  components: GuildComponentRow[];
+  total: number;
+  sources: GuildComponentsSource[];
+}
+
+export type MemoryEntryKind = "summary" | "lesson" | "recall-index";
+
+/** Where `date` came from: a frontmatter key, a date found in the body, or file mtime. */
+export type MemoryDateSource = "frontmatter" | "content" | "mtime";
+
+export interface MemoryEntry {
+  kind: MemoryEntryKind;
+  source_guild: string;
+  /** posix path relative to the source's repo root. */
+  path: string;
+  title: string;
+  date: string;
+  date_source: MemoryDateSource;
+  excerpt?: string;
+  excerpt_truncated?: boolean;
+  /** recall-index.json only: length of its `entries` array when it is an array. */
+  entry_count?: number;
+}
+
+export interface ProjectMemoryResponse {
+  entries: MemoryEntry[];
+  total: number;
+  sources: { guild: string; present: MemoryEntryKind[] }[];
+}
+
 // ---- P3 runner contracts (T2 backend; consumed by frontend + qa) -------
 //
 // `RunOptions` is the input to runner.ts's `runBenchmark` entrypoint —
