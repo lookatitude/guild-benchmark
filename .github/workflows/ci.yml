@@ -1,6 +1,7 @@
 # Typecheck, tests and UI build. Trap: three hook tests execute the plugin's
 # hooks from ../../plugin and cannot run in a standalone checkout; they are
-# excluded by name here until they move to the plugin repo.
+# excluded by name here until they move to the plugin repo. The runner refuses
+# binaries under /tmp, so tests get TMPDIR=$RUNNER_TEMP.
 name: ci
 
 on:
@@ -15,6 +16,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      TMPDIR: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
