@@ -44,6 +44,11 @@ export default function ComponentsPage() {
       ) : null}
       {status === "success" && data && data.components.length > 0 ? (
         <>
+          {data.truncated ? (
+            <div className="error" role="status" data-testid="listing-truncated">
+              Listing stopped at the server's directory walk limit; some components are not shown.
+            </div>
+          ) : null}
           <div className="filter-bar">
             <div className="field field-compact">
               <label htmlFor="components-kind">Kind</label>

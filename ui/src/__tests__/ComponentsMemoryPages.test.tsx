@@ -38,6 +38,7 @@ const COMPONENTS = {
     },
   ],
   total: 2,
+  truncated: false,
   sources: [{ guild: "project", present: ["agent", "skill"] }],
 };
 
@@ -64,6 +65,7 @@ const MEMORY = {
     },
   ],
   total: 2,
+  truncated: false,
   sources: [{ guild: "project", present: ["summary", "recall-index"] }],
 };
 
@@ -82,6 +84,7 @@ describe("ComponentsPage", () => {
     expect(screen.getByText("opus")).toBeInTheDocument();
     expect(screen.getByText("do-thing")).toBeInTheDocument();
     expect(document.querySelectorAll("tbody a")).toHaveLength(0);
+    expect(screen.queryByTestId("listing-truncated")).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "skill" } });
     expect(screen.queryByText("backend")).toBeNull();
@@ -90,6 +93,11 @@ describe("ComponentsPage", () => {
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Filter"), { target: { value: "zzz" } });
     expect(screen.getByText("No components match this filter.")).toBeInTheDocument();
+  });
+
+  it("says when the server truncated the listing", async () => {
+    handle = mount(<ComponentsPage />, "/api/project/components", { ...COMPONENTS, truncated: true });
+    expect(await screen.findByTestId("listing-truncated")).toHaveTextContent(/walk limit/);
   });
 
   it("shows an honest empty state", async () => {
@@ -131,6 +139,11 @@ describe("MemoryPage", () => {
 
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "recall-index" } });
     expect(screen.queryByText("Release summary")).toBeNull();
+  });
+
+  it("says when the server truncated the listing", async () => {
+    handle = mount(<MemoryPage />, "/api/project/memory", { ...MEMORY, truncated: true });
+    expect(await screen.findByTestId("listing-truncated")).toHaveTextContent(/walk limit/);
   });
 
   it("shows an honest empty state", async () => {

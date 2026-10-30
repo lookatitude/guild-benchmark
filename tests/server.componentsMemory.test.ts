@@ -1,8 +1,11 @@
-import { mkdtemp, rm, symlink, utimes } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/server.js";
+import { listProjectComponents, listProjectMemory } from "../src/guild-components-reader.js";
+import { resolveGuildSources, WORKSPACE_JSON_MAX_BYTES } from "../src/project-reader.js";
 import type { ProjectComponentsResponse, ProjectMemoryResponse } from "../src/types.js";
 import { req } from "./server.helpers.js";
 import { writeFileDeep } from "./project.helpers.js";
@@ -98,6 +101,7 @@ describe("server / /api/project/{components,memory}", () => {
     });
     expect(byName["core-team"]).toMatchObject({ kind: "team", description: "Ship core work." });
     expect(body.total).toBe(4);
+    expect(body.truncated).toBe(false);
     expect(body.sources[0].present.sort()).toEqual(["agent", "skill", "team", "workflow"]);
   });
 
@@ -176,5 +180,91 @@ describe("server / /api/project/{components,memory}", () => {
     const comps = await getJson<ProjectComponentsResponse>("/api/project/components");
     expect(comps.status).toBe(200);
     expect(comps.body.components).toEqual([]);
+  });
+
+  // ---- codex review F1-F4 --------------------------------------------------
+
+  it("F1: refuses a symlinked file even when its target stays inside .guild/", async () => {
+    const g = join(projectRoot, ".guild");
+    await writeFileDeep(join(g, "notes", "target.md"), "---\nname: via-link\n---\n");
+    await writeFileDeep(join(g, "agents", "real.md"), "---\nname: real\n---\n");
+    await symlink(join(g, "notes", "target.md"), join(g, "agents", "linked.md"));
+    const body = await listProjectComponents(projectRoot);
+    expect(body.components.map((c) => c.name)).toEqual(["real"]);
+  });
+
+  it("F1: skips a FIFO and an oversized file without hanging", async () => {
+    const lessons = join(projectRoot, ".guild", "memory", "lessons");
+    await writeFileDeep(join(lessons, "ok.md"), "# ok\n");
+    await writeFile(join(lessons, "big.md"), "x".repeat(600 * 1024));
+    execFileSync("mkfifo", [join(lessons, "pipe.md")]);
+    const body = await listProjectMemory(projectRoot);
+    expect(body.entries.map((e) => e.path)).toEqual([".guild/memory/lessons/ok.md"]);
+  });
+
+  it("F2: ignores a workspace.json that symlinks out of the project", async () => {
+    await writeFileDeep(
+      join(outside, "workspace.json"),
+      JSON.stringify({ sub_guilds: [{ name: "evil", path: "." }] }),
+    );
+    await writeFileDeep(join(projectRoot, ".guild", "wiki", "index.md"), "# i\n");
+    await symlink(join(outside, "workspace.json"), join(projectRoot, ".guild", "workspace.json"));
+    const sources = await resolveGuildSources(projectRoot);
+    expect(sources.map((s) => s.name)).toEqual(["project"]);
+  });
+
+  it("F2: ignores an oversized workspace.json", async () => {
+    const big = JSON.stringify({
+      sub_guilds: [{ name: "child", path: "." }],
+      pad: "x".repeat(WORKSPACE_JSON_MAX_BYTES),
+    });
+    await writeFileDeep(join(projectRoot, ".guild", "workspace.json"), big);
+    const sources = await resolveGuildSources(projectRoot);
+    expect(sources.map((s) => s.name)).toEqual(["project"]);
+  });
+
+  it("F2: a FIFO workspace.json does not hang source resolution", async () => {
+    await writeFileDeep(join(projectRoot, ".guild", "wiki", "index.md"), "# i\n");
+    execFileSync("mkfifo", [join(projectRoot, ".guild", "workspace.json")]);
+    const sources = await resolveGuildSources(projectRoot);
+    expect(sources.map((s) => s.name)).toEqual(["project"]);
+  }, 5000);
+
+  it("F3: stops at the per-request entry budget and reports truncation", async () => {
+    const agents = join(projectRoot, ".guild", "agents");
+    for (let i = 0; i < 5; i++) await writeFileDeep(join(agents, `a${i}.md`), "# a\n");
+    const body = await listProjectComponents(projectRoot, undefined, { maxEntries: 2, maxDirs: 100 });
+    expect(body.components).toHaveLength(2);
+    expect(body.truncated).toBe(true);
+    const mem = await listProjectMemory(projectRoot, undefined, { maxEntries: 2, maxDirs: 100 });
+    expect(mem.truncated).toBe(false);
+  });
+
+  it("F3: stops at the visited-directory budget across nested skill dirs", async () => {
+    const skills = join(projectRoot, ".guild", "skills");
+    for (let i = 0; i < 6; i++) {
+      await writeFileDeep(join(skills, `s${i}`, "SKILL.md"), `---\nname: s${i}\n---\n`);
+    }
+    const body = await listProjectComponents(projectRoot, undefined, { maxEntries: 1000, maxDirs: 3 });
+    expect(body.truncated).toBe(true);
+    expect(body.components.length).toBeLessThan(6);
+    const full = await listProjectComponents(projectRoot);
+    expect(full.truncated).toBe(false);
+    expect(full.components).toHaveLength(6);
+  });
+
+  it("F4: a line starting with --- but not exactly --- does not close frontmatter", async () => {
+    const agents = join(projectRoot, ".guild", "agents");
+    await writeFileDeep(join(agents, "bad.md"), "---\ndescription: leaked\n---not-a-delimiter\nbody\n");
+    await writeFileDeep(join(agents, "crlf.md"), "---\r\nname: crlf-agent\r\n--- \r\nbody\r\n");
+    const body = await listProjectComponents(projectRoot);
+    const byPath = Object.fromEntries(body.components.map((c) => [c.path, c]));
+    expect(byPath[".guild/agents/bad.md"]).toEqual({
+      kind: "agent",
+      name: "bad",
+      source_guild: "project",
+      path: ".guild/agents/bad.md",
+    });
+    expect(byPath[".guild/agents/crlf.md"].name).toBe("crlf-agent");
   });
 });

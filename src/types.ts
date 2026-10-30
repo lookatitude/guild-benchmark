@@ -794,6 +794,8 @@ export interface GuildComponentsSource {
 export interface ProjectComponentsResponse {
   components: GuildComponentRow[];
   total: number;
+  /** true when the per-request directory walk budget stopped the listing early. */
+  truncated: boolean;
   sources: GuildComponentsSource[];
 }
 
@@ -819,6 +821,8 @@ export interface MemoryEntry {
 export interface ProjectMemoryResponse {
   entries: MemoryEntry[];
   total: number;
+  /** true when the per-request directory walk budget stopped the listing early. */
+  truncated: boolean;
   sources: { guild: string; present: MemoryEntryKind[] }[];
 }
 

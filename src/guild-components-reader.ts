@@ -11,11 +11,12 @@
 //     inside that `.guild/`. Symlinked dirs are not descended; symlinked files
 //     that escape are skipped.
 
-import { realpathSync } from "node:fs";
-import { lstat, readFile, readdir } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { realpathSync, type Dirent } from "node:fs";
+import { lstat, opendir } from "node:fs/promises";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ProjectReadError, resolveGuildSources, type GuildSource } from "./project-reader.js";
+import { readContainedRegularFile, type BoundedRead } from "./safe-read.js";
 import type {
   GuildComponentKind,
   GuildComponentRow,
@@ -27,7 +28,25 @@ import type {
 
 const MAX_FILE_BYTES = 512 * 1024;
 const MAX_SKILL_DEPTH = 6;
-const MAX_FILES_PER_DIR = 2000;
+
+/** Per-request walk budget shared by every source and directory. */
+export interface WalkLimits {
+  maxEntries: number;
+  maxDirs: number;
+}
+
+export const DEFAULT_WALK_LIMITS: WalkLimits = { maxEntries: 20_000, maxDirs: 2_000 };
+
+interface Budget {
+  limits: WalkLimits;
+  entries: number;
+  dirs: number;
+  truncated: boolean;
+}
+
+function newBudget(limits: WalkLimits): Budget {
+  return { limits, entries: 0, dirs: 0, truncated: false };
+}
 export const MEMORY_EXCERPT_CHARS = 280;
 const DESCRIPTION_CHARS = 400;
 
@@ -73,42 +92,50 @@ async function containedSources(projectRoot: string, guild?: string): Promise<Co
   return out;
 }
 
-/** Return the file's text when it is a regular file contained in `guildReal`. */
-async function readContained(
-  guildReal: string,
-  file: string,
-): Promise<{ text: string; mtime: Date } | undefined> {
-  try {
-    const st = await lstat(file);
-    if (st.isSymbolicLink()) {
-      const real = realpathSync(file);
-      if (!isInside(guildReal, real)) return undefined;
-      const target = await lstat(real);
-      if (!target.isFile() || target.size > MAX_FILE_BYTES) return undefined;
-      return { text: await readFile(real, "utf8"), mtime: target.mtime };
-    }
-    if (!st.isFile() || st.size > MAX_FILE_BYTES) return undefined;
-    if (!isInside(guildReal, realpathSync(file))) return undefined;
-    return { text: await readFile(file, "utf8"), mtime: st.mtime };
-  } catch {
-    return undefined;
-  }
+/** Bounded no-follow read of a regular file contained in `guildReal`; symlinks are refused. */
+function readContained(guildReal: string, file: string): Promise<BoundedRead | undefined> {
+  return readContainedRegularFile(file, MAX_FILE_BYTES, guildReal);
 }
 
-function isInside(root: string, target: string): boolean {
-  const rel = relative(root, target);
-  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
-}
-
-/** Directory entries of a real (non-symlinked) directory, else []. */
-async function realDirEntries(dir: string) {
+/**
+ * Stream a real (non-symlinked) directory's entries, charging each against the
+ * request budget. Stops early and marks the budget truncated when exhausted.
+ */
+async function eachDirEntry(
+  dir: string,
+  budget: Budget,
+  visit: (entry: Dirent) => Promise<void>,
+): Promise<void> {
+  if (budget.truncated) return;
   try {
     const st = await lstat(dir);
-    if (!st.isDirectory()) return [];
-    const entries = await readdir(dir, { withFileTypes: true });
-    return entries.slice(0, MAX_FILES_PER_DIR);
+    if (!st.isDirectory()) return;
   } catch {
-    return [];
+    return;
+  }
+  if (budget.dirs >= budget.limits.maxDirs) {
+    budget.truncated = true;
+    return;
+  }
+  budget.dirs += 1;
+  let handle;
+  try {
+    handle = await opendir(dir);
+  } catch {
+    return;
+  }
+  try {
+    for await (const entry of handle) {
+      if (budget.entries >= budget.limits.maxEntries) {
+        budget.truncated = true;
+        break;
+      }
+      budget.entries += 1;
+      await visit(entry);
+      if (budget.truncated) break;
+    }
+  } catch {
+    // unreadable mid-iteration — keep what was collected
   }
 }
 
@@ -117,7 +144,9 @@ function relPosix(root: string, file: string): string {
 }
 
 function splitFrontmatter(text: string): { data: Record<string, unknown>; body: string } {
-  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  // Opening and closing delimiters are lines that are exactly `---`
+  // (trailing spaces/tabs and CRLF allowed); `---not-a-delimiter` is content.
+  const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(text);
   if (!m) return { data: {}, body: text };
   let data: Record<string, unknown> = {};
   try {
@@ -151,19 +180,21 @@ function firstHeading(body: string): string | undefined {
 export async function listProjectComponents(
   projectRoot: string,
   guild?: string,
+  limits: WalkLimits = DEFAULT_WALK_LIMITS,
 ): Promise<ProjectComponentsResponse> {
   const sources = await containedSources(projectRoot, guild);
+  const budget = newBudget(limits);
   const components: GuildComponentRow[] = [];
   const outSources: ProjectComponentsResponse["sources"] = [];
   for (const src of sources) {
     const present = new Set<GuildComponentKind>();
 
     const agentsDir = join(src.root, ".guild", "agents");
-    for (const entry of await realDirEntries(agentsDir)) {
-      if (!/\.md$/i.test(entry.name)) continue;
+    await eachDirEntry(agentsDir, budget, async (entry) => {
+      if (!/\.md$/i.test(entry.name)) return;
       const file = join(agentsDir, entry.name);
       const read = await readContained(src.guildReal, file);
-      if (!read) continue;
+      if (!read) return;
       present.add("agent");
       const { data } = splitFrontmatter(read.text);
       const tier = str(data.tier) ?? str(data.default_tier);
@@ -178,9 +209,11 @@ export async function listProjectComponents(
         ...(tier ? { tier } : {}),
         ...(model ? { model } : {}),
       });
-    }
+    });
 
-    for (const file of await findSkillFiles(join(src.root, ".guild", "skills"), 0)) {
+    const skillFiles: string[] = [];
+    await findSkillFiles(join(src.root, ".guild", "skills"), 0, budget, skillFiles);
+    for (const file of skillFiles) {
       const read = await readContained(src.guildReal, file);
       if (!read) continue;
       present.add("skill");
@@ -243,21 +276,30 @@ export async function listProjectComponents(
       a.kind.localeCompare(b.kind) ||
       a.name.localeCompare(b.name),
   );
-  return { components, total: components.length, sources: outSources };
+  return {
+    components,
+    total: components.length,
+    truncated: budget.truncated,
+    sources: outSources,
+  };
 }
 
-async function findSkillFiles(dir: string, depth: number): Promise<string[]> {
-  if (depth > MAX_SKILL_DEPTH) return [];
-  const out: string[] = [];
-  for (const entry of await realDirEntries(dir)) {
+/** Collect SKILL.md paths into `out` (no array spreading), charging the budget. */
+async function findSkillFiles(
+  dir: string,
+  depth: number,
+  budget: Budget,
+  out: string[],
+): Promise<void> {
+  if (depth > MAX_SKILL_DEPTH) return;
+  await eachDirEntry(dir, budget, async (entry) => {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...(await findSkillFiles(full, depth + 1)));
-    } else if (entry.name === "SKILL.md" && (entry.isFile() || entry.isSymbolicLink())) {
+      await findSkillFiles(full, depth + 1, budget, out);
+    } else if (entry.name === "SKILL.md" && entry.isFile()) {
       out.push(full);
     }
-  }
-  return out;
+  });
 }
 
 // ---- memory -------------------------------------------------------------------
@@ -313,8 +355,10 @@ function textEntry(
 export async function listProjectMemory(
   projectRoot: string,
   guild?: string,
+  limits: WalkLimits = DEFAULT_WALK_LIMITS,
 ): Promise<ProjectMemoryResponse> {
   const sources = await containedSources(projectRoot, guild);
+  const budget = newBudget(limits);
   const entries: MemoryEntry[] = [];
   const outSources: ProjectMemoryResponse["sources"] = [];
   for (const src of sources) {
@@ -326,14 +370,14 @@ export async function listProjectMemory(
     ];
     for (const [kind, sub, pattern] of buckets) {
       const dir = join(memoryDir, sub);
-      for (const entry of await realDirEntries(dir)) {
-        if (!pattern.test(entry.name) || entry.name.startsWith(".")) continue;
+      await eachDirEntry(dir, budget, async (entry) => {
+        if (!pattern.test(entry.name) || entry.name.startsWith(".")) return;
         const file = join(dir, entry.name);
         const read = await readContained(src.guildReal, file);
-        if (!read) continue;
+        if (!read) return;
         present.add(kind);
         entries.push(textEntry(kind, src, file, read));
-      }
+      });
     }
 
     const indexFile = join(memoryDir, "recall-index.json");
@@ -367,5 +411,5 @@ export async function listProjectMemory(
       (a.date < b.date ? 1 : a.date > b.date ? -1 : 0) ||
       a.path.localeCompare(b.path),
   );
-  return { entries, total: entries.length, sources: outSources };
+  return { entries, total: entries.length, truncated: budget.truncated, sources: outSources };
 }

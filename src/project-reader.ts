@@ -24,6 +24,9 @@ import { constants as fsConstants, existsSync, lstatSync, realpathSync, statSync
 import { open, readFile, readdir } from "node:fs/promises";
 import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { readContainedRegularFile } from "./safe-read.js";
+
+export const WORKSPACE_JSON_MAX_BYTES = 1024 * 1024;
 
 // D01 — freshness comes ONLY from the packaged producer's inspect transport
 // (D00). No plugin source import; no hash/detector reimplementation.
@@ -124,9 +127,20 @@ export async function resolveGuildSources(projectRoot: string): Promise<GuildSou
   const root = resolve(projectRoot);
   const workspacePath = join(root, ".guild", "workspace.json");
   if (existsSync(workspacePath)) {
+    // Bounded no-follow regular-file read contained in the project root: a
+    // symlinked, oversized, or non-regular (FIFO) workspace.json is ignored.
     let parsed: unknown;
+    let rootReal: string | undefined;
     try {
-      parsed = JSON.parse(await readFile(workspacePath, "utf8"));
+      rootReal = realpathSync(root);
+    } catch {
+      rootReal = undefined;
+    }
+    const read = rootReal
+      ? await readContainedRegularFile(workspacePath, WORKSPACE_JSON_MAX_BYTES, rootReal)
+      : undefined;
+    try {
+      parsed = read ? JSON.parse(read.text) : undefined;
     } catch {
       parsed = undefined;
     }

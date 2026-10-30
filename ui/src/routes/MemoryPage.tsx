@@ -49,6 +49,11 @@ export default function MemoryPage() {
       ) : null}
       {status === "success" && data && data.entries.length > 0 ? (
         <>
+          {data.truncated ? (
+            <div className="error" role="status" data-testid="listing-truncated">
+              Listing stopped at the server's directory walk limit; some memory entries are not shown.
+            </div>
+          ) : null}
           <div className="filter-bar">
             <div className="field field-compact">
               <label htmlFor="memory-kind">Kind</label>
