@@ -109,6 +109,7 @@ export default function DashboardPage() {
       {workspaceSources.length > 0 ? (
         <section>
           <h2>Workspace Sources</h2>
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
@@ -134,6 +135,7 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </section>
       ) : null}
     </section>

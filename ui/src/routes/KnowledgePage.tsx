@@ -1482,12 +1482,12 @@ function GraphCanvas({
       >
         <defs>
           <radialGradient id="graph-node-module" cx="45%" cy="35%" r="75%">
-            <stop offset="0%" stopColor="#11CFF3" />
-            <stop offset="100%" stopColor="#0B7DFF" />
+            <stop offset="0%" stopColor="var(--color-cyan)" />
+            <stop offset="100%" stopColor="var(--color-accent-strong)" />
           </radialGradient>
           <radialGradient id="graph-node-file" cx="40%" cy="35%" r="80%">
-            <stop offset="0%" stopColor="#F7F8FF" stopOpacity="0.95" />
-            <stop offset="100%" stopColor="#A6ABB8" stopOpacity="0.8" />
+            <stop offset="0%" stopColor="var(--color-fg)" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="var(--color-fg-muted)" stopOpacity="0.8" />
           </radialGradient>
         </defs>
         <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>

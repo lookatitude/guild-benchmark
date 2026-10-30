@@ -1,40 +1,43 @@
-/* GuildStack dashboard tokens derived from guildstack.pen. */
+/* Guild operator console styles on the shared Operational Atlas tokens. */
 
 :root {
-  --color-bg: #111113;
-  --color-fg: #f7f8ff;
-  --color-fg-muted: #a6abb8;
-  --color-border: #34343b;
-  --color-surface: #1a1a1d;
-  --color-surface-raised: #242428;
-  --color-link: #11cff3;
-  --color-focus: #0b7dff;
-  --color-primary: #11cff3;
-  --color-blue: #0b7dff;
-  --color-violet: #5430ff;
+  /* Shared semantic tokens come from ./system/tokens.css (vendored from the
+     workspace). These are console-local aliases only; never redefine a
+     shared --color-* token here. */
+  --color-link: var(--color-accent);
+  --color-focus: var(--color-accent-strong);
+  --color-primary: var(--color-cyan);
 
-  --status-pass-bg: rgba(35, 209, 139, 0.14);
-  --status-pass-fg: #23d18b;
-  --status-fail-bg: rgba(255, 92, 122, 0.16);
-  --status-fail-fg: #ff5c7a;
-  --status-timeout-bg: rgba(247, 185, 85, 0.16);
-  --status-timeout-fg: #f7b955;
-  --status-errored-bg: rgba(166, 171, 184, 0.13);
-  --status-errored-fg: #cbd0dc;
+  --status-pass-bg: var(--color-success-bg);
+  --status-pass-fg: var(--color-success-fg);
+  --status-fail-bg: var(--color-danger-bg);
+  --status-fail-fg: var(--color-danger-fg);
+  --status-timeout-bg: var(--color-warning-bg);
+  --status-timeout-fg: var(--color-warning-fg);
+  --status-errored-bg: var(--color-bg-subtle);
+  --status-errored-fg: var(--color-fg-muted);
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  --radius: var(--radius-md);
+  --font-sans: var(--font-text);
+  --font-data: var(--font-mono);
+}
 
-  --radius: 8px;
+h1,
+h2,
+h3,
+.brand {
+  font-family: var(--font-display);
+}
 
-  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 * {
@@ -86,7 +89,7 @@ button {
 }
 
 button:hover {
-  border-color: rgba(17, 207, 243, 0.58);
+  border-color: color-mix(in oklch, var(--color-cyan) 58%, transparent);
 }
 
 input,
@@ -96,7 +99,7 @@ textarea {
   min-height: 38px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #151518;
+  background: var(--color-bg-subtle);
   color: var(--color-fg);
   font: inherit;
   padding: 8px 12px;
@@ -109,7 +112,7 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-  color: #737987;
+  color: var(--color-fg-subtle);
 }
 
 select {
@@ -128,14 +131,14 @@ select {
 input:hover,
 select:hover,
 textarea:hover {
-  border-color: #4a4a54;
+  border-color: var(--color-border-strong);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: rgba(17, 207, 243, 0.74);
-  outline: 2px solid rgba(17, 207, 243, 0.16);
+  border-color: color-mix(in oklch, var(--color-cyan) 74%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--color-cyan) 16%, transparent);
   outline-offset: 0;
 }
 
@@ -165,7 +168,7 @@ input[type="range"] {
 }
 
 .button-primary {
-  color: #061114;
+  color: var(--color-on-accent);
   background: var(--color-primary);
   border-color: var(--color-primary);
   font-weight: 700;
@@ -173,7 +176,7 @@ input[type="range"] {
 
 .button-secondary {
   background: var(--color-surface-raised);
-  border-color: #494953;
+  border-color: var(--color-border-strong);
   color: var(--color-fg);
 }
 
@@ -216,7 +219,7 @@ td {
 
 th {
   font-weight: 600;
-  background: #17171a;
+  background: var(--color-bg-subtle);
   position: sticky;
   top: 0;
 }
@@ -229,10 +232,10 @@ th {
 .app-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-6);
   width: 248px;
   min-height: 100vh;
-  padding: var(--space-5) var(--space-4);
+  padding: var(--space-6) var(--space-4);
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   position: sticky;
@@ -251,7 +254,7 @@ th {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  color: #061114;
+  color: var(--color-on-accent);
   background: var(--color-primary);
   font-weight: 800;
 }
@@ -259,7 +262,7 @@ th {
 .brand-mark-image {
   object-fit: cover;
   border: 1px solid var(--color-border);
-  background: #2d2d2d;
+  background: var(--color-surface-raised);
   padding: 0;
 }
 
@@ -279,7 +282,22 @@ th {
 .nav-links {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
+}
+
+.nav-group-label {
+  padding: 0 12px;
+  color: var(--color-fg-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .app-nav a {
@@ -291,7 +309,7 @@ th {
 
 .app-nav a[aria-current="page"] {
   background: var(--color-surface-raised);
-  border-color: rgba(17, 207, 243, 0.34);
+  border-color: color-mix(in oklch, var(--color-cyan) 34%, transparent);
   color: var(--color-primary);
   font-weight: 600;
   text-decoration: none;
@@ -299,7 +317,7 @@ th {
 
 .app-main {
   flex: 1;
-  padding: var(--space-6);
+  padding: var(--space-8);
   max-width: none;
   min-width: 0;
   width: 100%;
@@ -341,12 +359,12 @@ th {
 .empty,
 .loading,
 .error {
-  padding: var(--space-5);
+  padding: var(--space-6);
   text-align: left;
   color: var(--color-fg-muted);
   border: 1px dashed var(--color-border);
   border-radius: var(--radius);
-  background: rgba(26, 26, 29, 0.72);
+  background: color-mix(in oklch, var(--color-surface) 72%, transparent);
 }
 
 .error {
@@ -376,7 +394,7 @@ th {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .page-header h1 {
@@ -402,7 +420,7 @@ th {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .metric-card {
@@ -467,7 +485,7 @@ th {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   overflow: hidden;
-  background: #151518;
+  background: var(--color-bg-subtle);
 }
 
 .segmented button {
@@ -487,7 +505,7 @@ th {
 }
 
 .segmented button:disabled {
-  color: #5f6570;
+  color: var(--color-fg-subtle);
 }
 
 .compare-selection-grid {
@@ -495,7 +513,7 @@ th {
   grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) auto;
   gap: var(--space-4);
   align-items: end;
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .compare-actions {
@@ -512,11 +530,11 @@ th {
 }
 
 .analysis-panel {
-  border: 1px solid rgba(17, 207, 243, 0.32);
+  border: 1px solid color-mix(in oklch, var(--color-cyan) 32%, transparent);
   border-radius: var(--radius);
-  background: rgba(17, 207, 243, 0.08);
+  background: color-mix(in oklch, var(--color-cyan) 8%, transparent);
   padding: var(--space-4);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .analysis-panel h2 {
@@ -525,7 +543,7 @@ th {
 
 .analysis-panel ul {
   margin: var(--space-3) 0;
-  padding-left: var(--space-5);
+  padding-left: var(--space-6);
 }
 
 .command-list {
@@ -541,7 +559,7 @@ th {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: #151518;
+  background: var(--color-bg-subtle);
 }
 
 .command-row code {
@@ -693,7 +711,7 @@ th {
 
 /* Section spacing */
 section + section {
-  margin-top: var(--space-5);
+  margin-top: var(--space-6);
 }
 
 /* ReflectionBadge — P4 learning-loop annotation on ComparePage. */
@@ -754,7 +772,7 @@ section + section {
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: var(--space-4);
   align-items: start;
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .knowledge-graph-panel,
@@ -790,19 +808,19 @@ section + section {
   width: 100%;
   min-height: 480px;
   background:
-    linear-gradient(rgba(247, 248, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(247, 248, 255, 0.035) 1px, transparent 1px),
-    #111113;
+    linear-gradient(color-mix(in oklch, var(--color-fg) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklch, var(--color-fg) 3.5%, transparent) 1px, transparent 1px),
+    var(--color-bg);
   background-size: 32px 32px;
 }
 
 .graph-edge {
-  stroke: rgba(166, 171, 184, 0.2);
+  stroke: color-mix(in oklch, var(--color-fg-muted) 20%, transparent);
   stroke-width: 1;
 }
 
 .graph-edge-active {
-  stroke: rgba(17, 207, 243, 0.72);
+  stroke: color-mix(in oklch, var(--color-cyan) 72%, transparent);
   stroke-width: 1.8;
 }
 
@@ -811,7 +829,7 @@ section + section {
 }
 
 .graph-node circle {
-  stroke: rgba(17, 207, 243, 0.26);
+  stroke: color-mix(in oklch, var(--color-cyan) 26%, transparent);
   stroke-width: 1;
 }
 
@@ -820,7 +838,7 @@ section + section {
   font-family: var(--font-data);
   font-size: 10px;
   paint-order: stroke;
-  stroke: #111113;
+  stroke: var(--color-bg);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
@@ -931,7 +949,7 @@ button.badge-source {
 }
 
 .badge-source-active {
-  border-color: rgba(17, 207, 243, 0.58);
+  border-color: color-mix(in oklch, var(--color-cyan) 58%, transparent);
   color: var(--color-primary);
 }
 
@@ -993,7 +1011,7 @@ button.badge-source {
 }
 
 .wiki-source-tabs button.active .tab-count {
-  color: #061114;
+  color: var(--color-on-accent);
   background: var(--color-primary);
 }
 
@@ -1035,7 +1053,7 @@ button.badge-source {
   gap: 4px;
   padding: var(--space-3);
   text-align: left;
-  background: #151518;
+  background: var(--color-bg-subtle);
   border-color: var(--color-border);
 }
 
@@ -1044,8 +1062,8 @@ button.badge-source {
 }
 
 .wiki-page-row[aria-pressed="true"] {
-  border-color: rgba(17, 207, 243, 0.72);
-  background: rgba(17, 207, 243, 0.1);
+  border-color: color-mix(in oklch, var(--color-cyan) 72%, transparent);
+  background: color-mix(in oklch, var(--color-cyan) 10%, transparent);
 }
 
 .wiki-page-row-title {
@@ -1081,9 +1099,14 @@ button.badge-source {
     border-bottom: 1px solid var(--color-border);
   }
 
-  .nav-links {
+  .nav-links,
+  .nav-group {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .nav-group-label {
+    display: none;
   }
 
   .app-main {
@@ -1150,7 +1173,7 @@ button.badge-source {
 .wiki-content h4 {
   color: var(--color-fg);
   line-height: 1.25;
-  margin: var(--space-5) 0 var(--space-3);
+  margin: var(--space-6) 0 var(--space-3);
 }
 
 .wiki-content h1 {
@@ -1178,7 +1201,7 @@ button.badge-source {
 
 .wiki-content ul,
 .wiki-content ol {
-  padding-left: var(--space-5);
+  padding-left: var(--space-6);
 }
 
 .wiki-content li + li {
@@ -1192,7 +1215,7 @@ button.badge-source {
 .wiki-content code {
   padding: 2px 5px;
   border-radius: 4px;
-  background: #151518;
+  background: var(--color-bg-subtle);
   border: 1px solid var(--color-border);
   color: var(--color-fg);
   font-size: 0.92em;
@@ -1210,7 +1233,7 @@ button.badge-source {
 .wiki-content blockquote {
   padding: var(--space-2) var(--space-3);
   border-left: 3px solid var(--color-primary);
-  background: rgba(17, 207, 243, 0.08);
+  background: color-mix(in oklch, var(--color-cyan) 8%, transparent);
   color: var(--color-fg-muted);
 }
 
@@ -1222,4 +1245,9 @@ button.badge-source {
 .wiki-content th,
 .wiki-content td {
   min-width: 120px;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
 }

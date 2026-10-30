@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import type { ComponentDelta, ComponentKey, Comparison } from "../../../src/types";
 import { COMPONENT_KEYS } from "../../../src/types";
+import { prefersReducedMotion } from "../lib/motion";
 
 interface Props {
   comparison: Comparison;
@@ -45,11 +46,11 @@ export function DeltaChart({ comparison, height = 240 }: Props) {
           <XAxis dataKey="component" />
           <YAxis />
           <Tooltip />
-          <Bar dataKey="delta">
+          <Bar dataKey="delta" isAnimationActive={!prefersReducedMotion}>
             {rows.map((row) => (
               <Cell
                 key={row.component}
-                fill={row.delta >= 0 ? "#1e6e34" : "#a4243b"}
+                fill={row.delta >= 0 ? "var(--color-success-fg)" : "var(--color-danger-fg)"}
               />
             ))}
           </Bar>
