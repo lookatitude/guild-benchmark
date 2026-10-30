@@ -39,16 +39,18 @@ export default function ComponentsPage() {
             : `Could not load components: ${error?.message ?? "unknown error"}`}
         </div>
       ) : null}
+      {status === "success" && data?.truncated ? (
+        <div className="error" role="status" data-testid="listing-truncated">
+          Listing stopped at the server's directory walk limit; some components are not shown.
+        </div>
+      ) : null}
       {status === "success" && data && data.components.length === 0 ? (
-        <div className="empty">No agents, skills, or registry entries found in the configured sources.</div>
+        <div className="empty">
+          {data.truncated ? "No components within the walk limit." : "No agents, skills, or registry entries found in the configured sources."}
+        </div>
       ) : null}
       {status === "success" && data && data.components.length > 0 ? (
         <>
-          {data.truncated ? (
-            <div className="error" role="status" data-testid="listing-truncated">
-              Listing stopped at the server's directory walk limit; some components are not shown.
-            </div>
-          ) : null}
           <div className="filter-bar">
             <div className="field field-compact">
               <label htmlFor="components-kind">Kind</label>

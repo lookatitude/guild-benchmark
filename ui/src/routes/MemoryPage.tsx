@@ -44,16 +44,18 @@ export default function MemoryPage() {
             : `Could not load memory: ${error?.message ?? "unknown error"}`}
         </div>
       ) : null}
+      {status === "success" && data?.truncated ? (
+        <div className="error" role="status" data-testid="listing-truncated">
+          Listing stopped at the server's directory walk limit; some memory entries are not shown.
+        </div>
+      ) : null}
       {status === "success" && data && data.entries.length === 0 ? (
-        <div className="empty">No memory summaries, lessons, or recall index found in the configured sources.</div>
+        <div className="empty">
+          {data.truncated ? "No memory entries within the walk limit." : "No memory summaries, lessons, or recall index found in the configured sources."}
+        </div>
       ) : null}
       {status === "success" && data && data.entries.length > 0 ? (
         <>
-          {data.truncated ? (
-            <div className="error" role="status" data-testid="listing-truncated">
-              Listing stopped at the server's directory walk limit; some memory entries are not shown.
-            </div>
-          ) : null}
           <div className="filter-bar">
             <div className="field field-compact">
               <label htmlFor="memory-kind">Kind</label>

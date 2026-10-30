@@ -100,6 +100,12 @@ describe("ComponentsPage", () => {
     expect(await screen.findByTestId("listing-truncated")).toHaveTextContent(/walk limit/);
   });
 
+  it("shows the truncation notice even when no rows came back", async () => {
+    handle = mount(<ComponentsPage />, "/api/project/components", { components: [], total: 0, truncated: true, sources: [] });
+    expect(await screen.findByTestId("listing-truncated")).toBeInTheDocument();
+    expect(screen.queryByText(/No agents, skills, or registry entries found/)).toBeNull();
+  });
+
   it("shows an honest empty state", async () => {
     handle = mount(<ComponentsPage />, "/api/project/components", {
       components: [],
@@ -144,6 +150,12 @@ describe("MemoryPage", () => {
   it("says when the server truncated the listing", async () => {
     handle = mount(<MemoryPage />, "/api/project/memory", { ...MEMORY, truncated: true });
     expect(await screen.findByTestId("listing-truncated")).toHaveTextContent(/walk limit/);
+  });
+
+  it("shows the truncation notice even when no rows came back", async () => {
+    handle = mount(<MemoryPage />, "/api/project/memory", { entries: [], total: 0, truncated: true, sources: [] });
+    expect(await screen.findByTestId("listing-truncated")).toBeInTheDocument();
+    expect(screen.queryByText(/No memory summaries, lessons, or recall index found/)).toBeNull();
   });
 
   it("shows an honest empty state", async () => {
