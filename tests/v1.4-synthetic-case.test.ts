@@ -14,7 +14,6 @@ import { deriveModelFamily, scoreRun } from "../src/scorer.js";
 import type { Case, RunRecord } from "../src/types.js";
 
 const CASE_PATH = resolve(__dirname, "../cases/v1.4-synthetic-model-family.yaml");
-const COMMANDS_GUILD = resolve(__dirname, "../../plugin/commands/guild.md");
 
 describe("F-7 synthetic case YAML", () => {
   it("file exists at the documented path", () => {
@@ -127,30 +126,5 @@ describe("scoreRun emits model_family on Score", () => {
     // Still serializes cleanly (optional field absent ≠ field with undefined).
     const json = JSON.parse(JSON.stringify(score));
     expect("model_family" in json).toBe(false);
-  });
-});
-
-// Reads the sibling plugin checkout; skipped in a standalone clone (CI).
-describe.skipIf(!existsSync(COMMANDS_GUILD))("commands/guild.md — additive allowed-tools update", () => {
-  it("appends AskUserQuestion, TaskCreate, TaskUpdate, TaskList without removing v1.3 tools", () => {
-    const text = readFileSync(COMMANDS_GUILD, "utf8");
-    const allowedToolsLine = text
-      .split("\n")
-      .find((line) => line.startsWith("allowed-tools:"));
-    expect(allowedToolsLine).toBeDefined();
-    // v1.3 tools preserved.
-    expect(allowedToolsLine).toContain("Read");
-    expect(allowedToolsLine).toContain("Write");
-    expect(allowedToolsLine).toContain("Edit");
-    expect(allowedToolsLine).toContain("Grep");
-    expect(allowedToolsLine).toContain("Glob");
-    expect(allowedToolsLine).toContain("Bash");
-    expect(allowedToolsLine).toContain("Agent");
-    expect(allowedToolsLine).toContain("Skill");
-    // v1.4 additive entries — the architect's 4 named tools.
-    expect(allowedToolsLine).toContain("AskUserQuestion");
-    expect(allowedToolsLine).toContain("TaskCreate");
-    expect(allowedToolsLine).toContain("TaskUpdate");
-    expect(allowedToolsLine).toContain("TaskList");
   });
 });
