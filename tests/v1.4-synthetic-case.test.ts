@@ -130,7 +130,8 @@ describe("scoreRun emits model_family on Score", () => {
   });
 });
 
-describe("commands/guild.md — additive allowed-tools update", () => {
+// Reads the sibling plugin checkout; skipped in a standalone clone (CI).
+describe.skipIf(!existsSync(COMMANDS_GUILD))("commands/guild.md — additive allowed-tools update", () => {
   it("appends AskUserQuestion, TaskCreate, TaskUpdate, TaskList without removing v1.3 tools", () => {
     const text = readFileSync(COMMANDS_GUILD, "utf8");
     const allowedToolsLine = text
