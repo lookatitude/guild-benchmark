@@ -1,6 +1,6 @@
 {
   "name": "@guild/benchmark",
-  "version": "0.1.0-p1",
+  "version": "0.1.0-beta.1",
   "private": true,
   "description": "Guild benchmark factory — fixed cases, repeated runs, six-component guild_score, baseline-vs-candidate compare. P1 import-only.",
   "type": "module",

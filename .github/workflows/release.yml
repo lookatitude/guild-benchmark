@@ -1,0 +1,80 @@
+name: Stable release
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'next' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run_id: ${{ steps.candidate.outputs.run_id }}
+      artifact_id: ${{ steps.candidate.outputs.artifact_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: node scripts/release/channel.mjs verify-merge
+      - name: Resolve tested next artifact
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/channel.mjs candidate-run ci.yml
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ steps.candidate.outputs.artifact_id }}
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: release
+          merge-multiple: true
+      - run: node scripts/release/channel.mjs verify-artifact release
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          run-id: ${{ needs.prepare.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: release
+          merge-multiple: true
+      - run: node scripts/release/channel.mjs verify-artifact release
+      - name: Tag the merge commit and publish the tested assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/channel.mjs publish release
