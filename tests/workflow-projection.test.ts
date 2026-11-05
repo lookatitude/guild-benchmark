@@ -43,6 +43,8 @@ describe("parseWorkflowProjectionV2 (AT41)", () => {
     ["accepted obligation without evidence", (d) => (d.obligations[0].evidence = []), /available workflow-owner evidence/],
     ["release path bypasses a gate", (d) => d.edges.push({ from: "build", to: "release", on: "skip" }), /bypasses protected gate/],
     ["edge to unknown node", (d) => d.edges.push({ from: "build", to: "ghost", on: "pass" }), /unknown expanded edge endpoint/],
+    ["impossible calendar date", (d) => (d.obligations[0].evidence[0].observed_at = "2026-02-30T09:00:00Z"), /RFC 3339/],
+    ["hour out of range", (d) => (d.obligations[0].evidence[0].observed_at = "2026-02-10T24:00:00Z"), /RFC 3339/],
     ["evidence path escapes", (d) => (d.obligations[0].evidence[0].path = "../secret.json"), /path/],
   ];
   for (const [label, mutate, rule] of refusals) {
@@ -115,6 +117,14 @@ describe("readProjectRunWorkflow + GET /api/project/runs/:run_id/workflow (AT41)
     await writeFile(join(runDir("run-20261105-000003-nowf"), WORKFLOW_PROJECTION_FILE), " ".repeat(WORKFLOW_PROJECTION_MAX_BYTES + 1));
     const r = await readProjectRunWorkflow(root, "run-20261105-000003-nowf");
     expect(r.status).toBe("refused");
+  });
+
+  it("artifact reader never buffers past the cap", async () => {
+    const { readProjectRunArtifact } = await import("../src/project-reader.js");
+    await writeFile(join(runDir("run-20261105-000003-nowf"), "big.json"), "x".repeat(64));
+    await expect(readProjectRunArtifact(root, "run-20261105-000003-nowf", ["big.json"], undefined, 63)).rejects.toThrow("artifact too large");
+    const ok = await readProjectRunArtifact(root, "run-20261105-000003-nowf", ["big.json"], undefined, 64);
+    expect(ok.body.length).toBe(64);
   });
 
   it("serves the read over GET only; unknown run is 404", async () => {

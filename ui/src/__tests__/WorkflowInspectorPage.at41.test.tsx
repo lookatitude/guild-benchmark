@@ -92,8 +92,8 @@ describe("AT41 workflow UI journey", () => {
     expect(comp.getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(comp);
     const cview = screen.getByTestId("wf-view-components");
-    expect(within(cview).getByTestId("wf-component-comp-build").textContent).toContain(`sha256:${"a1".repeat(32)}`);
-    expect(within(cview).getByTestId("wf-component-comp-build").textContent).toContain("build");
+    expect(within(cview).getByTestId("wf-component-comp-build@2").textContent).toContain(`sha256:${"a1".repeat(32)}`);
+    expect(within(cview).getByTestId("wf-component-comp-build@2").textContent).toContain("build");
     fireEvent.keyDown(comp, { key: "End" });
     const text = screen.getByTestId("wf-view-text");
     expect(text.textContent).toContain(`definition ${NEW_DEF}`);
@@ -134,6 +134,22 @@ describe("AT41 workflow UI journey", () => {
     const ok = screen.getByTestId("wf-obligation-ob-quality-build");
     expect(ok.getAttribute("data-status")).toBe("accepted");
     expect(ok.querySelectorAll("s").length).toBe(0);
+  });
+
+  it("two versions of one component stay distinct by hash", async () => {
+    const twoVersions = structuredClone(runNew) as typeof runNew;
+    const v1 = `sha256:${"b1".repeat(32)}`;
+    twoVersions.components.push({ id: "comp-build", version: "1", sha256: v1 });
+    twoVersions.nodes[0].component_id = "comp-build";
+    twoVersions.nodes[0].component_hash = v1;
+    BODIES["run-two"] = { status: "available", run_id: "run-two", projection: twoVersions };
+    mount("run-two");
+    const view = await screen.findByTestId("wf-view-expanded");
+    expect(within(view).getByTestId("wf-node-plan").textContent).toContain("comp-build@1");
+    expect(within(view).getByTestId("wf-node-build").textContent).toContain("comp-build@2");
+    fireEvent.click(screen.getByRole("tab", { name: "Components" }));
+    expect(screen.getByTestId("wf-component-comp-build@1").textContent).toMatch(/Used by:\s*plan$/);
+    expect(screen.getByTestId("wf-component-comp-build@2").textContent).toMatch(/Used by:\s*build$/);
   });
 
   it("an older run keeps its own definition hash", async () => {

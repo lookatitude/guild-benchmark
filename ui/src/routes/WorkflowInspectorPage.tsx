@@ -66,8 +66,8 @@ function next(p: WorkflowProjectionV2, id: string): string {
 }
 
 function componentLabel(p: WorkflowProjectionV2, n: WorkflowNode): string {
-  const comp = p.components.find((c) => c.id === n.component_id);
-  return comp ? `${comp.id}@${comp.version}` : `${n.component_id} (not in component list)`;
+  const comp = p.components.find((c) => c.id === n.component_id && c.sha256 === n.component_hash);
+  return comp ? `${comp.id}@${comp.version}` : `${n.component_id} (hash not in component list)`;
 }
 
 function ports(list: { name: string; type: string }[]): string {
@@ -177,9 +177,9 @@ function ComponentsView({ p }: { p: WorkflowProjectionV2 }) {
   return (
     <ul className="wf-components" data-testid="wf-view-components">
       {p.components.map((c) => {
-        const users = p.nodes.filter((n) => n.component_id === c.id).map((n) => n.id);
+        const users = p.nodes.filter((n) => n.component_id === c.id && n.component_hash === c.sha256).map((n) => n.id);
         return (
-          <li key={c.id} className="wf-node" data-testid={`wf-component-${c.id}`}>
+          <li key={`${c.id}:${c.sha256}`} className="wf-node" data-testid={`wf-component-${c.id}@${c.version}`}>
             <h4>
               <code>
                 {c.id}@{c.version}

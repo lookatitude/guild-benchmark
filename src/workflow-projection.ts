@@ -18,7 +18,16 @@ const SCHEMA_VERSION = "guild.stack.workflow-projection.v2";
 const HASH = /^sha256:[a-f0-9]{64}$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const REL_PATH = /^(?!\/)(?!.*(?:^|\/)\.{1,2}(?:\/|$))(?!.*[\\%\x00-\x1f])[^:]+$/;
-const TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const TIME = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:[Zz]|[+-](\d{2}):(\d{2}))$/;
+
+/** RFC 3339 date-time with real calendar dates (Date.parse rolls 02-30 over). */
+export function isRfc3339(v: string): boolean {
+  const m = TIME.exec(v);
+  if (!m) return false;
+  const [y, mo, d, h, mi, sec, oh, om] = m.slice(1).map((x) => (x === undefined ? 0 : Number(x)));
+  const days = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return mo >= 1 && mo <= 12 && d >= 1 && d <= days && h <= 23 && mi <= 59 && sec <= 59 && oh <= 23 && om <= 59;
+}
 const KINDS = ["initiative", "run", "execution", "host_session", "goal", "logical_task", "task_attempt", "agent_instance", "request", "operation", "decision", "workflow", "component", "invocation", "obligation", "memory", "knowledge", "candidate", "agent", "skill", "tool", "team", "loop", "config", "evaluation", "report", "benchmark_case", "transfer", "query"];
 const CLASSES = ["product", "research", "debug", "ops", "init"];
 const EFFECTS = ["read", "write", "review", "gate", "privileged_operation", "release"];
@@ -127,7 +136,7 @@ function checkShape(c: Checker, d: unknown): d is WorkflowProjectionV2 {
     c.str(x.path, `${at}.path`, REL_PATH, 1024);
     c.str(x.sha256, `${at}.sha256`, HASH);
     c.str(x.schema_version, `${at}.schema_version`);
-    if (c.str(x.observed_at, `${at}.observed_at`, TIME) && Number.isNaN(Date.parse(x.observed_at as string))) c.fail(`${at}.observed_at`, "is not a valid time");
+    if (c.str(x.observed_at, `${at}.observed_at`) && !isRfc3339(x.observed_at as string)) c.fail(`${at}.observed_at`, "is not an RFC 3339 date-time");
     c.oneOf(x.availability, `${at}.availability`, AVAIL);
     if (x.reason !== null) c.str(x.reason, `${at}.reason`);
   };
@@ -255,19 +264,19 @@ export async function readProjectRunWorkflow(
 ): Promise<ProjectRunWorkflowResponse> {
   let body: Buffer;
   try {
-    ({ body } = await readProjectRunArtifact(projectRoot, runId, [WORKFLOW_PROJECTION_FILE], guildName));
+    ({ body } = await readProjectRunArtifact(projectRoot, runId, [WORKFLOW_PROJECTION_FILE], guildName, WORKFLOW_PROJECTION_MAX_BYTES));
   } catch (err) {
     if (!(err instanceof ProjectReadError)) throw err;
     if (err.message === "artifact not found") {
       return { status: "unavailable", run_id: runId, reason: `no ${WORKFLOW_PROJECTION_FILE} recorded for this run` };
     }
+    if (err.message === "artifact too large") {
+      return { status: "refused", run_id: runId, issues: [`${WORKFLOW_PROJECTION_FILE}: larger than ${WORKFLOW_PROJECTION_MAX_BYTES} bytes`] };
+    }
     if (err.message.startsWith("artifact path")) {
       return { status: "refused", run_id: runId, issues: [`${WORKFLOW_PROJECTION_FILE}: not a contained regular file`] };
     }
     throw err;
-  }
-  if (body.length > WORKFLOW_PROJECTION_MAX_BYTES) {
-    return { status: "refused", run_id: runId, issues: [`${WORKFLOW_PROJECTION_FILE}: larger than ${WORKFLOW_PROJECTION_MAX_BYTES} bytes`] };
   }
   let doc: unknown;
   try {
