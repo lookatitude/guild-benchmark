@@ -25,6 +25,10 @@ import { open, readFile, readdir } from "node:fs/promises";
 import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { readContainedRegularFile } from "./safe-read.js";
+import { SeriesRefusal, queryHash, refusal, validateReadRequestV2, type GroupBy, type QueryFilter, type RefusalV2 } from "./c9/metric-series.js";
+import { openProjectSnapshot, projectQuery, readMetricDrilldown, readMetricSeries, readRequest, type ProjectQuerySpec, type ProjectSnapshot } from "./c9/project-read.js";
+import { TRACE_ID_RE, isRfc3339 } from "./c9/trace-analysis.js";
+import { canonicalSourceId } from "./c9/source-identity.js";
 
 export const WORKSPACE_JSON_MAX_BYTES = 1024 * 1024;
 
@@ -1859,4 +1863,192 @@ export function safeJoinUnder(root: string, rest: string): string | null {
   const rel = relative(root, target);
   if (rel.startsWith("..") || resolve(root, rel) !== target) return null;
   return target;
+}
+
+// ---- C9 metric series + drilldown (T04) ------------------------------------
+//
+// The complete project read service over every configured source: each request
+// re-reads all retained runs into one snapshot (src/c9/project-read.ts). A
+// series/drilldown request is served only against the snapshot its query names
+// (same as_of, same source generations); a changed or offline source is a
+// stale_source / stale_cursor refusal, never a mixed page.
+
+
+export interface C9Response { status: 200 | 400 | 409 | 422; body: unknown }
+
+const C9_GROUP_BY: ReadonlySet<string> = new Set(["all", "source", "run", "cohort", "task", "observed_model"]);
+const C9_WINDOW_BASES: ReadonlySet<string> = new Set(["activity_completed", "accepted_outcome_cohort", "as_of_snapshot"]);
+
+function c9RefusalResponse(r: RefusalV2): C9Response {
+  const status = r.code === "stale_source" || r.code === "stale_cursor" ? 409 : r.code === "invalid_request" ? 400 : 422;
+  return { status, body: r };
+}
+
+/**
+ * C9's source set, from ONE read of `.guild/workspace.json` (no second read can disagree).
+ * Unlike the lenient reader it never falls back or skips: a present manifest must read,
+ * parse and name every child under the root, or the source set is unknown and refused.
+ * The root is always a source ("workspace" or "project"); two names for one root are one
+ * source, read once.
+ */
+async function c9Sources(projectRoot: string): Promise<{ source_id: string; root: string; names: string[] }[]> {
+  const root = resolve(projectRoot);
+  const named: { name: string; root: string }[] = [];
+  const p = join(root, ".guild", "workspace.json");
+  let present = true;
+  try {
+    lstatSync(p);
+  } catch {
+    present = false;
+  }
+  if (!present) named.push({ name: "project", root });
+  else {
+    let rootReal: string;
+    try {
+      rootReal = realpathSync(root);
+    } catch {
+      throw new Error("source set unknown: project root does not resolve");
+    }
+    const read = await readContainedRegularFile(p, WORKSPACE_JSON_MAX_BYTES, rootReal);
+    if (!read) throw new Error("source set unknown: .guild/workspace.json is present but unreadable");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(read.text);
+    } catch {
+      throw new Error("source set unknown: .guild/workspace.json is not valid JSON");
+    }
+    if (!isPlainObject(parsed) || !Array.isArray(parsed["sub_guilds"])) throw new Error("source set unknown: .guild/workspace.json has no sub_guilds array");
+    named.push({ name: "workspace", root });
+    for (const sg of parsed["sub_guilds"] as unknown[]) {
+      if (!isPlainObject(sg) || typeof sg["name"] !== "string" || typeof sg["path"] !== "string") throw new Error("source set unknown: .guild/workspace.json has a sub_guild without a string name and path");
+      const childRoot = resolve(root, sg["path"]);
+      if (!isUnder(root, childRoot)) throw new Error(`source set unknown: .guild/workspace.json sub_guild ${JSON.stringify(sg["name"]).slice(0, 130)} is outside the project root`);
+      named.push({ name: sg["name"], root: childRoot });
+    }
+  }
+  const byId = new Map<string, { source_id: string; root: string; names: string[] }>();
+  for (const s of named) {
+    const id = canonicalSourceId(s.root);
+    const seen = byId.get(id);
+    if (seen) seen.names.push(s.name);
+    else byId.set(id, { source_id: id, root: s.root, names: [s.name] });
+  }
+  return [...byId.values()];
+}
+
+/** Open one snapshot over every configured source at `asOf`; an engine refusal comes back as a C9 response. */
+async function openC9Snapshot(projectRoot: string, asOf: string, requestId: string): Promise<(ProjectSnapshot & { names: Record<string, string[]> }) | C9Response> {
+  let configured: Awaited<ReturnType<typeof c9Sources>>;
+  try {
+    configured = await c9Sources(projectRoot);
+  } catch (err) {
+    return { status: 422, body: { error: `metric snapshot refused: ${(err as Error).message}` } };
+  }
+  const sources = configured.map(({ source_id, root }) => ({ source_id, root }));
+  const names = Object.fromEntries(configured.map((s) => [s.source_id, s.names]));
+  try {
+    return { ...openProjectSnapshot(sources, { as_of: asOf }), names };
+  } catch (err) {
+    if (err instanceof SeriesRefusal) return c9RefusalResponse(refusal(requestId, err.code, err.message, err.retryable));
+    // Unsafe or duplicate configured source names, or a bad as_of: the request cannot be served.
+    return { status: 422, body: { error: `metric snapshot refused: ${(err as Error).message}` } };
+  }
+}
+
+function parseQuerySpec(body: Record<string, unknown>): ProjectQuerySpec | string {
+  const { metric_id, underlying_metric_id, grain, filters, window } = body;
+  if (typeof metric_id !== "string" || metric_id.length > 128) return "metric_id must be a catalog metric id";
+  if (underlying_metric_id !== undefined && underlying_metric_id !== null && (typeof underlying_metric_id !== "string" || underlying_metric_id.length > 128)) return "underlying_metric_id must be a catalog metric id";
+  if (grain !== undefined && typeof grain !== "string") return "grain must be a string";
+  let parsedFilters: QueryFilter[] | undefined;
+  if (filters !== undefined) {
+    if (!Array.isArray(filters) || filters.length > 50) return "filters must be an array of at most 50 {dimension, values}";
+    parsedFilters = [];
+    for (const f of filters) {
+      if (!isPlainObject(f) || typeof f["dimension"] !== "string" || !Array.isArray(f["values"]) || f["values"].length > 100 || !f["values"].every((v) => typeof v === "string")) {
+        return "each filter is {dimension: string, values: string[] (at most 100)}";
+      }
+      parsedFilters.push({ dimension: f["dimension"], values: [...(f["values"] as string[])] });
+    }
+  }
+  let parsedWindow: ProjectQuerySpec["window"];
+  if (window !== undefined) {
+    if (!isPlainObject(window) || typeof window["from"] !== "string" || typeof window["to"] !== "string" || typeof window["basis"] !== "string" || !C9_WINDOW_BASES.has(window["basis"])) {
+      return "window is {from, to, basis} with basis activity_completed | accepted_outcome_cohort | as_of_snapshot";
+    }
+    parsedWindow = { from: window["from"], to: window["to"], basis: window["basis"] as NonNullable<ProjectQuerySpec["window"]>["basis"] };
+  }
+  return {
+    metric_id,
+    underlying_metric_id: (underlying_metric_id as string | null | undefined) ?? null,
+    ...(grain !== undefined ? { grain: grain as ProjectQuerySpec["grain"] } : {}),
+    ...(parsedFilters ? { filters: parsedFilters } : {}),
+    ...(parsedWindow ? { window: parsedWindow } : {}),
+  };
+}
+
+/**
+ * Pin a C9 query for one metric over the current snapshot. Body: `{metric_id,
+ * underlying_metric_id?, grain?, filters?, window?, as_of?}`; `as_of` defaults to now.
+ * Returns the query identity, its hash, the display names of each canonical
+ * source id, and per-source diagnostics (coverage, run errors, unavailable
+ * sources) of the same snapshot.
+ */
+export async function projectMetricQuery(projectRoot: string, body: unknown, now: () => Date = () => new Date()): Promise<C9Response> {
+  if (!isPlainObject(body)) return { status: 400, body: { error: "request body must be a JSON object" } };
+  const spec = parseQuerySpec(body);
+  if (typeof spec === "string") return { status: 400, body: { error: spec } };
+  // Keep sub-second precision: rounding down would put same-second events after as_of.
+  const asOf = body["as_of"] ?? now().toISOString();
+  if (typeof asOf !== "string" || !isRfc3339(asOf)) return { status: 400, body: { error: "as_of must be an RFC 3339 instant" } };
+  const snap = await openC9Snapshot(projectRoot, asOf, "metric-query");
+  if (!("facts" in snap)) return snap;
+  try {
+    const query = projectQuery(snap, spec);
+    const check = validateReadRequestV2(readRequest(query, "metric_series", { request_id: "metric-query", session_id: "benchmark" }));
+    if (!check.ok) return c9RefusalResponse(refusal("metric-query", "invalid_request", check.errors.join("; "), false));
+    return { status: 200, body: { query, query_hash: queryHash(query), sources: snap.names, diagnostics: snap.diagnostics } };
+  } catch (err) {
+    if (err instanceof SeriesRefusal) return c9RefusalResponse(refusal("metric-query", err.code, err.message, err.retryable));
+    return { status: 400, body: { error: (err as Error).message.slice(0, 400) } };
+  }
+}
+
+function parseReadBody(body: unknown): { request: unknown; requestId: string; asOf: string; group_by?: GroupBy; point_key?: string } | C9Response {
+  if (!isPlainObject(body) || !isPlainObject(body["request"])) return { status: 400, body: { error: "body is {request: guild.stack.read-request.v2, group_by?, point_key?}" } };
+  const request = body["request"];
+  const rid = typeof request["request_id"] === "string" && TRACE_ID_RE.test(request["request_id"]) ? request["request_id"] : "invalid-request";
+  const groupBy = body["group_by"];
+  if (groupBy !== undefined && (typeof groupBy !== "string" || !C9_GROUP_BY.has(groupBy))) {
+    return c9RefusalResponse(refusal(rid, "invalid_request", "group_by is all | source | run | cohort | task | observed_model", false));
+  }
+  const pointKey = body["point_key"];
+  if (pointKey !== undefined && (typeof pointKey !== "string" || pointKey.length > 512)) return c9RefusalResponse(refusal(rid, "invalid_request", "point_key must be a series point key", false));
+  const query = request["query"];
+  const snapshot = isPlainObject(query) ? query["snapshot"] : undefined;
+  const asOf = isPlainObject(snapshot) ? snapshot["as_of"] : undefined;
+  if (typeof asOf !== "string" || !isRfc3339(asOf)) return c9RefusalResponse(refusal(rid, "invalid_request", "request query snapshot carries no RFC 3339 as_of", false));
+  return { request, requestId: rid, asOf, ...(groupBy !== undefined ? { group_by: groupBy as GroupBy } : {}), ...(pointKey !== undefined ? { point_key: pointKey as string } : {}) };
+}
+
+const isC9Refusal = (x: unknown): x is RefusalV2 => isPlainObject(x) && x["schema_version"] === "guild.stack.refusal.v2";
+
+/** `metric_series` over the snapshot the request's query names. Body: `{request, group_by?}`. */
+export async function projectMetricSeries(projectRoot: string, body: unknown): Promise<C9Response> {
+  const parsed = parseReadBody(body);
+  if ("status" in parsed) return parsed;
+  const snap = await openC9Snapshot(projectRoot, parsed.asOf, parsed.requestId);
+  if (!("facts" in snap)) return snap;
+  const out = readMetricSeries(snap, parsed.request, { group_by: parsed.group_by });
+  return isC9Refusal(out) ? c9RefusalResponse(out) : { status: 200, body: out };
+}
+
+/** `metric_drilldown`: one page of a point's evidence. Body: `{request, point_key?, group_by?}`. */
+export async function projectMetricDrilldown(projectRoot: string, body: unknown): Promise<C9Response> {
+  const parsed = parseReadBody(body);
+  if ("status" in parsed) return parsed;
+  const snap = await openC9Snapshot(projectRoot, parsed.asOf, parsed.requestId);
+  if (!("facts" in snap)) return snap;
+  const out = readMetricDrilldown(snap, parsed.request, { group_by: parsed.group_by, point_key: parsed.point_key });
+  return isC9Refusal(out) ? c9RefusalResponse(out) : { status: 200, body: out };
 }
