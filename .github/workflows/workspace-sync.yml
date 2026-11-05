@@ -2,11 +2,11 @@
 # ONE PR on sync/workspace. Same workspace SHA twice
 # = no new commit. Trap: the workspace repo is private; without
 # GUILD_SYNC_TOKEN this fails as "blocked" instead of silently skipping.
+# Manual run (workflow_dispatch) plus weekly schedule; the workspace opens a
+# `docs-sync` issue instead of dispatching.
 name: workspace-sync
 
 on:
-  repository_dispatch:
-    types: [workspace-sync]
   workflow_dispatch:
     inputs:
       workspace_ref:
@@ -14,7 +14,7 @@ on:
         required: false
         default: "main"
   schedule:
-    - cron: "41 6 * * 1" # weekly fallback for missed dispatches
+    - cron: "41 6 * * 1" # weekly fallback for a missed manual run
 
 permissions:
   contents: write
@@ -42,6 +42,7 @@ jobs:
           fi
       - uses: actions/checkout@v4
         with:
+          ref: next
           fetch-depth: 0
           token: ${{ secrets.GUILD_SYNC_TOKEN }}
       - uses: actions/checkout@v4
@@ -65,18 +66,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GUILD_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          PATHS="ui/src/styles/system"
+          PATHS=(ui/src/styles/system)
           # Carry the regenerated files onto the existing sync branch so commits
           # reviewers added there (page fixes, wiki updates) are never discarded.
-          TMP=$(mktemp -d); tar cf "$TMP/gen.tar" $PATHS
+          TMP=$(mktemp -d); tar cf "$TMP/gen.tar" "${PATHS[@]}"
           # Reuse the branch only while its PR is open; a merged or closed
-          # branch is restarted from main so reruns report "current".
+          # branch is restarted from next so reruns report "current".
           OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
           if [ -n "$OPEN_PR" ]; then
-            git checkout -q -- $PATHS 2>/dev/null || true; git clean -fdq -- $PATHS
+            git checkout -q -- "${PATHS[@]}" 2>/dev/null || true; git clean -fdq -- "${PATHS[@]}"
             git fetch -q origin "$BRANCH"; git checkout -q -B "$BRANCH" "origin/$BRANCH"
           else
-            if git diff --quiet HEAD -- $PATHS && [ -z "$(git ls-files --others --exclude-standard -- $PATHS)" ]; then
+            if git diff --quiet HEAD -- "${PATHS[@]}" && [ -z "$(git ls-files --others --exclude-standard -- "${PATHS[@]}")" ]; then
               echo "status: current" | tee -a "$GITHUB_STEP_SUMMARY"; exit 0
             fi
             git checkout -q -B "$BRANCH"
@@ -84,7 +85,7 @@ jobs:
           tar xf "$TMP/gen.tar"
           git config user.name "guild-sync"
           git config user.email "guild-sync@users.noreply.github.com"
-          git add $PATHS
+          git add "${PATHS[@]}"
           if git diff --cached --quiet; then
             echo "no new changes for $BRANCH" | tee -a "$GITHUB_STEP_SUMMARY"
           else
@@ -92,7 +93,7 @@ jobs:
             if [ -n "$OPEN_PR" ]; then git push origin "$BRANCH"; else git push -f origin "$BRANCH"; fi
           fi
           PR=$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')
-          if [ -n "$PR" ]; then gh pr edit "$PR" --body-file /tmp/body.md; else
-            gh pr create --head "$BRANCH" --base main --title "chore(sync): workspace design tokens" --body-file /tmp/body.md
+          if [ -n "$PR" ]; then gh pr edit "$PR" --base next --body-file /tmp/body.md; else
+            gh pr create --head "$BRANCH" --base next --title "chore(sync): workspace design tokens" --body-file /tmp/body.md
           fi
           echo "status: pending (sync PR open)" | tee -a "$GITHUB_STEP_SUMMARY"
