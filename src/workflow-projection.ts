@@ -61,7 +61,9 @@ class Checker {
     return ok;
   }
   str(v: unknown, at: string, re?: RegExp, max = 4096): boolean {
-    if (typeof v !== "string" || v.length < 1 || v.length > max) return this.fail(at, "must be a non-empty string");
+    // Schema maxLength counts code points, not UTF-16 units.
+    const len = typeof v === "string" ? [...v].length : 0;
+    if (typeof v !== "string" || len < 1 || len > max) return this.fail(at, "must be a non-empty string");
     if (re && !re.test(v)) return this.fail(at, "has an invalid format");
     return true;
   }
@@ -71,7 +73,8 @@ class Checker {
     return true;
   }
   int(v: unknown, at: string, min: number): boolean {
-    if (typeof v !== "number" || !Number.isInteger(v) || v < min) return this.fail(at, `must be an integer >= ${min}`);
+    // Unsafe integers lose precision in JSON.parse; refuse rather than show a rounded value.
+    if (typeof v !== "number" || !Number.isSafeInteger(v) || v < min) return this.fail(at, `must be a safe integer >= ${min}`);
     return true;
   }
   arr(v: unknown, at: string, min: number, max: number, each: (x: unknown, at: string) => void, unique = false): boolean {
