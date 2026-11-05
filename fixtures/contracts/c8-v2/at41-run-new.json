@@ -1,0 +1,333 @@
+{
+  "schema_version": "guild.stack.workflow-projection.v2",
+  "workflow": {
+    "source_id": "source-a",
+    "kind": "workflow",
+    "id": "product-composed",
+    "revision": "sha256:5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+  },
+  "class": "product",
+  "definition_hash": "sha256:1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+  "compiler_hash": "sha256:2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+  "policy_hash": "sha256:3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+  "expanded_hash": "sha256:4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d",
+  "components": [
+    {
+      "id": "comp-plan",
+      "version": "1",
+      "sha256": "sha256:a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+    },
+    {
+      "id": "comp-build",
+      "version": "2",
+      "sha256": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+    },
+    {
+      "id": "comp-security-review",
+      "version": "1",
+      "sha256": "sha256:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+    },
+    {
+      "id": "comp-gate-d5",
+      "version": "1",
+      "sha256": "sha256:a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+    },
+    {
+      "id": "comp-gate-qa",
+      "version": "1",
+      "sha256": "sha256:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4"
+    },
+    {
+      "id": "comp-gate-ops",
+      "version": "1",
+      "sha256": "sha256:a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5"
+    },
+    {
+      "id": "comp-gate-d8",
+      "version": "1",
+      "sha256": "sha256:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6"
+    },
+    {
+      "id": "comp-release",
+      "version": "1",
+      "sha256": "sha256:a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "plan",
+      "component_id": "comp-plan",
+      "component_hash": "sha256:a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
+      "effect": "write",
+      "gate_role": null,
+      "within_gate": null,
+      "role": "planner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "plan",
+          "type": "guild.plan.v1"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "build",
+      "component_id": "comp-build",
+      "component_hash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "effect": "write",
+      "gate_role": null,
+      "within_gate": null,
+      "role": "developer",
+      "capabilities": [
+        "edit-source"
+      ],
+      "inputs": [
+        {
+          "name": "plan",
+          "type": "guild.plan.v1"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "patch",
+          "type": "guild.patch.v1"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "d5",
+      "component_id": "comp-gate-d5",
+      "component_hash": "sha256:a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+      "effect": "gate",
+      "gate_role": "d5",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "qa",
+      "component_id": "comp-gate-qa",
+      "component_hash": "sha256:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+      "effect": "gate",
+      "gate_role": "qa",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "security-review",
+      "component_id": "comp-security-review",
+      "component_hash": "sha256:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+      "effect": "review",
+      "gate_role": null,
+      "within_gate": "qa",
+      "role": "security",
+      "capabilities": [
+        "security-review"
+      ],
+      "inputs": [
+        {
+          "name": "patch",
+          "type": "guild.patch.v1"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "findings",
+          "type": "guild.findings.v1"
+        }
+      ],
+      "required": true
+    },
+    {
+      "id": "ops",
+      "component_id": "comp-gate-ops",
+      "component_hash": "sha256:a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+      "effect": "gate",
+      "gate_role": "ops",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "d8",
+      "component_id": "comp-gate-d8",
+      "component_hash": "sha256:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "effect": "gate",
+      "gate_role": "d8",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "release",
+      "component_id": "comp-release",
+      "component_hash": "sha256:a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "effect": "release",
+      "gate_role": null,
+      "within_gate": null,
+      "role": "release-owner",
+      "capabilities": [],
+      "inputs": [
+        {
+          "name": "patch",
+          "type": "guild.patch.v1"
+        }
+      ],
+      "outputs": [],
+      "required": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "plan",
+      "to": "build",
+      "on": "pass"
+    },
+    {
+      "from": "build",
+      "to": "d5",
+      "on": "pass"
+    },
+    {
+      "from": "d5",
+      "to": "qa",
+      "on": "pass"
+    },
+    {
+      "from": "qa",
+      "to": "security-review",
+      "on": "pass"
+    },
+    {
+      "from": "security-review",
+      "to": "build",
+      "on": "changes-requested"
+    },
+    {
+      "from": "security-review",
+      "to": "ops",
+      "on": "pass"
+    },
+    {
+      "from": "ops",
+      "to": "d8",
+      "on": "pass"
+    },
+    {
+      "from": "d8",
+      "to": "release",
+      "on": "pass"
+    }
+  ],
+  "entry": "plan",
+  "protected_gates": [
+    "d5",
+    "qa",
+    "ops",
+    "d8"
+  ],
+  "obligations": [
+    {
+      "id": "ob-quality-build",
+      "kind": "quality",
+      "node_id": "build",
+      "subject_hash": "sha256:9393939393939393939393939393939393939393939393939393939393939393",
+      "invocation_id": "inv-build-1",
+      "round": 1,
+      "status": "accepted",
+      "authority": "controller-a",
+      "evidence": [
+        {
+          "source_id": "source-a",
+          "path": "runs/run-20261105-000002-composed/evidence/build-tests.json",
+          "sha256": "sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+          "schema_version": "guild.evidence.v1",
+          "observed_at": "2026-11-04T10:00:00Z",
+          "availability": "available",
+          "reason": null
+        }
+      ]
+    },
+    {
+      "id": "ob-security-r1",
+      "kind": "security",
+      "node_id": "security-review",
+      "subject_hash": "sha256:9292929292929292929292929292929292929292929292929292929292929292",
+      "invocation_id": "inv-security-review-1",
+      "round": 1,
+      "status": "invalidated",
+      "authority": "controller-a",
+      "evidence": [
+        {
+          "source_id": "source-a",
+          "path": "runs/run-20261105-000002-composed/evidence/security-r1.json",
+          "sha256": "sha256:e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+          "schema_version": "guild.evidence.v1",
+          "observed_at": "2026-11-04T10:00:00Z",
+          "availability": "available",
+          "reason": null
+        },
+        {
+          "source_id": "source-a",
+          "path": "runs/run-20261105-000002-composed/evidence/security-r1-transcript.json",
+          "sha256": "sha256:e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3",
+          "schema_version": "guild.evidence.v1",
+          "observed_at": "2026-11-04T10:00:00Z",
+          "availability": "redacted",
+          "reason": "reviewer transcript withheld"
+        }
+      ]
+    },
+    {
+      "id": "ob-security-r2",
+      "kind": "security",
+      "node_id": "security-review",
+      "subject_hash": "sha256:9292929292929292929292929292929292929292929292929292929292929292",
+      "invocation_id": "inv-security-review-1",
+      "round": 2,
+      "status": "pending",
+      "authority": "controller-a",
+      "evidence": []
+    }
+  ],
+  "invocations": [
+    {
+      "id": "inv-build-1",
+      "node_id": "build",
+      "round": 1,
+      "max_rounds": 1,
+      "unresolved_questions": [],
+      "state": "accepted",
+      "definition_hash": "sha256:1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "subject_hash": "sha256:9393939393939393939393939393939393939393939393939393939393939393"
+    },
+    {
+      "id": "inv-security-review-1",
+      "node_id": "security-review",
+      "round": 2,
+      "max_rounds": 3,
+      "unresolved_questions": [
+        "q-auth-token-scope"
+      ],
+      "state": "active",
+      "definition_hash": "sha256:1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "subject_hash": "sha256:9292929292929292929292929292929292929292929292929292929292929292"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "a02-example.json": {
+    "copied_from": "contracts/guild-stack/v2/fixtures/examples.json#/workflow-projection",
+    "source_file_sha256": "sha256:65d31e50c7d8afea211952877fa9e345c57a3072634d65ccd22498d9b2c6c201"
+  },
+  "at41-run-new.json": "AT41 fixture: composed product workflow, interrupted run (security-review round 2 of 3 active), repaired assurance (round-1 obligation invalidated). Valid under contracts/guild-stack/v2/verify_contracts.py validate('workflow-projection').",
+  "at41-run-old.json": "AT41 fixture: earlier run of the same workflow pinned to its own definition hash. Valid under the same validator."
+}
