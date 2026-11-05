@@ -22,6 +22,8 @@ import * as path from "node:path";
 const durableGuildDir = (root: string) => path.join(root, ".guild");
 import { inputManifestDigest, readRunInputs, RUN_ANALYSIS_V2_VERSIONS } from "./run-analysis.js";
 import { RUN_LEDGER_VERSIONS, normalizeRunLedger, type PriceTable } from "./run-ledger.js";
+import { readRetained } from "./contained-read.js";
+import { EvaluationLedger, EvaluationRefusal, evaluationFact, evaluationSpend, pairedEvaluation, type EvaluationSpend, type LedgerEntry, type PairedEvaluation } from "./evaluation.js";
 import { TRACE_ID_RE, compareTraceInstants, isRfc3339, type TraceAnalysisV3 } from "./trace-analysis.js";
 import {
   METRIC_DRILLDOWN_V2_SCHEMA,
@@ -50,12 +52,13 @@ import {
   type RefusalV2,
   type RunFacts,
   type Snapshot,
+  type SourceEvaluations,
   type SourceFacts,
   type UsageFact,
   type WindowBasis,
 } from "./metric-series.js";
 
-export const PROJECT_READ_LIMITS = Object.freeze({ sources: 100, runs_per_source: 10000, page: 1000 });
+export const PROJECT_READ_LIMITS = Object.freeze({ sources: 100, runs_per_source: 10000, page: 1000, evaluations_per_source: 1000 });
 const TRACE_SCHEMA = "guild.trace.analysis.v3";
 
 export interface ProjectSource { source_id: string; root: string }
@@ -64,7 +67,12 @@ export interface SourceDiagnostics {
   runs: number; runs_without_trace: number; invalid_events: number; pending_requests: number | null; duplicates: number;
   run_errors: { run_id: string; reason: string }[];
 }
-export interface ProjectSnapshot { facts: FactSet; diagnostics: SourceDiagnostics[]; pricing: PriceTable | null; cursor_key: Buffer }
+export interface EvaluationRead { entry: LedgerEntry; paired: PairedEvaluation }
+export interface ProjectSnapshot {
+  facts: FactSet; diagnostics: SourceDiagnostics[]; pricing: PriceTable | null; cursor_key: Buffer;
+  /** B01: imported evaluations by `source:evaluation id`, paired once per snapshot. */
+  evaluations: Map<string, EvaluationRead>;
+}
 
 /**
  * Cursors are MAC'd with a service key, so a client cannot mint an offset or point.
@@ -153,7 +161,7 @@ function unavailableSource(s: ProjectSource, reason: string): { facts: SourceFac
   };
 }
 
-function readSource(s: ProjectSource, asOf: string, pricing: PriceTable | null): { facts: SourceFacts; diag: SourceDiagnostics } {
+function readSource(s: ProjectSource, asOf: string, pricing: PriceTable | null): { facts: SourceFacts; diag: SourceDiagnostics; evaluations?: Map<string, EvaluationRead> } {
   let st: fs.Stats;
   try { st = fs.statSync(s.root); } catch { return unavailableSource(s, "source root is offline or unreadable"); }
   if (!st.isDirectory()) return unavailableSource(s, "source root is not a directory");
@@ -209,8 +217,99 @@ function readSource(s: ProjectSource, asOf: string, pricing: PriceTable | null):
   }
   // Names are diagnostic text here, not ids: keep them printable and bounded.
   for (const [n, reason] of unsupportedReasons) diag.run_errors.push({ run_id: JSON.stringify(n).slice(1, -1).slice(0, 128), reason });
-  const generation = sha256(canonicalJson({ source_id: s.source_id, runs: gens, unsupported: unsupported.map((n) => [n, unsupportedReasons.get(n)]) }));
-  return { facts: { source_id: s.source_id, generation, state: "available", reason: null, runs, unenumerated_runs: unsupported.length, outcomes: "not_collected", tasks: [] }, diag };
+  const ev = readEvaluations(s, asOf);
+  // A source without a benchmark home keeps its T04 generation; one with evaluations hashes them too.
+  const generation = sha256(canonicalJson({ source_id: s.source_id, runs: gens, unsupported: unsupported.map((n) => [n, unsupportedReasons.get(n)]), ...(ev.generation ? { evaluations: ev.generation } : {}) }));
+  return { facts: { source_id: s.source_id, generation, state: "available", reason: null, runs, unenumerated_runs: unsupported.length, outcomes: "not_collected", tasks: [], evaluations: ev.evaluations }, diag, evaluations: ev.reads };
+}
+
+const BENCHMARK_HOME = "artifacts/generated/benchmarks";
+
+/**
+ * B01: every evaluation under `<root>/.guild/artifacts/generated/benchmarks/<id>/`
+ * (`evaluation-manifest.json` + optional `trials.jsonl`), imported through one
+ * ledger so a repeated trial line or re-import is one attempt and one billable set.
+ * A directory that cannot be imported stays as an unreadable evaluation, never absent.
+ */
+function readEvaluations(s: ProjectSource, asOf: string): { evaluations: SourceEvaluations; generation: string | null; reads: Map<string, EvaluationRead> } {
+  const reads = new Map<string, EvaluationRead>();
+  const home = path.join(durableGuildDir(s.root), ...BENCHMARK_HOME.split("/"));
+  let names: string[];
+  try {
+    const l = fs.lstatSync(home);
+    if (!l.isDirectory()) {
+      const unreadable = [{ evaluation_id: "benchmarks", reason: "benchmark artifact home is not a directory" }];
+      return { evaluations: { state: "collected", facts: [], unreadable }, generation: sha256(canonicalJson(unreadable)), reads };
+    }
+    names = fs.readdirSync(home).sort();
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { evaluations: { state: "not_collected", facts: [], unreadable: [] }, generation: null, reads };
+    const unreadable = [{ evaluation_id: "benchmarks", reason: "benchmark artifact home is unreadable" }];
+    return { evaluations: { state: "collected", facts: [], unreadable }, generation: sha256(canonicalJson(unreadable)), reads };
+  }
+  const facts: SourceEvaluations["facts"] = [];
+  const unreadable: SourceEvaluations["unreadable"] = [];
+  const gens: unknown[] = [];
+  const label = (n: string) => JSON.stringify(n).slice(1, -1).slice(0, 128);
+  if (names.length > PROJECT_READ_LIMITS.evaluations_per_source) {
+    unreadable.push({ evaluation_id: "benchmarks", reason: `more than ${PROJECT_READ_LIMITS.evaluations_per_source} evaluations; enumeration bound exceeded` });
+    return { evaluations: { state: "collected", facts, unreadable }, generation: sha256(canonicalJson(unreadable)), reads };
+  }
+  for (const n of names) {
+    const fail = (reason: string) => { unreadable.push({ evaluation_id: label(n), reason }); gens.push([label(n), reason]); };
+    let l: fs.Stats;
+    try { l = fs.lstatSync(path.join(home, n)); } catch { fail("evaluation entry cannot be inspected"); continue; }
+    if (!l.isDirectory()) { if (l.isSymbolicLink()) fail("evaluation directory is a symlink"); continue; }
+    if (!TRACE_ID_RE.test(n) || n.includes(":")) { fail("evaluation directory name is not a contract path segment"); continue; }
+    const m = readRetained(s.root, `${BENCHMARK_HOME}/${n}/evaluation-manifest.json`);
+    const t = readRetained(s.root, `${BENCHMARK_HOME}/${n}/trials.jsonl`);
+    if (m.state !== "present") { fail(m.state === "absent" ? "evaluation-manifest.json is absent" : "evaluation-manifest.json is not a readable contained regular file"); continue; }
+    if (t.state === "refused") { fail("trials.jsonl is not a readable contained regular file"); continue; }
+    const tBytes = t.state === "present" ? t.bytes : Buffer.alloc(0);
+    gens.push([n, sha256(m.bytes), sha256(tBytes)]);
+    let manifest: any;
+    const trials: unknown[] = [];
+    try {
+      manifest = JSON.parse(m.bytes.toString("utf8"));
+      for (const line of tBytes.toString("utf8").split("\n")) if (line.trim()) trials.push(JSON.parse(line));
+    } catch { unreadable.push({ evaluation_id: n, reason: "evaluation input is not valid JSON" }); continue; }
+    if (manifest?.evaluation?.id !== n) { unreadable.push({ evaluation_id: n, reason: "manifest evaluation id differs from its artifact directory" }); continue; }
+    if (manifest?.evaluation?.source_id !== s.source_id) { unreadable.push({ evaluation_id: n, reason: `manifest is owned by another source, not ${s.source_id}` }); continue; }
+    const late = [manifest?.receipt?.observed_at, ...trials.map((x: any) => x?.evidence?.observed_at)].find((x) => typeof x === "string" && isRfc3339(x) && compareTraceInstants(x, asOf) >= 0);
+    if (late) throw new SeriesRefusal("stale_source", `as_of ${asOf} precedes retained evaluation evidence of ${s.source_id}:${n}`, true);
+    const ledger = new EvaluationLedger();
+    try {
+      ledger.import(manifest, trials);
+      const entry = ledger.entries.get(`${s.source_id}:${n}`)!;
+      const paired = pairedEvaluation(entry);
+      facts.push(evaluationFact(entry, paired));
+      reads.set(entry.key, { entry, paired });
+    } catch (err) {
+      if (!(err instanceof EvaluationRefusal)) throw err;
+      unreadable.push({ evaluation_id: n, reason: `${err.code}: ${err.message}`.slice(0, 400) });
+    }
+  }
+  return { evaluations: { state: "collected", facts, unreadable }, generation: sha256(canonicalJson(gens)), reads };
+}
+
+export interface EvaluationReport { paired: PairedEvaluation; spend: EvaluationSpend }
+/**
+ * One evaluation's paired result plus its operational spend joined with its linked
+ * runs from the same snapshot. Quality and operational efficiency stay separate.
+ */
+export function evaluationReport(snap: ProjectSnapshot, sourceId: string, evaluationId: string): EvaluationReport | null {
+  const r = snap.evaluations.get(`${sourceId}:${evaluationId}`);
+  if (!r) return null;
+  const runs: RunFacts[] = [];
+  const unresolved: string[] = [];
+  for (const l of r.entry.manifest.linked_runs) {
+    if (runs.some((x) => x.source_id === l.source_id && x.run_id === l.id)) continue;
+    const src = snap.facts.sources.find((x) => x.source_id === l.source_id);
+    const run = src?.runs.find((x) => x.run_id === l.id);
+    if (!run || run.usage_state !== "available" || run.extra_missing !== 0) unresolved.push(`${l.source_id}:${l.id}`);
+    if (run) runs.push(run);
+  }
+  return { paired: r.paired, spend: evaluationSpend(r.entry, runs, unresolved) };
 }
 
 /** Read every requested source into one immutable snapshot of facts. */
@@ -231,6 +330,7 @@ export function openProjectSnapshot(sources: readonly ProjectSource[], opts: { a
   return {
     facts: { snapshot, sources: read.map((r) => r.facts), pricing: pricing ? { version: pricing.version, currency: pricing.currency, source_hash: pricing.source_hash } : null },
     diagnostics: read.map((r) => r.diag), pricing, cursor_key: opts.cursor_key ?? PROCESS_CURSOR_KEY,
+    evaluations: new Map(read.flatMap((r) => [...(r.evaluations ?? new Map<string, EvaluationRead>()).entries()])),
   };
 }
 

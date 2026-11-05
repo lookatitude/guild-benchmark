@@ -122,6 +122,27 @@ export interface SourceFacts {
   /** Whether a producer recorded task outcome axes; without one, outcome metrics are unknown, never zero. */
   outcomes: "collected" | "not_collected";
   tasks: TaskFact[];
+  /** B01 evaluation facts; absent means not collected. */
+  evaluations?: SourceEvaluations;
+}
+/** One evaluation's paired facts (B01). Samples are compatible paired deltas; scores are completed trials. */
+export interface EvaluationFact {
+  source_id: string; evaluation_id: string; applied_revision: string | null;
+  arm_revisions: { baseline: string; candidate: string };
+  compatibility: "compatible" | "refused"; refusal_reasons: string[];
+  expected_samples: number; incomplete_samples: number; exclusions: Record<string, number>;
+  samples: { case_id: string; pair_id: string; scorer_version: string; score_delta: number; cost_delta_usd: number | null; latency_delta_ms: number | null; evidence: Evidence }[];
+  cost_basis: "measured" | "derived_estimate" | "unavailable" | "mixed";
+  /** Completed trials; `revision` is the declared revision of the trial's arm. */
+  scores: { case_id: string; pair_id: string; scorer_version: string; arm: "baseline" | "candidate"; revision: string; score: number; compatible: boolean; evidence: Evidence }[];
+  evidence: Evidence;
+}
+export interface SourceEvaluations {
+  /** `not_collected`: the source has no benchmark artifact home; its evaluation facts are unknown, never zero. */
+  state: "collected" | "not_collected";
+  facts: EvaluationFact[];
+  /** Evaluation directories that exist but cannot be imported; they keep the evaluation enumeration unknown. */
+  unreadable: { evaluation_id: string; reason: string }[];
 }
 export interface FactSet { snapshot: Snapshot; sources: SourceFacts[]; pricing: { version: string; currency: string; source_hash: string } | null }
 
@@ -622,6 +643,141 @@ function groupKeys(s: Scope, by: GroupBy): Map<string, Scope> {
   return new Map([...out.entries()].sort((a, b) => cmp(a[0], b[0])));
 }
 
+// ── M28 evaluation series (B01) ──────────────────────────────────────────────
+
+const EVAL_DIMENSIONS = new Set(["case", "scorer", "pair", "applied_revision", "workflow_revision"]);
+const isM28 = (id: string) => familyOf(id) === "M28";
+
+interface EvalScope { facts: EvaluationFact[]; unknown: string[]; sampleFiltered: boolean }
+
+function selectEvaluationScope(facts: FactSet, q: QueryIdentity, only: string | null): EvalScope {
+  for (const f of q.filters) if (!EVAL_DIMENSIONS.has(f.dimension)) throw new SeriesRefusal("unsupported_capability", `filter dimension ${f.dimension} is not served for evaluation series`);
+  if (q.window.timezone !== "UTC") throw new SeriesRefusal("invalid_request", "windows are UTC [from,to)");
+  if (q.window.basis !== "as_of_snapshot" || q.window.to !== q.snapshot.as_of) throw new SeriesRefusal("invalid_request", "evaluation series are as_of_snapshot inventories ending at the snapshot as_of");
+  const applied = q.filters.find((f) => f.dimension === "applied_revision");
+  const out: EvalScope = { facts: [], unknown: [], sampleFiltered: q.filters.some((f) => f.dimension === "case" || f.dimension === "scorer" || f.dimension === "pair") };
+  const bySource = new Map(facts.sources.map((s) => [s.source_id, s]));
+  for (const sid of q.snapshot.source_ids) {
+    if (only !== null && sid !== only) continue;
+    const s = bySource.get(sid);
+    if (!s) throw new SeriesRefusal("source_unavailable", `snapshot source ${sid} has no facts`);
+    if (s.state !== "available") { out.unknown.push(`source ${sid} unavailable`); continue; }
+    const ev = s.evaluations;
+    if (!ev || ev.state !== "collected") { out.unknown.push(`source ${sid} has no evaluation producer; evaluation facts unknown`); continue; }
+    for (const u of ev.unreadable.slice(0, 20)) out.unknown.push(`source ${sid} evaluation ${u.evaluation_id} cannot be imported: ${u.reason}`);
+    if (ev.unreadable.length > 20) out.unknown.push(`${ev.unreadable.length - 20} more unreadable evaluations in ${sid}`);
+    for (const f of ev.facts) {
+      if (applied && (f.applied_revision === null || !applied.values.includes(f.applied_revision))) continue;
+      out.facts.push(f);
+    }
+  }
+  return out;
+}
+
+const sampleMatch = (q: QueryIdentity, x: { case_id: string; pair_id: string; scorer_version: string }) => q.filters.every((f) =>
+  f.dimension === "case" ? f.values.includes(x.case_id) : f.dimension === "pair" ? f.values.includes(x.pair_id) : f.dimension === "scorer" ? f.values.includes(x.scorer_version) : true);
+
+function evaluationCalc(metric: AtomicMetric, s: EvalScope, q: QueryIdentity): Calc {
+  const id = metric.id;
+  const cost = id === "M28.paired_cost_delta_usd";
+  const revisionFilter = q.filters.find((f) => f.dimension === "workflow_revision");
+  if (id === "M28.evaluation_score") {
+    // Each evaluation contributes the arms the filter selects (both without one); two arms never pool.
+    const armsOf = (f: EvaluationFact) => [f.arm_revisions.baseline, f.arm_revisions.candidate].filter((r) => !revisionFilter || revisionFilter.values.includes(r));
+    if (s.facts.some((f) => armsOf(f).length > 1)) throw new SeriesRefusal("unsupported_capability", "scores of baseline and candidate revisions are not pooled; filter by one workflow_revision");
+    const scores = s.facts.flatMap((f) => f.scores.filter((x) => armsOf(f).includes(x.revision)).map((x) => ({ f, x })));
+    const inScope = scores.filter(({ x }) => sampleMatch(q, x));
+    const compatible = inScope.filter(({ x }) => x.compatible);
+    if (new Set(compatible.map(({ x }) => x.scorer_version)).size > 1) throw new SeriesRefusal("unsupported_capability", "scores of several scorer versions are not pooled; filter by scorer");
+    if (new Set(compatible.map(({ x }) => x.revision)).size > 1) throw new SeriesRefusal("unsupported_capability", "scores of baseline and candidate revisions are not pooled; filter by workflow_revision");
+    const exclusions: Record<string, number> = { incompatible_conditions: inScope.length - compatible.length };
+    // One arm's slots per evaluation; a filtered slice is only known when that arm completed every slot.
+    let eligible: number | null = s.unknown.length ? null : 0;
+    const reasons = [...s.unknown];
+    for (const f of s.facts) {
+      const mine = compatible.filter(({ f: g }) => g === f).length;
+      const arms = armsOf(f);
+      const armAll = f.scores.filter((x) => x.compatible && arms.includes(x.revision)).length;
+      const armIncompatible = f.scores.filter((x) => !x.compatible && arms.includes(x.revision)).length;
+      const slotsOfArm = f.expected_samples * arms.length;
+      const open = slotsOfArm - armAll - armIncompatible;
+      if (open > 0) reasons.push(`evaluation ${f.source_id}:${f.evaluation_id} has ${open} slots without a completed trial`);
+      if (eligible === null) continue;
+      if (!s.sampleFiltered) eligible += mine + Math.max(0, open);
+      else if (open > 0) eligible = null;
+      else eligible += mine;
+    }
+    const n = compatible.length;
+    const sum = compatible.reduce((a, { x }) => a + x.score, 0);
+    const cov = makeCoverage(eligible === null ? null : Math.max(eligible, n), n, exclusions, reasons.join("; ").slice(0, 4000) || "some evaluation slots have no completed trial");
+    return ratioCalc(sum, n, cov, compatible.map(({ x }) => x.evidence), "no completed compatible trial in scope");
+  }
+  if (revisionFilter) throw new SeriesRefusal("unsupported_capability", "a paired delta spans both arm revisions; workflow_revision does not filter it");
+  const samples = s.facts.flatMap((f) => f.samples.filter((x) => sampleMatch(q, x)).map((x) => ({ f, x })));
+  if (new Set(samples.map(({ x }) => x.scorer_version)).size > 1 && id === "M28.paired_score_delta") throw new SeriesRefusal("unsupported_capability", "paired score deltas of several scorer versions are not pooled; filter by scorer");
+  const exclusions: Record<string, number> = {};
+  let eligible: number | null = s.unknown.length ? null : 0;
+  const reasons = [...s.unknown];
+  for (const f of s.facts) {
+    if (f.compatibility === "refused") reasons.push(`evaluation ${f.source_id}:${f.evaluation_id} refused: ${f.refusal_reasons.join("; ")}`);
+    const lost = f.incomplete_samples + Object.values(f.exclusions).reduce((a, n) => a + n, 0);
+    if (f.incomplete_samples) reasons.push(`evaluation ${f.source_id}:${f.evaluation_id} has ${f.incomplete_samples} incomplete pair repetitions`);
+    if (!s.sampleFiltered) for (const [k, n] of Object.entries(f.exclusions)) exclusions[k] = (exclusions[k] ?? 0) + n;
+    if (eligible === null) continue;
+    const mine = samples.filter(({ f: g }) => g === f).length;
+    // Incomplete and excluded pairs carry no case attribution: a filtered slice is unknown when any exist.
+    if (s.sampleFiltered && lost > 0) eligible = null;
+    else eligible += mine + (s.sampleFiltered ? 0 : f.incomplete_samples);
+  }
+  const reason = reasons.join("; ").slice(0, 4000) || null;
+  if (id === "M28.pair_count") {
+    const pairs = new Map<string, Evidence>();
+    for (const { f, x } of samples) { const k = `${f.source_id}\u0000${f.evaluation_id}\u0000${x.pair_id}`; if (!pairs.has(k)) pairs.set(k, x.evidence); }
+    const cov = makeCoverage(eligible, samples.length, exclusions, reason ?? "pair enumeration incomplete");
+    if (cov.state === "unavailable") return { ...unavailableCalc(cov.reason!, false), coverage: cov };
+    return { value: pairs.size, known_subtotal: pairs.size, exact_total: cov.state === "complete" ? pairs.size : null, numerator: null, denominator: null, coverage: cov, cost_basis: "not_applicable", reason: cov.state === "complete" ? null : cov.reason, records: [...pairs.values()] };
+  }
+  const pick = (x: EvaluationFact["samples"][number]) => (id === "M28.paired_score_delta" ? x.score_delta : cost ? x.cost_delta_usd : x.latency_delta_ms);
+  if (cost) {
+    const bases = new Set(s.facts.filter((f) => samples.some(({ f: g }) => g === f)).map((f) => f.cost_basis));
+    bases.delete("unavailable");
+    if (bases.has("mixed") || bases.size > 1) throw new SeriesRefusal("unsupported_capability", "evaluation costs mix measured and estimated bases");
+    if (bases.has("derived_estimate")) throw new SeriesRefusal("unsupported_capability", "derived-estimate evaluation costs carry no pinned pricing in this read");
+  }
+  const known = samples.filter(({ x }) => pick(x) !== null);
+  const sum = known.reduce((a, { x }) => a + pick(x)!, 0);
+  const cov = makeCoverage(eligible === null ? null : Math.max(eligible, known.length), known.length, exclusions, [reason, known.length < samples.length ? `${samples.length - known.length} paired samples report no ${cost ? "cost" : id === "M28.paired_latency_delta_ms" ? "latency" : "score"}` : null].filter(Boolean).join("; ") || "paired samples incomplete");
+  const records = known.map(({ x }) => x.evidence);
+  if (cov.state === "unavailable") return { ...unavailableCalc(cov.reason!, cost), coverage: cov, records };
+  if (known.length === 0) return { value: null, known_subtotal: null, exact_total: null, numerator: 0, denominator: 0, coverage: cov, cost_basis: cost ? "measured" : "not_applicable", reason: "no paired sample in scope", records };
+  return { value: sum / known.length, known_subtotal: null, exact_total: null, numerator: sum, denominator: known.length, coverage: cov, cost_basis: cost ? "measured" : "not_applicable", reason: cov.state === "complete" ? null : cov.reason, records };
+}
+
+function computeEvaluationSeries(facts: FactSet, q: QueryIdentity, metric: AtomicMetric, hash: string, by: GroupBy, cursor: CursorFor | undefined): ComputedSeries {
+  if (by !== "all" && by !== "source") throw new SeriesRefusal("unsupported_capability", `evaluation series group by all or source, not ${by}`);
+  if (q.versions.usage_semantics !== "not_applicable") throw new SeriesRefusal("invalid_request", `query pins usage semantics ${q.versions.usage_semantics}; evaluation series carry not_applicable`);
+  const whole = evaluationCalc(metric, selectEvaluationScope(facts, q, null), q);
+  const groups: [string, Calc][] = by === "all" ? [["all", whole]] : [...q.snapshot.source_ids].sort().map((sid) => [sid, evaluationCalc(metric, selectEvaluationScope(facts, q, sid), q)]);
+  const records = new Map<string, Evidence[]>();
+  const points: SeriesPoint[] = groups.map(([key, c]) => {
+    const rs = sortEvidence(c.records);
+    records.set(key, rs);
+    return {
+      key, value: c.value, known_subtotal: c.known_subtotal, exact_total: c.exact_total, numerator: c.numerator, denominator: c.denominator,
+      coverage: c.coverage, cost_basis: c.cost_basis, reason: c.reason, evidence: rs.slice(0, SERIES_LIMITS.evidence),
+      drilldown: { query_hash: hash, cursor: rs.length && cursor ? cursor(key, 0, rs.length) : null },
+    };
+  });
+  return {
+    series: {
+      schema_version: METRIC_SERIES_V2_SCHEMA, metric_id: metric.id, underlying_formula_version: null, underlying_metric_id: null,
+      unit: metric.unit, unit_label: UNIT_LABEL[metric.unit] ?? metric.unit, query: q, usage_semantics: "not_applicable",
+      pricing: null, coverage: whole.coverage, points,
+    },
+    records,
+  };
+}
+
 // ── Series ───────────────────────────────────────────────────────────────────
 
 export interface ComputedSeries { series: MetricSeriesV2; records: Map<string, Evidence[]> }
@@ -658,6 +814,7 @@ export function pinQuery(base: Omit<QueryIdentity, "versions" | "underlying_scal
 export function seriesUsageSemantics(facts: FactSet, q: QueryIdentity, metricId: string, underlying: string | null = null): UsageSemantics {
   const m = ATOMIC_BY_ID.get(metricId === "M29.series_value" && underlying ? underlying : metricId);
   if (!m) throw new SeriesRefusal("unsupported_capability", `metric ${metricId} is not in the C9 catalog`);
+  if (isM28(m.id)) return "not_applicable";
   return usageSemanticsOf(m, selectScope(facts, q, false));
 }
 
@@ -671,6 +828,12 @@ export function computeMetricSeries(facts: FactSet, q: QueryIdentity, opts: { gr
   const effective = metric.id === "M29.series_value" ? ATOMIC_BY_ID.get(q.underlying_scalar?.metric_id ?? "") : metric;
   if (!effective || (metric.id === "M29.series_value" && q.underlying_scalar?.formula_version !== effective.formula_version)) throw new SeriesRefusal("invalid_request", "M29 underlying scalar does not name a catalog metric version");
   if (metric.id !== "M29.series_value" && q.underlying_scalar !== null) throw new SeriesRefusal("invalid_request", "only M29 carries an underlying scalar");
+  if (isM28(effective.id)) {
+    // An M29 alias of an M28 scalar keeps the alias identity on the series.
+    const r = computeEvaluationSeries(facts, q, effective, queryHash(q), opts.group_by ?? "all", opts.cursor);
+    if (metric.id === "M29.series_value") r.series = { ...r.series, metric_id: metric.id, underlying_formula_version: effective.formula_version, underlying_metric_id: effective.id };
+    return r;
+  }
   const scope = selectScope(facts, q, OUTCOME_METRICS.has(effective.id));
   const semantics = usageSemanticsOf(effective, scope);
   if (q.versions.usage_semantics !== semantics) throw new SeriesRefusal("invalid_request", `query pins usage semantics ${q.versions.usage_semantics}; the scope observes ${semantics}`);

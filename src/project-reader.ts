@@ -26,7 +26,7 @@ import { basename, isAbsolute, join, normalize, relative, resolve, sep } from "n
 import { parse as parseYaml } from "yaml";
 import { readContainedRegularFile } from "./safe-read.js";
 import { SeriesRefusal, queryHash, refusal, validateReadRequestV2, type GroupBy, type QueryFilter, type RefusalV2 } from "./c9/metric-series.js";
-import { openProjectSnapshot, projectQuery, readMetricDrilldown, readMetricSeries, readRequest, type ProjectQuerySpec, type ProjectSnapshot } from "./c9/project-read.js";
+import { evaluationReport, openProjectSnapshot, projectQuery, readMetricDrilldown, readMetricSeries, readRequest, type ProjectQuerySpec, type ProjectSnapshot } from "./c9/project-read.js";
 import { TRACE_ID_RE, isRfc3339 } from "./c9/trace-analysis.js";
 import { canonicalSourceId } from "./c9/source-identity.js";
 
@@ -2051,4 +2051,27 @@ export async function projectMetricDrilldown(projectRoot: string, body: unknown)
   if (!("facts" in snap)) return snap;
   const out = readMetricDrilldown(snap, parsed.request, { group_by: parsed.group_by, point_key: parsed.point_key });
   return isC9Refusal(out) ? c9RefusalResponse(out) : { status: 200, body: out };
+}
+
+/**
+ * B01: one evaluation's paired result and operational spend over the current snapshot.
+ * Body: `{source_id, evaluation_id, as_of?}`. Unknown evaluation → 404-shaped 422.
+ */
+export async function projectEvaluationReport(projectRoot: string, body: unknown, now: () => Date = () => new Date()): Promise<C9Response> {
+  if (!isPlainObject(body)) return { status: 400, body: { error: "request body must be a JSON object" } };
+  const { source_id, evaluation_id } = body;
+  if (typeof source_id !== "string" || source_id.length > 128 || typeof evaluation_id !== "string" || !TRACE_ID_RE.test(evaluation_id)) {
+    return { status: 400, body: { error: "body is {source_id, evaluation_id, as_of?}" } };
+  }
+  const asOf = body["as_of"] ?? now().toISOString();
+  if (typeof asOf !== "string" || !isRfc3339(asOf)) return { status: 400, body: { error: "as_of must be an RFC 3339 instant" } };
+  const snap = await openC9Snapshot(projectRoot, asOf, "evaluation-report");
+  if (!("facts" in snap)) return snap;
+  const report = evaluationReport(snap, source_id, evaluation_id);
+  if (!report) {
+    const src = snap.facts.sources.find((x) => x.source_id === source_id);
+    const bad = src?.evaluations?.unreadable.find((x) => x.evaluation_id === evaluation_id);
+    return { status: 422, body: { error: bad ? `evaluation cannot be imported: ${bad.reason}` : `no evaluation ${evaluation_id} in source ${source_id}` } };
+  }
+  return { status: 200, body: { snapshot: snap.facts.snapshot, ...report } };
 }
