@@ -2,11 +2,11 @@
 # ONE PR on sync/workspace. Same workspace SHA twice
 # = no new commit. Trap: the workspace repo is private; without
 # GUILD_SYNC_TOKEN this fails as "blocked" instead of silently skipping.
+# Manual run (workflow_dispatch) plus weekly schedule; the workspace opens a
+# `docs-sync` issue instead of dispatching.
 name: workspace-sync
 
 on:
-  repository_dispatch:
-    types: [workspace-sync]
   workflow_dispatch:
     inputs:
       workspace_ref:
@@ -14,7 +14,7 @@ on:
         required: false
         default: "main"
   schedule:
-    - cron: "41 6 * * 1" # weekly fallback for missed dispatches
+    - cron: "41 6 * * 1" # weekly fallback for a missed manual run
 
 permissions:
   contents: write
