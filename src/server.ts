@@ -38,7 +38,7 @@ import {
   readProjectAnalysisArtifact,
   resolveGuildSources,
 } from "./project-reader.js";
-import { projectMetricDrilldown, projectMetricQuery, projectMetricSeries, type C9Response } from "./project-reader.js";
+import { projectEvaluationReport, projectMetricDrilldown, projectMetricQuery, projectMetricSeries, type C9Response } from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -696,6 +696,8 @@ export function createApp(opts: ServerOpts): Hono {
   app.post("/api/project/metrics/series", c9Route(projectMetricSeries));
   // POST /api/project/metrics/drilldown → guild.stack.metric-drilldown.v2 page or refusal.
   app.post("/api/project/metrics/drilldown", c9Route(projectMetricDrilldown));
+  // POST /api/project/evaluations/report → B01 paired evaluation + operational spend.
+  app.post("/api/project/evaluations/report", c9Route((root, body) => projectEvaluationReport(root, body)));
 
   // GET /api/project/overview → workspace/project source summary.
   app.get("/api/project/overview", async (c) => {
