@@ -141,6 +141,8 @@ export interface AuthorityCheck {
    */
   status: "pins_current" | "stale";
   codes: AuthorityCheckCode[];
+  /** Pins this view has no current record to compare against; they are neither current nor stale here. */
+  unverified: ("scope_revision" | "capability_revision" | "policy_revision" | "writer_scope")[];
 }
 
 export type ReceiptCorrelation = "correlated" | "uncorrelated" | "absent";
@@ -176,6 +178,7 @@ export interface UsageEntry {
   cost_usd: number | null;
   cost_basis: "measured" | "derived_estimate" | "native_estimate" | "unavailable";
   final: boolean;
+  coverage: { state: "complete" | "partial" | "unavailable"; reason: string | null };
 }
 
 export type UsageView =
@@ -196,7 +199,8 @@ export interface CloseBlocker {
     | "receipt_loss_unreconciled"
     | "uncertain_effects"
     | "no_accepted_final_evidence"
-    | "transfer_unacknowledged";
+    | "transfer_unacknowledged"
+    | "record_refused";
   subject: string;
 }
 

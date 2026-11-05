@@ -125,6 +125,45 @@ const budget = obj({
   policy_hash: hash,
 });
 const errorDef = obj({ code: id, message: str(), retryable: bool });
+const coverageShape = obj({
+  eligible: nullable(int(0)),
+  covered: int(0),
+  excluded: int(0),
+  missing: nullable(int(0)),
+  state: oneOf("complete", "partial", "unavailable"),
+  reason: nullable(str()),
+  exclusion_reasons: arr(obj({ code: id, count: int(0) }), 0, 100),
+});
+const OPERATION_ARGS_SCHEMA = "https://guildstack.dev/contracts/guild-stack/v2/operation-arguments.schema.json";
+/** A02 operation-catalog.json: operation id → argument kind (all share the v2 arguments schema). */
+const OPERATION_CATALOG: Record<string, string> = {
+  "v2.launch": "launch",
+  "v2.resume": "resume",
+  "v2.cancel": "cancel",
+  "v2.seal": "seal",
+  "v2.close": "close",
+  "v2.transfer": "transfer",
+  "v2.workflow_adopt": "workflow_adopt",
+  "v2.knowledge_publish": "knowledge_publish",
+  "v2.refresh": "refresh",
+  "v2.evaluate": "evaluate",
+  "v2.report": "report",
+};
+const isOperationArguments = obj({
+  schema_version: oneOf("guild.stack.operation-arguments.v2"),
+  kind: oneOf(...Object.values(OPERATION_CATALOG)),
+  target: nullable(entity),
+  execution_id: nullable(id),
+  host_session_id: nullable(id),
+  attempt_id: nullable(id),
+  host_proof: nullable(evidence),
+  expected_revision: nullable(hash),
+  workflow_hash: nullable(hash),
+  policy_hash: hash,
+  budget: nullable(budget),
+  destination: nullable(entity),
+  payload_ref: nullable(evidence),
+});
 
 export const isLogicalRun = obj({
   schema_version: oneOf("guild.logical_run.v2"),
@@ -180,6 +219,17 @@ const isSeal = obj({
   sealed_at: time,
 });
 const TRANSFER_STATES: TransferState[] = ["reserved", "target_prepared", "source_committed", "target_activated", "acknowledged", "recovery_needed", "aborted"];
+const FORWARD_STAGES = ["reserved", "target_prepared", "source_committed", "target_activated", "acknowledged"] as const;
+/** R04 STAGE_FILES: the only stage file names the producer writes. */
+const STAGE_BY_FILE: Record<string, string> = {
+  "01-reserved.json": "reserved",
+  "02-target_prepared.json": "target_prepared",
+  "03-source_committed.json": "source_committed",
+  "04-target_activated.json": "target_activated",
+  "05-acknowledged.json": "acknowledged",
+  "aborted.json": "aborted",
+};
+const TRANSFER_BINDINGS = ["source_work", "expected_disposition_revision", "reserved_disposition_revision", "destination_work", "destination_policy_hash", "payload_hash"];
 export const isFollowupTransfer = obj({
   schema_version: oneOf("guild.followup_transfer.v1"),
   operation_id: id,
@@ -211,7 +261,7 @@ export const isOperationPreview = obj({
   targets: arr(entity, 1, 100),
   dependencies: arr(entity, 0, 100),
   input_schema_id: str(),
-  arguments: anyObj,
+  arguments: isOperationArguments,
   arguments_hash: hash,
   scope_revision: hash,
   capability_revision: hash,
@@ -269,10 +319,29 @@ const usage = obj({
   currency: oneOf("USD"),
   pricing_version: nullable(str()),
   usage_semantics: oneOf("inclusive_input_cache_subset.v1", "provider_session_only.v1", "unknown"),
-  coverage: anyObj,
+  coverage: coverageShape,
   native_baseline_usd: nullable(num0),
   native_cumulative_usd: nullable(num0),
 });
+const unique = (s: Spec): Spec => (v) => Array.isArray(v) && s(v) && new Set(v.map((x) => canonicalJson(x))).size === v.length;
+const FILTER_DIMENSIONS = ["initiative", "run", "execution", "phase", "goal", "task", "attempt", "agent", "host", "requested_model", "observed_model", "workflow_revision", "config", "case", "scorer", "pair", "applied_revision", "knowledge_channel", "generation"];
+const queryIdentity = obj({
+  schema_version: str(),
+  versions: obj({ schema: str(), analyzer: str(), normalizer: str(), formula: str(), usage_semantics: str(), pricing: str(), aggregation: str() }),
+  snapshot: obj({
+    input_manifest_digest: hash,
+    source_ids: unique(arr(id, 1, 100)),
+    source_generations: arr(obj({ source_id: id, generation: hash }), 1, 100),
+    as_of: time,
+  }),
+  grain: oneOf(...KINDS),
+  filters: arr(obj({ dimension: oneOf(...FILTER_DIMENSIONS), values: unique(arr(str(), 1, 100)) }), 0, 50),
+  window: obj({ from: time, to: time, basis: oneOf("activity_completed", "accepted_outcome_cohort", "as_of_snapshot"), timezone: str() }),
+  cohort_hash: hash,
+  underlying_scalar: nullable(obj({ metric_id: id, formula_version: str() })),
+});
+/** Metric series are not shown here; only their identity is checked against the enclosing analysis. */
+const metricRef: Spec = (v) => isObj(v) && v.schema_version === "guild.stack.metric-series.v2" && queryIdentity(v.query);
 const isAnalysisPointer = obj({
   schema_version: oneOf("guild.run_analysis_pointer.v2"),
   source_id: id,
@@ -286,22 +355,169 @@ const isRunAnalysis = obj({
   schema_version: oneOf("guild.run_analysis.v2"),
   run: entity,
   analysis_id: id,
-  query: anyObj,
+  query: queryIdentity,
   input_evidence: arr(evidence, 0, 1000),
   usage: arr(usage, 0, 1000),
   state: stateAxes,
-  metrics: arr(anyObj, 0, 104),
-  unallocated_request_ids: arr(id, 0, 1000),
+  metrics: arr(metricRef, 0, 104),
+  unallocated_request_ids: unique(arr(id, 0, 1000)),
   losses: arr(obj({ code: id, count: nint, reason: str() }), 0, 100),
 });
 
 // ── A02 semantic rules for the consumed records (verify_contracts.semantic_errors) ──
 
-/** Success requires verified acceptance, wherever state axes appear. */
-const axesOk = (s: unknown) => !isObj(s) || s.outcome !== "succeeded" || s.acceptance === "verified";
+/** Pre-action prerequisite: evidence present now. */
+const usable = (e: unknown) => isObj(e) && e.availability === "available";
+/** Historical prerequisite: available, or expired/redacted with a reason. */
+const disclosed = (e: unknown) =>
+  isObj(e) && (e.availability === "available" || ((e.availability === "expired" || e.availability === "redacted") && !!e.reason));
 
-export function semanticOk(kind: "logical-run" | "task-attempt" | "operation-preview" | "approval-record" | "operation-receipt", v: Obj): boolean {
-  if (kind === "logical-run" || kind === "task-attempt") return axesOk(v.state);
+/** State axes: success requires verified acceptance; closed cannot be pending/unknown. */
+const axesOk = (s: unknown) =>
+  !isObj(s) || ((s.outcome !== "succeeded" || s.acceptance === "verified") && (s.lifecycle !== "closed" || (s.outcome !== "pending" && s.outcome !== "unknown")));
+const intervalOk = (iv: Obj) =>
+  (iv.end === null || Date.parse(iv.end as string) >= Date.parse(iv.start as string)) && (iv.duration_ms === null || (iv.clock as Obj).basis !== "unknown");
+const lineageOk = (l: Obj) => l.attempt_id === null || l.logical_task_id !== null;
+const budgetOk = (b: unknown) =>
+  b === null || (isObj(b) && (b.threshold_usd as number) > 0 && b.overshoot_possible === (b.mode === "native_spend_threshold") && disclosed(b.qualification));
+
+function coverageOk(c: Obj): boolean {
+  const eligible = c.eligible as number | null;
+  const covered = c.covered as number;
+  const missing = c.missing as number | null;
+  if (eligible !== null && (covered > eligible || (missing !== null && covered + missing !== eligible))) return false;
+  if (c.state === "complete") return eligible !== null && covered === eligible && missing === 0;
+  if (!c.reason) return false;
+  return c.state !== "unavailable" || covered === 0;
+}
+
+const USAGE_COUNTERS = ["input_inclusive", "output", "cache_read_subset", "cache_write_subset", "total"] as const;
+
+function usageOk(u: Obj): boolean {
+  if (!coverageOk(u.coverage as Obj)) return false;
+  if ((u.coverage as Obj).state === "unavailable" && !USAGE_COUNTERS.every((k) => u[k] === null)) return false;
+  const input = u.input_inclusive as number | null;
+  if (input !== null && !(["cache_read_subset", "cache_write_subset"] as const).every((k) => u[k] === null || (u[k] as number) <= input)) return false;
+  const expected = input === null || u.output === null ? null : input + (u.output as number);
+  if (u.total !== expected) return false;
+  if ((u.cost_basis === "unavailable") !== (u.cost_usd === null)) return false;
+  if (u.cost_basis === "derived_estimate" && !u.pricing_version) return false;
+  if (u.granularity === "native_session") {
+    if (u.inclusion !== "session_cumulative" || u.usage_semantics !== "provider_session_only.v1") return false;
+    if (!(["input_inclusive", "output", "cache_read_subset", "cache_write_subset", "total"] as const).every((k) => u[k] === null)) return false;
+    if (u.cost_basis !== "native_estimate" && u.cost_basis !== "unavailable") return false;
+    if (u.cost_usd !== null) {
+      const base = u.native_baseline_usd as number | null;
+      const cum = u.native_cumulative_usd as number | null;
+      if (base === null || cum === null || cum < base || Math.abs((u.cost_usd as number) - (cum - base)) > 1e-12) return false;
+    }
+    return true;
+  }
+  return u.inclusion !== "session_cumulative";
+}
+
+function snapshotOk(snap: unknown): boolean {
+  if (!isObj(snap)) return false;
+  const gens = (snap.source_generations as Obj[]).map((g) => g.source_id);
+  const ids = new Set(snap.source_ids as unknown[]);
+  return new Set(gens).size === gens.length && gens.length === ids.size && gens.every((g) => ids.has(g));
+}
+
+const queryOk = (q: Obj) => snapshotOk(q.snapshot) && Date.parse((q.window as Obj).from as string) < Date.parse((q.window as Obj).to as string);
+/** A02 input_identity: the query without the per-metric formula version and underlying scalar. */
+function inputIdentity(q: Obj): string {
+  const { formula: _f, ...versions } = q.versions as Obj;
+  const { underlying_scalar: _u, ...rest } = q;
+  return canonicalJson({ ...rest, versions });
+}
+
+function analysisOk(a: Obj): boolean {
+  if (!axesOk(a.state)) return false;
+  const q = a.query as Obj;
+  if (!queryOk(q)) return false;
+  const metrics = a.metrics as Obj[];
+  if (!metrics.every((m) => queryOk(m.query as Obj) && inputIdentity(m.query as Obj) === inputIdentity(q))) return false;
+  const sources = new Set((q.snapshot as { source_ids: string[] }).source_ids);
+  const run = a.run as EntityRef;
+  if (run.kind !== "run" || !sources.has(run.source_id)) return false;
+  if (!(a.input_evidence as Obj[]).every((e) => sources.has(e.source_id as string))) return false;
+  const usage = a.usage as Obj[];
+  const seen = new Set<unknown>();
+  for (const u of usage) {
+    if (!usageOk(u) || seen.has(u.accounting_identity) || u.inclusion === "parent_inclusive") return false;
+    seen.add(u.accounting_identity);
+  }
+  const sessions = new Set(usage.filter((u) => u.granularity === "native_session").map((u) => u.accounting_identity));
+  return !usage.some((u) => u.granularity === "leaf_request" && sessions.has(u.parent_accounting_identity));
+}
+
+function argumentsOk(p: Obj): boolean {
+  const a = p.arguments as Obj;
+  const auth = p.authority as Obj;
+  const targets = (p.targets as EntityRef[]).map(canonicalJson);
+  const bound = [...targets, ...(p.dependencies as EntityRef[]).map(canonicalJson)];
+  if (!budgetOk(a.budget)) return false;
+  if (a.kind === "launch" && (a.budget === null || a.workflow_hash === null)) return false;
+  if (["resume", "cancel", "seal"].includes(a.kind as string) && (a.target === null || a.execution_id === null || a.expected_revision === null)) return false;
+  if (a.kind === "resume" && (a.host_session_id === null || a.attempt_id === null || !usable(a.host_proof))) return false;
+  if (a.kind === "cancel" && (a.attempt_id === null || !usable(a.host_proof))) return false;
+  if (a.budget !== null && !usable((a.budget as Obj).qualification)) return false;
+  if (a.kind === "transfer" && (a.destination === null || a.target === null || a.expected_revision === null)) return false;
+  // Bindings between the typed arguments and the reviewed preview.
+  if (a.kind !== OPERATION_CATALOG[p.operation as string]) return false;
+  if (a.target !== null && (!targets.includes(canonicalJson(a.target)) || a.expected_revision !== (a.target as EntityRef).revision)) return false;
+  if (a.destination !== null && !bound.includes(canonicalJson(a.destination))) return false;
+  for (const k of ["execution_id", "attempt_id"]) if (auth[k] !== null && a[k] !== auth[k]) return false;
+  if (a.policy_hash !== p.policy_revision || canonicalJson(a.budget) !== canonicalJson(p.budget)) return false;
+  if (a.budget !== null) {
+    const b = a.budget as Obj;
+    if (b.policy_hash !== a.policy_hash || (b.qualification as Obj).source_id !== p.source_id) return false;
+  }
+  return a.host_proof === null || (a.host_proof as Obj).source_id === p.source_id;
+}
+
+type SemanticKind =
+  | "logical-run"
+  | "execution-segment"
+  | "task-attempt"
+  | "followup-transfer"
+  | "run-analysis"
+  | "operation-preview"
+  | "approval-record"
+  | "operation-receipt";
+
+export function semanticOk(kind: SemanticKind, v: Obj): boolean {
+  switch (kind) {
+    case "logical-run": {
+      const owner = v.source_id;
+      return axesOk(v.state)
+        && (v.controller as Obj).source_id === owner
+        && (v.execution_refs as EntityRef[]).every((x) => x.source_id === owner && x.kind === "execution")
+        && (v.initial_prompt_ref === null || (v.initial_prompt_ref as Obj).source_id === owner);
+    }
+    case "execution-segment": {
+      const l = v.lineage as Obj;
+      return lineageOk(l) && intervalOk(v.interval as Obj) && (v.seal_evidence === null || (v.seal_evidence as Obj).source_id === l.source_id);
+    }
+    case "task-attempt": {
+      const l = v.lineage as Obj;
+      const owned = [v.assignment_ref, ...(v.result_refs as Obj[])] as Obj[];
+      if (!axesOk(v.state) || l.attempt_id === null || l.logical_task_id === null) return false;
+      if (!owned.every((e) => e.source_id === l.source_id)) return false;
+      return (v.state as Obj).outcome !== "succeeded"
+        || (v.receipt_loss_reconciled === true && v.uncertain_effects === false && v.accepted_by_controller_epoch !== null && v.acceptance_subject_hash !== null);
+    }
+    case "followup-transfer": {
+      const stage = TRANSFER_STATES.indexOf(v.state as TransferState);
+      if (stage >= 2 && stage <= 4 && !disclosed(v.source_commit)) return false;
+      if (stage >= 3 && stage <= 4 && !disclosed(v.target_activation)) return false;
+      return v.state !== "acknowledged" || disclosed(v.target_ack);
+    }
+    case "run-analysis":
+      return analysisOk(v);
+    default:
+      break;
+  }
   const auth = v.authority as Obj;
   if (auth.controller_source_id !== v.source_id) return false;
   if (kind === "operation-preview") {
@@ -311,6 +527,10 @@ export function semanticOk(kind: "logical-run" | "task-attempt" | "operation-pre
     const tk = new Set(targets.map((t) => canonicalJson(t)));
     return targets.every((t) => t.source_id === owner)
       && effects.every((e) => e.target.source_id === owner && tk.has(canonicalJson(e.target)))
+      && Object.prototype.hasOwnProperty.call(OPERATION_CATALOG, v.operation as string)
+      && v.input_schema_id === OPERATION_ARGS_SCHEMA
+      && budgetOk(v.budget)
+      && argumentsOk(v)
       && v.arguments_hash === sha256Text(canonicalJson(v.arguments));
   }
   if (kind === "operation-receipt") {
@@ -355,6 +575,9 @@ export interface CurrentAuthority {
  * Revalidate a preview and its approval against the run's current state.
  * Pure: reads nothing and writes nothing. Anything it cannot confirm is stale.
  */
+/** No current scope, capability, policy or writer-scope record is readable here, so these pins stay unverified. */
+const UNVERIFIED_PINS = ["scope_revision", "capability_revision", "policy_revision", "writer_scope"] as const;
+
 export function checkOperationAuthority(preview: Obj, approval: Obj | null, current: CurrentAuthority): AuthorityCheck {
   const codes = new Set<AuthorityCheckCode>();
   const p = preview as {
@@ -378,7 +601,7 @@ export function checkOperationAuthority(preview: Obj, approval: Obj | null, curr
     if (a.session_id !== p.session_id) codes.add("approval_session_mismatch");
     if (canonicalJson(a.authority) !== canonicalJson(p.authority)) codes.add("approval_authority_mismatch");
   }
-  return { status: codes.size === 0 ? "pins_current" : "stale", codes: [...codes].sort() };
+  return { status: codes.size === 0 ? "pins_current" : "stale", codes: [...codes].sort(), unverified: [...UNVERIFIED_PINS] };
 }
 
 // ── Close blockers (display mirror of R04 evaluateTaskClose) ─────────────────
@@ -386,8 +609,10 @@ export function checkOperationAuthority(preview: Obj, approval: Obj | null, curr
 const isLive = (s: StateAxes) => s.lifecycle === "created" || s.lifecycle === "active";
 const isOrphaned = (s: StateAxes) => !isLive(s) && (s.lifecycle !== "closed" || s.outcome === "pending" || s.outcome === "unknown");
 
-export function deriveCloseBlockers(attempts: LineageAttempt[], transfers: LineageTransfer[]): CloseBlocker[] {
+export function deriveCloseBlockers(attempts: LineageAttempt[], transfers: LineageTransfer[], refused: RefusedRecord[] = []): CloseBlocker[] {
   const out: CloseBlocker[] = [];
+  // A refused run record may hide a live attempt or an open transfer; it blocks close until fixed.
+  for (const r of refused) if (r.file.startsWith("lineage/") || r.file.startsWith("transfers")) out.push({ code: "record_refused", subject: r.file });
   for (const t of transfers) if (t.state !== "acknowledged" && t.state !== "aborted") out.push({ code: "transfer_unacknowledged", subject: t.operation_id });
   const byTask = new Map<string, LineageAttempt[]>();
   for (const a of attempts) {
@@ -420,7 +645,8 @@ function inside(root: string, target: string): boolean {
 
 interface Reader {
   read(rel: string, max?: number): Promise<{ text: string; json: unknown } | "absent" | "unreadable">;
-  list(relDir: string, wantDirs: boolean): Promise<string[] | "too_many">;
+  /** Absent directory → empty. `skipped` holds wanted names that are links or not regular entries. */
+  list(relDir: string, wantDirs: boolean): Promise<{ names: string[]; skipped: string[] } | "too_many" | "refused">;
   inputs: [string, string][];
 }
 
@@ -450,19 +676,30 @@ function makeReader(rootReal: string, prefix: string): Reader {
       let ents;
       try {
         const real = realpathSync(join(rootReal, ...relDir.split("/")));
-        if (!inside(rootReal, real)) return [];
+        if (!inside(rootReal, real)) return "refused";
         ents = await readdir(real, { withFileTypes: true });
-      } catch {
-        return [];
+      } catch (err) {
+        return (err as NodeJS.ErrnoException).code === "ENOENT" ? { names: [], skipped: [] } : "refused";
       }
-      // Dirent.isFile/isDirectory are false for symlinks, so links are skipped.
-      const names = ents
-        .filter((e) => (wantDirs ? e.isDirectory() : e.isFile() && e.name.endsWith(".json")) && !e.name.startsWith("."))
-        .map((e) => e.name)
-        .sort();
-      return names.length > MAX_RECORDS_PER_DIR ? "too_many" : names;
+      // Dirent.isFile/isDirectory are false for symlinks, so links land in `skipped`.
+      const wanted = ents.filter((e) => !e.name.startsWith(".") && (wantDirs || e.name.endsWith(".json")));
+      const ok = (e: (typeof ents)[number]) => (wantDirs ? e.isDirectory() : e.isFile());
+      const names = wanted.filter(ok).map((e) => e.name).sort();
+      const skipped = wanted.filter((e) => !ok(e)).map((e) => e.name).sort();
+      return names.length + skipped.length > MAX_RECORDS_PER_DIR ? "too_many" : { names, skipped };
     },
   };
+}
+
+/** List `dir`, recording an unreadable directory and every skipped link or irregular entry as refused. */
+async function listOrRefuse(r: Reader, dir: string, wantDirs: boolean, refused: RefusedRecord[], prefix = ""): Promise<string[]> {
+  const got = await r.list(dir, wantDirs);
+  if (got === "too_many" || got === "refused") {
+    refused.push({ file: `${prefix}${dir}`, reason: got === "too_many" ? "too_many_records" : "unreadable" });
+    return [];
+  }
+  for (const n of got.skipped) refused.push({ file: `${prefix}${dir}/${n}`, reason: "unreadable" });
+  return got.names;
 }
 
 const summary = (e: Obj): EvidenceSummary => ({
@@ -523,11 +760,7 @@ export async function readProjectRunLineage(
 
   /** Read every `<dir>/*.json`; returns (file-stem, record, revision) for records passing `valid` and `owned`. */
   async function readDir<T>(dir: string, valid: Spec, owned: (r: T, stem: string) => RefusedRecord["reason"] | null) {
-    const names = await rd.list(dir, false);
-    if (names === "too_many") {
-      refused.push({ file: dir, reason: "too_many_records" });
-      return [];
-    }
+    const names = await listOrRefuse(rd, dir, false, refused);
     const out: { stem: string; rec: T; revision: string }[] = [];
     for (const n of names) {
       const file = `${dir}/${n}`;
@@ -555,7 +788,7 @@ export async function readProjectRunLineage(
   const ownLineage = (l: Lin, stem: string, key: "execution_id" | "attempt_id") =>
     l.source_id !== sourceId ? "foreign_source" : l.run_id !== runId || l[key] !== stem ? "misplaced" : null;
 
-  const segs = await readDir<Obj & { lineage: Lin }>("lineage/executions", isExecutionSegment, (r, s) => ownLineage(r.lineage, s, "execution_id"));
+  const segs = await readDir<Obj & { lineage: Lin }>("lineage/executions", (v) => isExecutionSegment(v) && semanticOk("execution-segment", v as Obj), (r, s) => ownLineage(r.lineage, s, "execution_id"));
   const seals = await readDir<Obj>("lineage/seals", isSeal, (r, s) =>
     r.source_id !== sourceId ? "foreign_source" : r.run_id !== runId || r.execution_id !== s ? "misplaced" : null);
   const sealBy = new Map(seals.map((x) => [x.stem, x.rec]));
@@ -608,38 +841,68 @@ export async function readProjectRunLineage(
   });
   attempts.sort((a, b) => (a.logical_task_id ?? "").localeCompare(b.logical_task_id ?? "") || a.ordinal - b.ordinal);
 
-  // R04 transfer journal: runs/<run>/transfers/<op>/NN-<stage>.json, latest stage wins.
+  // R04 transfer journal: runs/<run>/transfers/<op>/{01-reserved..05-acknowledged,aborted}.json
+  // plus the producer's intent.json (not read here). Stages form one chain: each needs its
+  // predecessor, keeps the reserved stage's bindings and carries earlier evidence unchanged.
+  // Aborted is legal only before a source commit, alone or after earlier stages. Anything else is refused and blocks close.
   const transfers: LineageTransfer[] = [];
-  const ops = await rd.list("transfers", true);
-  if (ops === "too_many") refused.push({ file: "transfers", reason: "too_many_records" });
-  else {
-    for (const op of ops) {
-      const stages = await readDir<Obj>(`transfers/${op}`, (v) => isObj(v) && v.schema_version === "guild.followup_transfer.v1" ? isFollowupTransfer(v) : true, () => null);
-      const recs = stages.filter((s) => isObj(s.rec) && s.rec.schema_version === "guild.followup_transfer.v1");
-      if (recs.length === 0) continue;
-      const bad = recs.find((s) => s.rec.operation_id !== op || (s.rec.source_work as EntityRef).source_id !== sourceId);
-      if (bad) {
-        refused.push({ file: `transfers/${op}/${bad.stem}.json`, reason: (bad.rec.source_work as EntityRef).source_id !== sourceId ? "foreign_source" : "misplaced" });
+  for (const op of await listOrRefuse(rd, "transfers", true, refused)) {
+    const dir = `transfers/${op}`;
+    const byStage = new Map<string, { stem: string; rec: Obj; revision: string }>();
+    for (const n of await listOrRefuse(rd, dir, false, refused)) {
+      if (n === "intent.json") continue;
+      const file = `${dir}/${n}`;
+      const stage = Object.prototype.hasOwnProperty.call(STAGE_BY_FILE, n) ? STAGE_BY_FILE[n] : undefined;
+      if (!stage) {
+        refused.push({ file, reason: "misplaced" });
         continue;
       }
-      const order = (s: TransferState) => TRANSFER_STATES.indexOf(s);
-      recs.sort((a, b) => order(a.rec.state as TransferState) - order(b.rec.state as TransferState));
-      const last = recs[recs.length - 1];
-      const r = last.rec;
-      revisions.set(entityKey({ source_id: sourceId, kind: "transfer", id: op }), last.revision);
-      const ev = (e: unknown) => (e === null ? null : summary(e as Obj));
-      transfers.push({
-        operation_id: op,
-        state: r.state as TransferState,
-        stages: recs.map((s) => s.rec.state as TransferState),
-        source_work: r.source_work as EntityRef,
-        destination_work: r.destination_work as EntityRef,
-        recorded_at: r.recorded_at as string,
-        source_commit: ev(r.source_commit),
-        target_activation: ev(r.target_activation),
-        target_ack: ev(r.target_ack),
-      });
+      const got = await rd.read(file);
+      if (got === "absent" || got === "unreadable") {
+        refused.push({ file, reason: "unreadable" });
+        continue;
+      }
+      const v = got.json;
+      if (!isFollowupTransfer(v) || !semanticOk("followup-transfer", v as Obj)) {
+        refused.push({ file, reason: "invalid_record" });
+        continue;
+      }
+      const rec = v as Obj;
+      if ((rec.source_work as EntityRef).source_id !== sourceId) refused.push({ file, reason: "foreign_source" });
+      else if (rec.operation_id !== op || rec.state !== stage) refused.push({ file, reason: "misplaced" });
+      else byStage.set(stage, { stem: n.slice(0, -".json".length), rec, revision: sha256Text(got.text) });
     }
+    const kept: { stem: string; rec: Obj; revision: string }[] = [];
+    const binding = (r: Obj) => canonicalJson(TRANSFER_BINDINGS.map((k) => r[k]));
+    const carries = (r: Obj) => {
+      const prev = kept[kept.length - 1]?.rec;
+      return !prev || (["source_commit", "target_activation", "target_ack"] as const).every((k) => prev[k] === null || canonicalJson(r[k]) === canonicalJson(prev[k]));
+    };
+    for (const stage of [...FORWARD_STAGES, "aborted"]) {
+      const x = byStage.get(stage);
+      if (!x) continue;
+      const committed = kept.some((k) => k.rec.state === "source_committed");
+      // The producer may abort before any reservation (disposition conflict), so a lone aborted stage is legal.
+      const chained = stage === "aborted" ? !committed : kept.length === FORWARD_STAGES.indexOf(stage as (typeof FORWARD_STAGES)[number]);
+      if (chained && binding(x.rec) === binding((kept[0] ?? x).rec) && carries(x.rec)) kept.push(x);
+      else refused.push({ file: `${dir}/${x.stem}.json`, reason: "invalid_record" });
+    }
+    if (kept.length === 0) continue;
+    const last = kept[kept.length - 1];
+    const r = last.rec;
+    revisions.set(entityKey({ source_id: sourceId, kind: "transfer", id: op }), last.revision);
+    const ev = (e: unknown) => (e === null ? null : summary(e as Obj));
+    transfers.push({
+      operation_id: op,
+      state: r.state as TransferState,
+      stages: kept.map((x) => x.rec.state as TransferState),
+      source_work: r.source_work as EntityRef,
+      destination_work: r.destination_work as EntityRef,
+      recorded_at: r.recorded_at as string,
+      source_commit: ev(r.source_commit),
+      target_activation: ev(r.target_activation),
+      target_ack: ev(r.target_ack),
+    });
   }
 
   // Operations (C4 preview / C5 approval / C6 receipt) live project-wide at
@@ -650,9 +913,8 @@ export async function readProjectRunLineage(
   const guildReal = guildDirOf(runReal);
   if (guildReal) {
     const gd = makeReader(guildReal, ".guild/");
-    const opDirs = await gd.list("artifacts/operations", true);
-    if (opDirs === "too_many") refused.push({ file: ".guild/artifacts/operations", reason: "too_many_records" });
-    else {
+    const opDirs = await listOrRefuse(gd, "artifacts/operations", true, refused, ".guild/");
+    {
       const current: CurrentAuthority = {
         source_id: sourceId,
         controller_source_id: m.controller.source_id as string,
@@ -688,7 +950,10 @@ export async function readProjectRunLineage(
         const previewShape = pv && isOperationPreview(pv) ? pv : null;
         const receiptShape = rv && isOperationReceipt(rv) ? rv : null;
         const related = [...names(previewShape), ...names(receiptShape)].some((e) => mine.has(entityKey(e)));
-        const looselyRelated = [pv, rv].some((r) => r !== null && JSON.stringify(r).includes(JSON.stringify(runId)));
+        // A record that fails the shape check but names this run is surfaced as refused, not hidden.
+        const looselyRelated = [[pv, previewShape], [rv, receiptShape]].some(
+          ([r, ok]) => r !== null && ok === null && JSON.stringify(r).includes(JSON.stringify(runId)),
+        );
         if (!related && !looselyRelated) continue;
         let bad = false;
         const part = (name: string, schema: string, valid: Spec): Obj | null => {
@@ -718,7 +983,7 @@ export async function readProjectRunLineage(
         if (bad || (!preview && !receipt)) continue;
         const auth: AuthorityCheck = preview
           ? checkOperationAuthority(preview, approval, current)
-          : { status: "stale", codes: ["preview_missing"] };
+          : { status: "stale", codes: ["preview_missing"], unverified: [...UNVERIFIED_PINS] };
         const pa = preview?.authority as { controller_epoch: number } | undefined;
         operations.push({
           operation_id: op,
@@ -740,7 +1005,13 @@ export async function readProjectRunLineage(
                 outcome: receipt.outcome as StateAxes | null,
                 recorded_at: receipt.recorded_at as string,
                 correlation:
-                  preview === null ? "absent" : receipt.preview_hash === preview.preview_hash && receipt.source_id === preview.source_id ? "correlated" : "uncorrelated",
+                  preview === null
+                    ? "absent"
+                    : receipt.preview_hash === preview.preview_hash
+                        && receipt.source_id === preview.source_id
+                        && canonicalJson(receipt.authority) === canonicalJson(preview.authority)
+                      ? "correlated"
+                      : "uncorrelated",
               }
             : null,
           authority: auth,
@@ -783,7 +1054,7 @@ export async function readProjectRunLineage(
     transfers,
     operations,
     usage,
-    close_blockers: deriveCloseBlockers(attempts, transfers),
+    close_blockers: deriveCloseBlockers(attempts, transfers, refused),
     refused,
   };
 }
@@ -816,7 +1087,7 @@ async function readUsage(runReal: string, runId: string, sourceId: string, input
   const body = await rd.read(bodyRel, ANALYSIS_MAX_BYTES);
   inputs.push(...rd.inputs.splice(0));
   if (body === "absent") return { status: "missing", reason: "run analysis body named by the pointer is absent" };
-  if (body === "unreadable" || !isRunAnalysis(body.json) || sha256Text(body.text) !== p.analysis_sha256) {
+  if (body === "unreadable" || !isRunAnalysis(body.json) || !semanticOk("run-analysis", body.json as Obj) || sha256Text(body.text) !== p.analysis_sha256) {
     refused.push({ file: `.guild/${bodyRel}`, reason: body === "unreadable" ? "unreadable" : "invalid_record" });
     return { status: "refused", reason: "run analysis body does not match its pointer or schema" };
   }
@@ -836,8 +1107,13 @@ async function readUsage(runReal: string, runId: string, sourceId: string, input
     cost_usd: u.cost_usd as number | null,
     cost_basis: u.cost_basis as "measured" | "derived_estimate" | "native_estimate" | "unavailable",
     final: u.final as boolean,
+    coverage: {
+      state: (u.coverage as Obj).state as "complete" | "partial" | "unavailable",
+      reason: (u.coverage as Obj).reason as string | null,
+    },
   }));
-  const partial = a.losses.length > 0 || entries.some((e) => e.total === null || e.cost_usd === null || e.cost_basis === "unavailable" || !e.final);
+  const partial = a.losses.length > 0
+    || entries.some((e) => e.coverage.state !== "complete" || e.total === null || e.cost_usd === null || e.cost_basis === "unavailable" || !e.final);
   return {
     status: partial ? "partial" : "available",
     analysis_id: a.analysis_id as string,

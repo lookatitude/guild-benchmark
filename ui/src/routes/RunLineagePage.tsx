@@ -59,7 +59,7 @@ function Hash({ value }: { value: string | null }) {
 function Evidence({ e }: { e: EvidenceSummary }) {
   return (
     <span className="ln-evidence" data-availability={e.availability}>
-      <span className="ln-badge">{e.availability}</span> <code className="ln-hash">{e.sha256}</code>
+      <span className="ln-badge">{e.availability}</span> <span className="ln-k">{e.schema_version}</span> <code className="ln-hash">{e.sha256}</code>
       {e.reason ? <span className="ln-k"> · {e.reason}</span> : null}
     </span>
   );
@@ -220,6 +220,13 @@ function UsageBlock({ usage }: { usage: UsageView }) {
                 <td>
                   <code>{u.accounting_identity}</code>
                   {u.final ? null : <span className="ln-k"> (not final)</span>}
+                  {u.coverage.state === "complete" ? null : (
+                    <span className="ln-k" data-testid={`ln-coverage-${u.accounting_identity}`}>
+                      {" "}
+                      (coverage {u.coverage.state}
+                      {u.coverage.reason ? `: ${u.coverage.reason}` : ""})
+                    </span>
+                  )}
                 </td>
                 <td>{u.inclusion}</td>
                 <td>
@@ -289,13 +296,18 @@ function OperationRow({ o }: { o: LineageOperation }) {
       </h3>
       <p data-testid={`ln-authority-${o.operation_id}`} data-status={o.authority.status}>
         {o.authority.status === "pins_current" ? (
-          "Pins current: the approval binds this exact preview and every pinned revision still matches. Policy and grant admission are the controller's; this view does not authorize."
+          "Pins current: the approval binds this exact preview, and the target and dependency revisions and the controller epoch still match. Policy and grant admission are the controller's; this view does not authorize."
         ) : (
           <>
             <strong>Stale.</strong> {o.authority.codes.join(", ")}
           </>
         )}
       </p>
+      {o.authority.unverified.length > 0 ? (
+        <p className="ln-k" data-testid={`ln-unverified-${o.operation_id}`}>
+          Not checked here: {o.authority.unverified.join(", ")}.
+        </p>
+      ) : null}
       <p>
         <span className="ln-k">Preview</span> <Hash value={o.preview_hash} /> · <span className="ln-k">epoch</span>{" "}
         {o.controller_epoch ?? <span className="ln-missing">unknown</span>} · <span className="ln-k">expires</span>{" "}
