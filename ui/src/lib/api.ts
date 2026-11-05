@@ -66,6 +66,11 @@ export const api = {
   projectWiki: () => `${API_BASE}/project/wiki`,
   projectComponents: () => `${API_BASE}/project/components`,
   projectMemory: () => `${API_BASE}/project/memory`,
+  projectKnowledgeGenerations: () => `${API_BASE}/project/knowledge-generations`,
+  projectKnowledgeLayer: (guild: string, generation: string, channel: string) =>
+    `${API_BASE}/project/knowledge-generations/layer?guild=${encodeURIComponent(guild)}&generation=${encodeURIComponent(
+      generation,
+    )}&channel=${encodeURIComponent(channel)}`,
   projectWikiPage: (path: string, guild?: string) =>
     `${API_BASE}/project/wiki/page?path=${encodeURIComponent(path)}${
       guild ? `&guild=${encodeURIComponent(guild)}` : ""

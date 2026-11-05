@@ -13,6 +13,7 @@ import WikiPage from "./routes/WikiPage";
 import InitiativesPage from "./routes/InitiativesPage";
 import ComponentsPage from "./routes/ComponentsPage";
 import MemoryPage from "./routes/MemoryPage";
+import FreshnessPage from "./routes/FreshnessPage";
 
 // Grouped by what an operator is exploring.
 const NAV: { group: string; items: { to: string; label: string; end?: boolean }[] }[] = [
@@ -31,6 +32,7 @@ const NAV: { group: string; items: { to: string; label: string; end?: boolean }[
       { to: "/wiki", label: "Wiki" },
       { to: "/components", label: "Components" },
       { to: "/memory", label: "Memory" },
+      { to: "/freshness", label: "Freshness" },
     ],
   },
   {
@@ -95,6 +97,7 @@ export default function App() {
           <Route path="/wiki" element={<WikiPage />} />
           <Route path="/components" element={<ComponentsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/freshness" element={<FreshnessPage />} />
           <Route
             path="*"
             element={

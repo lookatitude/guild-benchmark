@@ -1,0 +1,50 @@
+{
+  "schema_version": "guild.stack.knowledge-publication.v1",
+  "source_id": "source-a",
+  "source_worktree_id": "lane-a",
+  "durable_owner_source_id": "source-a",
+  "publication_scope_source_id": "source-a",
+  "basis": {
+    "commit": "abc",
+    "tree": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "dirty_blob_manifest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "file_inventory": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "resolver_policy": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "scan_policy": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_worktree_id": "lane-a"
+  },
+  "source_basis_hash": "sha256:a4f6e1546e8312a9107c6e79a5d6d929b9cd47a808e35f5d67cb1e520230fb9b",
+  "basis_verified_at": "2026-10-26T00:00:00Z",
+  "generation": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "previous_generation": null,
+  "destination_layer_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "manifest": {
+    "source_id": "source-a",
+    "path": "runs/run-20261026-000000-demo/evidence.json",
+    "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "schema_version": "guild.evidence.v1",
+    "observed_at": "2026-10-26T00:00:00Z",
+    "availability": "available",
+    "reason": null
+  },
+  "channels": [
+    {
+      "channel": "structural_graph",
+      "state": "current_for_basis",
+      "basis_hash": "sha256:a4f6e1546e8312a9107c6e79a5d6d929b9cd47a808e35f5d67cb1e520230fb9b",
+      "layer_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "output": {
+        "source_id": "source-a",
+        "path": "runs/run-20261026-000000-demo/evidence.json",
+        "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "schema_version": "guild.evidence.v1",
+        "observed_at": "2026-10-26T00:00:00Z",
+        "availability": "available",
+        "reason": null
+      },
+      "reason": null
+    }
+  ],
+  "decision_refs": [],
+  "replan_required": []
+}

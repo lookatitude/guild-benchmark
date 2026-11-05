@@ -12,6 +12,7 @@ import {
 } from "./artifact-importer.js";
 import { importLifecycleRun } from "./lifecycle-importer.js";
 import { listProjectComponents, listProjectMemory } from "./guild-components-reader.js";
+import { LayerRequestError, readKnowledgeGenerations, readKnowledgeLayer } from "./knowledge-generations.js";
 import {
   ProjectReadError,
   analyzeProjectTarget,
@@ -836,6 +837,31 @@ export function createApp(opts: ServerOpts): Hono {
     try {
       return c.json(await listProjectMemory(projectRoot, c.req.query("guild")));
     } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/knowledge-generations → { sources: [{ tip, generations, candidates }] }
+  app.get("/api/project/knowledge-generations", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      return c.json(await readKnowledgeGenerations(projectRoot));
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/knowledge-generations/layer?guild=&generation=&channel= → one generation's layer
+  app.get("/api/project/knowledge-generations/layer", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    const guild = c.req.query("guild");
+    const generation = c.req.query("generation");
+    const channel = c.req.query("channel");
+    if (!guild || !generation || !channel) return c.json({ error: "guild, generation and channel are required" }, 400);
+    try {
+      return c.json(await readKnowledgeLayer(projectRoot, guild, generation, channel));
+    } catch (err) {
+      if (err instanceof LayerRequestError) return c.json({ error: err.message }, err.status);
       return projectErrorResponse(c, err);
     }
   });
