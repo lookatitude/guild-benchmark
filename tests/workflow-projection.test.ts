@@ -224,5 +224,7 @@ describe("inspector stylesheet (AT41 themes + narrow view)", () => {
     expect(narrow).toMatch(/\.wf-tabs \[role="tab"\] \{ flex: 1 1 100%/);
     expect(css).toMatch(/\.wf-hash \{[^}]*overflow-wrap: anywhere/);
     expect(css).toMatch(/\.wf-node p \{[^}]*overflow-wrap: anywhere/);
+    expect(css).toMatch(/\.wf-node \{[^}]*min-width: 0; overflow-wrap: anywhere/);
+    expect(css).toMatch(/\.wf-nodes, \.wf-components \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   });
 });
