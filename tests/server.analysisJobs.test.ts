@@ -430,7 +430,7 @@ describe("analysis jobs — closed request surface (D02-AC3)", () => {
       body: jobBody(),
     });
     expect(noToken.status).toBe(403);
-    const wrongToken = await postJob(app, token.slice(0, -1) + "0", jobBody());
+    const wrongToken = await postJob(app, token.slice(0, -1) + (token.endsWith("0") ? "1" : "0"), jobBody());
     expect(wrongToken.status).toBe(403);
     expect(spawnCount()).toBe(0);
   });

@@ -569,7 +569,7 @@ export async function readProjectRun(
   };
 }
 
-async function resolveProjectRunRow(
+export async function resolveProjectRunRow(
   projectRoot: string,
   runId: string,
   guildName?: string,
