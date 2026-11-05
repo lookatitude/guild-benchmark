@@ -170,11 +170,11 @@ describe("T04 server · AT30 envelopes and guards", () => {
     const relabelled = { ...tokens.query, versions: { ...tokens.query.versions, aggregation: "other.1" } };
     const r = await post(a, "series", { request: seriesReq(relabelled) });
     expect(r.json.code).toBe("unsupported_capability");
-    const g = await post(a, "series", { request: seriesReq(tokens.query), group_by: "host" });
+    const g = await post(a, "series", { request: seriesReq(tokens.query), group_by: "phase" });
     expect([g.status, g.json.code]).toEqual([400, "invalid_request"]);
     const unknown = await post(a, "query", { as_of: AS_OF, metric_id: "M99.nope" });
     expect(unknown.json.code).toBe("unsupported_capability");
-    const filt = await post(a, "query", { as_of: AS_OF, metric_id: "M07.output_tokens", filters: [{ dimension: "host", values: ["h"] }] });
+    const filt = await post(a, "query", { as_of: AS_OF, metric_id: "M07.output_tokens", filters: [{ dimension: "phase", values: ["p"] }] });
     expect(filt.json.code).toBe("unsupported_capability");
   });
 

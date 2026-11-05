@@ -646,7 +646,7 @@ describe("AT29 · query snapshot", () => {
     const other = openProjectSnapshot(SOURCES(), { as_of: AS_OF, pricing: P1, cursor_key: Buffer.alloc(32, 7) });
     expect((readMetricDrilldown(other, readRequest(q, "metric_drilldown", { request_id: "q-14", session_id: "s-1", cursor: allCursor })) as RefusalV2).code).toBe("invalid_request");
     // A filter dimension the service cannot answer refuses rather than being ignored.
-    expect(() => projectQuery(snap, { metric_id: "M07.output_tokens", filters: [{ dimension: "host", values: ["h"] }] })).toThrow(/not served/);
+    expect(() => projectQuery(snap, { metric_id: "M07.output_tokens", filters: [{ dimension: "phase", values: ["p"] }] })).toThrow(/not served/);
   });
 
   it("GF5: query hashes match the frozen digests and the coordinated snapshot oracles hold", () => {
