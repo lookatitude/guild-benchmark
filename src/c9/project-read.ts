@@ -108,8 +108,37 @@ function readRun(root: string, sourceId: string, runId: string, asOf: string, pr
   const recordEvidence = (e: TraceAnalysisV3): Evidence => ({ source_id: sourceId, path: `runs/${runId}/trace.jsonl`, sha256: sha256(canonicalJson(e)), schema_version: TRACE_SCHEMA, observed_at: e.at, availability: "available", reason: null });
   const observations: ObservationFact[] = events.map((e) => ({
     at: e.at, execution_id: e.lineage.execution_id, logical_task_id: e.lineage.logical_task_id, attempt_id: e.lineage.attempt_id, agent_instance_id: e.lineage.agent_instance_id,
-    requested_model: e.requested_model, observed_model: e.observed_identity.status === "observed" ? e.observed_identity.model : null, evidence: recordEvidence(e),
+    requested_model: e.requested_model, observed_model: e.observed_identity.status === "observed" ? e.observed_identity.model : null,
+    host: e.lineage.host_session_id, workflow_revision: e.pins.workflow, evidence: recordEvidence(e),
   }));
+  // Host session and workflow pin per request, across every observation of it: disagreement is unknown, not either one.
+  // Observations without usage (a request started elsewhere) join through (execution, request).
+  type Placement = { hosts: Set<string | null>; revisions: Set<string> };
+  const add = (m: Map<string, Placement>, k: string, e: TraceAnalysisV3) => {
+    const p = m.get(k) ?? { hosts: new Set(), revisions: new Set() };
+    p.hosts.add(e.lineage.host_session_id);
+    p.revisions.add(e.pins.workflow);
+    m.set(k, p);
+  };
+  const byRequest = new Map<string, Placement>();
+  const requestsOf = new Map<string, Set<string>>();
+  const placement = new Map<string, Placement>();
+  for (const e of events) {
+    const rk = e.lineage.request_id === null ? null : `${e.lineage.execution_id}\u0000${e.lineage.request_id}`;
+    if (rk) add(byRequest, rk, e);
+    if (!e.usage) continue;
+    add(placement, e.usage.accounting_identity, e);
+    if (rk) requestsOf.set(e.usage.accounting_identity, (requestsOf.get(e.usage.accounting_identity) ?? new Set<string>()).add(rk));
+  }
+  for (const [acct, keys] of requestsOf) {
+    const p = placement.get(acct)!;
+    for (const k of keys) {
+      const x = byRequest.get(k)!;
+      x.hosts.forEach((h) => p.hosts.add(h));
+      x.revisions.forEach((v) => p.revisions.add(v));
+    }
+  }
+  const only = <T>(xs: Set<T> | undefined): T | null => (xs && xs.size === 1 ? (xs.values().next().value as T) : null);
   const byObservation = new Map<string, TraceAnalysisV3>();
   for (const e of events) if (e.usage) byObservation.set(`${e.usage.accounting_identity}\u0000${e.usage.observation_id}\u0000${e.usage.revision}`, e);
   const attachments = new Map<string, { kind: "initiative" | "goal"; id: string }>();
@@ -133,6 +162,7 @@ function readRun(root: string, sourceId: string, runId: string, asOf: string, pr
       input: known("input_inclusive"), output: known("output"), cache_read: known("cache_read_subset"), cache_write: known("cache_write_subset"), total: known("total"),
       measured_usd: leaf.measured_usd, derived_usd: leaf.derived_estimate_usd, covered: leaf.covered, allocated: leaf.allocation === "allocated",
       binding_conflict: conflict,
+      host: only(placement.get(leaf.accounting_identity)?.hosts), workflow_revision: only(placement.get(leaf.accounting_identity)?.revisions),
       usage_semantics: u.usage_semantics,
       evidence: ev
         ? recordEvidence(ev)

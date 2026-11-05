@@ -29,6 +29,7 @@ import { SeriesRefusal, queryHash, refusal, validateReadRequestV2, type GroupBy,
 import { evaluationReport, openProjectSnapshot, projectQuery, readMetricDrilldown, readMetricSeries, readRequest, type ProjectQuerySpec, type ProjectSnapshot } from "./c9/project-read.js";
 import { TRACE_ID_RE, isRfc3339 } from "./c9/trace-analysis.js";
 import { canonicalSourceId } from "./c9/source-identity.js";
+import { buildMetricReport, compareCohorts, rankSeries, type ReportSpec } from "./c9/metric-report.js";
 
 export const WORKSPACE_JSON_MAX_BYTES = 1024 * 1024;
 
@@ -1876,7 +1877,7 @@ export function safeJoinUnder(root: string, rest: string): string | null {
 
 export interface C9Response { status: 200 | 400 | 409 | 422; body: unknown }
 
-const C9_GROUP_BY: ReadonlySet<string> = new Set(["all", "source", "run", "cohort", "task", "observed_model"]);
+const C9_GROUP_BY: ReadonlySet<string> = new Set(["all", "source", "run", "cohort", "task", "observed_model", "host", "workflow_revision"]);
 const C9_WINDOW_BASES: ReadonlySet<string> = new Set(["activity_completed", "accepted_outcome_cohort", "as_of_snapshot"]);
 
 function c9RefusalResponse(r: RefusalV2): C9Response {
@@ -2020,7 +2021,7 @@ function parseReadBody(body: unknown): { request: unknown; requestId: string; as
   const rid = typeof request["request_id"] === "string" && TRACE_ID_RE.test(request["request_id"]) ? request["request_id"] : "invalid-request";
   const groupBy = body["group_by"];
   if (groupBy !== undefined && (typeof groupBy !== "string" || !C9_GROUP_BY.has(groupBy))) {
-    return c9RefusalResponse(refusal(rid, "invalid_request", "group_by is all | source | run | cohort | task | observed_model", false));
+    return c9RefusalResponse(refusal(rid, "invalid_request", "group_by is all | source | run | cohort | task | observed_model | host | workflow_revision", false));
   }
   const pointKey = body["point_key"];
   if (pointKey !== undefined && (typeof pointKey !== "string" || pointKey.length > 512)) return c9RefusalResponse(refusal(rid, "invalid_request", "point_key must be a series point key", false));
@@ -2074,4 +2075,84 @@ export async function projectEvaluationReport(projectRoot: string, body: unknown
     return { status: 422, body: { error: bad ? `evaluation cannot be imported: ${bad.reason}` : `no evaluation ${evaluation_id} in source ${source_id}` } };
   }
   return { status: 200, body: { snapshot: snap.facts.snapshot, ...report } };
+}
+
+// ---- U04 report export + human analysis (AT45, AT46) ------------------------
+//
+// Charts, tables and the exported report read the same series the endpoints
+// above serve (src/c9/metric-report.ts); nothing here computes a metric again.
+
+/** Report export: every requested catalog metric over one snapshot, filter set and window. Body: `{as_of?, metric_ids?, filters?, window?, grain?, group_by?}`. */
+export async function projectMetricReport(projectRoot: string, body: unknown, now: () => Date = () => new Date()): Promise<C9Response> {
+  if (!isPlainObject(body)) return { status: 400, body: { error: "request body must be a JSON object" } };
+  const { metric_ids, group_by } = body;
+  if (metric_ids !== undefined && (!Array.isArray(metric_ids) || metric_ids.length > 120 || !metric_ids.every((x) => typeof x === "string" && x.length <= 128))) return { status: 400, body: { error: "metric_ids must be an array of catalog metric ids" } };
+  if (group_by !== undefined && (typeof group_by !== "string" || !C9_GROUP_BY.has(group_by))) return { status: 400, body: { error: "group_by is all | source | run | cohort | task | observed_model | host | workflow_revision" } };
+  // A report window without a basis is an activity window [from,to).
+  const w = body["window"];
+  const withBasis = isPlainObject(w) && w["basis"] === undefined ? { ...body, window: { ...w, basis: "activity_completed" } } : body;
+  const spec = parseQuerySpec({ ...withBasis, metric_id: "M01.run_count" });
+  if (typeof spec === "string") return { status: 400, body: { error: spec } };
+  if (metric_ids !== undefined && (metric_ids as unknown[]).length === 0) return { status: 400, body: { error: "metric_ids names at least one metric" } };
+  if (spec.window && spec.window.basis !== "as_of_snapshot" && spec.window.basis !== "activity_completed") return { status: 400, body: { error: "a report window basis is as_of_snapshot or activity_completed; outcome metrics select their cohort in the same [from,to)" } };
+  const asOf = body["as_of"] ?? now().toISOString();
+  if (typeof asOf !== "string" || !isRfc3339(asOf)) return { status: 400, body: { error: "as_of must be an RFC 3339 instant" } };
+  const snap = await openC9Snapshot(projectRoot, asOf, "metric-report");
+  if (!("facts" in snap)) return snap;
+  const reportSpec: ReportSpec = {
+    ...(metric_ids ? { metric_ids: metric_ids as string[] } : {}), ...(spec.filters ? { filters: spec.filters } : {}),
+    ...(spec.window ? { window: { from: spec.window.from, to: spec.window.to, basis: spec.window.basis as "as_of_snapshot" | "activity_completed" } } : {}), ...(spec.grain ? { grain: spec.grain } : {}),
+    ...(group_by ? { group_by: group_by as GroupBy } : {}),
+  };
+  try {
+    return { status: 200, body: buildMetricReport(snap, snap.names, reportSpec) };
+  } catch (err) {
+    if (err instanceof SeriesRefusal) return c9RefusalResponse(refusal("metric-report", err.code, err.message, err.retryable));
+    return { status: 400, body: { error: (err as Error).message.slice(0, 400) } };
+  }
+}
+
+const sourcesOf = (snap: ProjectSnapshot & { names: Record<string, string[]> }) => snap.diagnostics.map((d) => ({ ...d, names: snap.names[d.source_id] ?? [] }));
+
+function parseDifficulty(v: unknown): Record<string, string | null> | string {
+  if (v === undefined) return {};
+  if (!isPlainObject(v) || Object.keys(v).length > 1000) return "difficulty is {point_key: declared difficulty | null} (at most 1000 keys)";
+  for (const x of Object.values(v)) if (x !== null && (typeof x !== "string" || x.length > 64)) return "a declared difficulty is a string of at most 64 characters or null";
+  return v as Record<string, string | null>;
+}
+
+/** Ranked analysis of one series. Body: `{request, group_by?, direction?, difficulty?}`; difficulty is declared per point key. */
+export async function projectMetricAnalysis(projectRoot: string, body: unknown): Promise<C9Response> {
+  const parsed = parseReadBody(body);
+  if ("status" in parsed) return parsed;
+  const b = body as Record<string, unknown>;
+  const direction = b["direction"] ?? "asc";
+  if (direction !== "asc" && direction !== "desc") return c9RefusalResponse(refusal(parsed.requestId, "invalid_request", "direction is asc | desc", false));
+  const difficulty = parseDifficulty(b["difficulty"]);
+  if (typeof difficulty === "string") return c9RefusalResponse(refusal(parsed.requestId, "invalid_request", difficulty, false));
+  const snap = await openC9Snapshot(projectRoot, parsed.asOf, parsed.requestId);
+  if (!("facts" in snap)) return snap;
+  const series = readMetricSeries(snap, parsed.request, { group_by: parsed.group_by });
+  if (isC9Refusal(series)) return c9RefusalResponse(series);
+  return { status: 200, body: { series, ranking: rankSeries(series, { direction, difficulty }), sources: sourcesOf(snap) } };
+}
+
+/** Compare two cohort points. Body: `{a: {request, group_by?, point_key}, b: {request, group_by?, point_key}}`. */
+export async function projectMetricCompare(projectRoot: string, body: unknown): Promise<C9Response> {
+  if (!isPlainObject(body) || !isPlainObject(body["a"]) || !isPlainObject(body["b"])) return { status: 400, body: { error: "body is {a: {request, group_by?, point_key}, b: {request, group_by?, point_key}}" } };
+  const sides = [body["a"], body["b"]].map((x) => ({ parsed: parseReadBody(x), key: (x as Record<string, unknown>)["point_key"] }));
+  for (const s of sides) {
+    if ("status" in s.parsed) return s.parsed;
+    if (typeof s.key !== "string") return { status: 400, body: { error: "each side names a point_key" } };
+  }
+  const [pa, pb] = sides.map((s) => s.parsed as Exclude<ReturnType<typeof parseReadBody>, C9Response>);
+  if (pa!.asOf !== pb!.asOf) return { status: 400, body: { error: "both sides must read the same snapshot as_of" } };
+  const snap = await openC9Snapshot(projectRoot, pa!.asOf, pa!.requestId);
+  if (!("facts" in snap)) return snap;
+  const sa = readMetricSeries(snap, pa!.request, { group_by: pa!.group_by });
+  if (isC9Refusal(sa)) return c9RefusalResponse(sa);
+  const sb = readMetricSeries(snap, pb!.request, { group_by: pb!.group_by });
+  if (isC9Refusal(sb)) return c9RefusalResponse(sb);
+  const cmp = compareCohorts({ series: sa, key: sides[0]!.key as string, group_by: pa!.group_by ?? "all" }, { series: sb, key: sides[1]!.key as string, group_by: pb!.group_by ?? "all" });
+  return { status: 200, body: { comparison: cmp, sources: sourcesOf(snap) } };
 }

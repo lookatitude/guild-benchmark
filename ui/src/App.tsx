@@ -13,11 +13,18 @@ import WikiPage from "./routes/WikiPage";
 import InitiativesPage from "./routes/InitiativesPage";
 import ComponentsPage from "./routes/ComponentsPage";
 import MemoryPage from "./routes/MemoryPage";
+import MetricsPage from "./routes/MetricsPage";
 import FreshnessPage from "./routes/FreshnessPage";
 
 // Grouped by what an operator is exploring.
 const NAV: { group: string; items: { to: string; label: string; end?: boolean }[] }[] = [
-  { group: "Overview", items: [{ to: "/", label: "Overview", end: true }] },
+  {
+    group: "Overview",
+    items: [
+      { to: "/", label: "Overview", end: true },
+      { to: "/metrics", label: "Metrics" },
+    ],
+  },
   {
     group: "Work",
     items: [
@@ -83,6 +90,7 @@ export default function App() {
       <main className="app-main">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/metrics" element={<MetricsPage />} />
           <Route path="/initiatives" element={<InitiativesPage />} />
           <Route path="/runs" element={<RunsListPage />} />
           <Route path="/runs/:run_id" element={<RunDetailPage />} />

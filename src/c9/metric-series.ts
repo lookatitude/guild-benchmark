@@ -84,6 +84,8 @@ export interface UsageFact {
   accounting_identity: string; at: string | null;
   execution_id: string | null; logical_task_id: string | null; attempt_id: string | null; agent_instance_id: string | null;
   requested_model: string | null; observed_model: string | null;
+  /** The record's host session and pinned workflow revision (U04 cohort dimensions); null when unrecorded. */
+  host: string | null; workflow_revision: string | null;
   /** Each counter is null unless the leaf reports it with known semantics (the T02 ledger rule). */
   input: number | null; output: number | null; cache_read: number | null; cache_write: number | null; total: number | null;
   measured_usd: number | null; derived_usd: number | null; covered: boolean; allocated: boolean;
@@ -94,7 +96,7 @@ export interface UsageFact {
 /** One valid trace record's lineage: what the run names even without usage (dispatch, phase, lifecycle). */
 export interface ObservationFact {
   at: string; execution_id: string | null; logical_task_id: string | null; attempt_id: string | null; agent_instance_id: string | null;
-  requested_model: string | null; observed_model: string | null; evidence: Evidence;
+  requested_model: string | null; observed_model: string | null; host: string | null; workflow_revision: string | null; evidence: Evidence;
 }
 export interface RunFacts {
   source_id: string; run_id: string; evidence: Evidence;
@@ -146,7 +148,7 @@ export interface SourceEvaluations {
 }
 export interface FactSet { snapshot: Snapshot; sources: SourceFacts[]; pricing: { version: string; currency: string; source_hash: string } | null }
 
-export type GroupBy = "all" | "source" | "run" | "cohort" | "task" | "observed_model";
+export type GroupBy = "all" | "source" | "run" | "cohort" | "task" | "observed_model" | "host" | "workflow_revision";
 
 // ── Hashing ──────────────────────────────────────────────────────────────────
 
@@ -182,7 +184,7 @@ const UNIT_LABEL: Record<string, string> = {
   usd_per_outcome: "USD per verified success", ms_per_outcome: "ms per verified success", case_score: "case score",
 };
 const USAGE_FAMILIES = new Set(["M06", "M07", "M08", "M09", "M10", "M13"]);
-const OUTCOME_METRICS = new Set(["M14.outcome_count", "M14.success_ratio", "M15.first_attempt_success_ratio", "M15.retry_count", "M15.rework_count", "M22.cost_per_success_usd", "M22.elapsed_per_success_ms"]);
+export const OUTCOME_METRICS: ReadonlySet<string> = new Set(["M14.outcome_count", "M14.success_ratio", "M15.first_attempt_success_ratio", "M15.retry_count", "M15.rework_count", "M22.cost_per_success_usd", "M22.elapsed_per_success_ms"]);
 const COST_UNITS = new Set(["usd", "usd_per_outcome"]);
 const familyOf = (id: string) => id.slice(0, 3);
 
@@ -201,7 +203,7 @@ export function makeCoverage(eligible: number | null, covered: number, exclusion
 // ── Scope ────────────────────────────────────────────────────────────────────
 
 const RUN_DIMENSIONS = new Set(["run", "initiative", "goal"]);
-const LEAF_DIMENSIONS = new Set(["execution", "task", "attempt", "agent", "observed_model", "requested_model"]);
+const LEAF_DIMENSIONS = new Set(["execution", "task", "attempt", "agent", "observed_model", "requested_model", "host", "workflow_revision"]);
 
 interface ScopedRun { run: RunFacts; leaves: UsageFact[]; observations: ObservationFact[] }
 interface Scope {
@@ -218,6 +220,8 @@ interface Scope {
   noOutcomeSources: string[];
   /** A leaf-level filter or activity window is active: unattributable extras make eligibility unknown. */
   leafFiltered: boolean;
+  /** A record-level filter or grouping (not source/run) is active: run-level attachments cannot be attributed. */
+  recordScoped: boolean;
   exclusions: Record<string, number>;
   taskExclusions: Record<string, number>;
 }
@@ -225,7 +229,7 @@ interface Scope {
 const inWindow = (at: string, w: QueryIdentity["window"]) => compareTraceInstants(at, w.from) >= 0 && compareTraceInstants(at, w.to) < 0;
 
 function leafMatches(l: UsageFact | ObservationFact, f: QueryFilter): boolean {
-  const v = { execution: l.execution_id, task: l.logical_task_id, attempt: l.attempt_id, agent: l.agent_instance_id, observed_model: l.observed_model, requested_model: l.requested_model }[f.dimension as "task"];
+  const v = { execution: l.execution_id, task: l.logical_task_id, attempt: l.attempt_id, agent: l.agent_instance_id, observed_model: l.observed_model, requested_model: l.requested_model, host: l.host, workflow_revision: l.workflow_revision }[f.dimension as "task"];
   return v !== null && v !== undefined && f.values.includes(v);
 }
 function runMatches(r: RunFacts, f: QueryFilter): boolean {
@@ -264,10 +268,16 @@ function selectScope(facts: FactSet, q: QueryIdentity, outcomeMetric: boolean): 
     if (w.basis === "accepted_outcome_cohort" && s.outcomes !== "collected") { cohortUnknown.push(sid); continue; }
     // Cohort selection first: under accepted_outcome_cohort, usage follows the selected tasks across all attempts.
     const selected = new Set<string>();
+    // Task facts carry no execution, host, revision or model binding: under such a filter their membership is unknown.
+    const unbindable = leafFilters.some((f) => f.dimension !== "task");
     for (const t of s.tasks) {
       const r = s.runs.find((x) => x.run_id === t.run_id);
       if (runFilters.length && (!r || !runFilters.every((f) => runMatches(r, f)))) continue;
       if (leafFilters.some((f) => f.dimension === "task" && !f.values.includes(t.task_id))) continue;
+      if (unbindable) {
+        if (!unknownRuns.some((x) => x.source_id === t.source_id && x.run_id === t.run_id)) unknownRuns.push({ source_id: t.source_id, run_id: t.run_id });
+        continue;
+      }
       if (w.basis === "accepted_outcome_cohort") {
         if (t.outcome === "pending" || t.terminal_at === null) { taskExclusions["pending_right_censored"] = (taskExclusions["pending_right_censored"] ?? 0) + 1; continue; }
         if (!inWindow(t.terminal_at, w)) continue;
@@ -301,14 +311,23 @@ function selectScope(facts: FactSet, q: QueryIdentity, outcomeMetric: boolean): 
         // Membership is decided by the run's records; without a complete trace it is unknown, not absent.
         // A leaf with conflicting task bindings matches no lineage filter, but may belong: unknown too.
         const conflicted = leafFilters.some((f) => f.dimension !== "observed_model" && f.dimension !== "requested_model") && r.leaves.some((l) => l.binding_conflict);
-        if (r.usage_state !== "available" || !r.trace_complete || conflicted) unknownRuns.push({ source_id: r.source_id, run_id: r.run_id });
+        // A record in scope with no (or conflicting) host session or workflow pin cannot be placed under a
+        // host/revision filter: unknown too. Records the window or the other filters exclude do not count.
+        const inBasis = (x: UsageFact | ObservationFact) => w.basis === "activity_completed" ? x.at !== null && inWindow(x.at, w)
+          : w.basis === "accepted_outcome_cohort" ? x.logical_task_id !== null && selected.has(`${r.run_id}\u0000${x.logical_task_id}`) : true;
+        // An unplaced record may match any host/revision filter, so those never exclude it here.
+        const placeDim = (x: UsageFact | ObservationFact, d: string) => (d === "host" ? x.host : d === "workflow_revision" ? x.workflow_revision : undefined);
+        const unplaced = leafFilters.some((f) => (f.dimension === "host" || f.dimension === "workflow_revision")
+          && [...r.leaves, ...r.observations].some((x) => placeDim(x, f.dimension) === null && inBasis(x)
+            && leafFilters.every((g) => g === f || g.dimension === f.dimension || leafMatches(x, g) || placeDim(x, g.dimension) === null)));
+        if (r.usage_state !== "available" || !r.trace_complete || conflicted || unplaced) unknownRuns.push({ source_id: r.source_id, run_id: r.run_id });
         if (leaves.length === 0 && observations.length === 0) continue;
       }
       if (w.basis === "accepted_outcome_cohort" && leaves.length === 0 && observations.length === 0 && !tasks.some((t) => t.source_id === r.source_id && t.run_id === r.run_id)) continue;
       runs.push({ run: r, leaves, observations });
     }
   }
-  return { runs, tasks, unknownSources, unknownRuns, unenumerated, cohortUnknown, noOutcomeSources, leafFiltered: leafFilters.length > 0 || w.basis !== "as_of_snapshot", exclusions, taskExclusions };
+  return { runs, tasks, unknownSources, unknownRuns, unenumerated, cohortUnknown, noOutcomeSources, leafFiltered: leafFilters.length > 0 || w.basis !== "as_of_snapshot", recordScoped: leafFilters.length > 0, exclusions, taskExclusions };
 }
 
 // ── Point computation ────────────────────────────────────────────────────────
@@ -445,6 +464,8 @@ function computeCalcInner(metric: AtomicMetric, s: Scope, facts: FactSet, grain:
       return countCalc(enumKnown(s) && partial.length === 0, m, s, unknownReason(s, partial));
     }
     case "M01.goal_count": {
+      // Goal attachments are run-level: a record filter or grouping cannot say which records contributed a goal.
+      if (s.recordScoped) return unavailableCalc("goal attachments are run-level; they cannot be attributed to a record-level filter or grouping", false);
       const m = new Map<string, Evidence>();
       for (const { run } of s.runs) for (const a of run.attachments) if (a.kind === "goal" && !m.has(`${run.source_id}\u0000${a.id}`)) m.set(`${run.source_id}\u0000${a.id}`, run.evidence);
       const unknownRuns = s.runs.filter((r) => r.run.usage_state !== "available" || !r.run.trace_complete).map((r) => `run ${r.run.source_id}:${r.run.run_id} attachments unknown`);
@@ -590,6 +611,13 @@ function groupKeys(s: Scope, by: GroupBy): Map<string, Scope> {
   const own = by === "source" || by === "run";
   // Runs whose records are not all known could hold any task, model or cohort key: every such point is unknown there.
   const opaque = own ? [] : s.runs.filter(({ run }) => run.usage_state !== "available" || !run.trace_complete || run.extra_missing !== 0).map(({ run }) => ({ source_id: run.source_id, run_id: run.run_id }));
+  // A record with no host session or workflow pin could belong to any host or revision; task facts carry
+  // no host, revision or model binding. Their runs are unknown in every such group, never a complete zero.
+  if (by === "host" || by === "workflow_revision" || by === "observed_model") {
+    const dim = (x: UsageFact | ObservationFact) => (by === "host" ? x.host : by === "workflow_revision" ? x.workflow_revision : x.observed_model);
+    for (const { run, leaves, observations } of s.runs) if (by !== "observed_model" && [...leaves, ...observations].some((x) => dim(x) === null)) opaque.push({ source_id: run.source_id, run_id: run.run_id });
+    for (const t of s.tasks) opaque.push({ source_id: t.source_id, run_id: t.run_id });
+  }
   const group = (k: string | null, identity: string | null, src: string, runId: string | null = null): Scope => {
     const key = k === null ? "unattributed" : k;
     if (!KEY_RE.test(key)) throw new SeriesRefusal("invalid_request", `group key ${JSON.stringify(key)} is not a contract id`);
@@ -599,7 +627,7 @@ function groupKeys(s: Scope, by: GroupBy): Map<string, Scope> {
     let g = out.get(key);
     if (!g) {
       // A source or run key names known facts; an unavailable source cannot hold them. Other keys may recur there.
-      g = { ...s, runs: [], tasks: [], leafFiltered: s.leafFiltered || !own,
+      g = { ...s, runs: [], tasks: [], leafFiltered: s.leafFiltered || !own, recordScoped: s.recordScoped || !own,
         unknownSources: own ? [] : s.unknownSources,
         unknownRuns: by === "source" ? s.unknownRuns.filter((x) => x.source_id === src) : by === "run" ? s.unknownRuns.filter((x) => x.source_id === src && x.run_id === runId) : [...s.unknownRuns, ...opaque],
         unenumerated: by === "source" ? s.unenumerated.filter((x) => x.source_id === src) : by === "run" ? [] : s.unenumerated,
@@ -615,7 +643,9 @@ function groupKeys(s: Scope, by: GroupBy): Map<string, Scope> {
     return x;
   };
   const cohortOf = new Map(s.tasks.map((t) => [`${t.source_id}\u0000${t.run_id}\u0000${t.task_id}`, t.cohort]));
-  const keyOf = (r: RunFacts, rec: { logical_task_id: string | null; observed_model: string | null }): [string | null, string | null] => {
+  const keyOf = (r: RunFacts, rec: { logical_task_id: string | null; observed_model: string | null; host: string | null; workflow_revision: string | null }): [string | null, string | null] => {
+    if (by === "host") return [rec.host, null];
+    if (by === "workflow_revision") return [rec.workflow_revision, null];
     if (by === "task") return rec.logical_task_id === null ? [null, null] : [`${r.source_id}:${rec.logical_task_id}`, `${r.source_id}\u0000${rec.logical_task_id}`];
     if (by === "observed_model") return [rec.observed_model, null];
     const c = rec.logical_task_id === null ? null : cohortOf.get(`${r.source_id}\u0000${r.run_id}\u0000${rec.logical_task_id}`) ?? null;
@@ -834,6 +864,9 @@ export function computeMetricSeries(facts: FactSet, q: QueryIdentity, opts: { gr
     if (metric.id === "M29.series_value") r.series = { ...r.series, metric_id: metric.id, underlying_formula_version: effective.formula_version, underlying_metric_id: effective.id };
     return r;
   }
+  if (OUTCOME_METRICS.has(effective.id) && (opts.group_by === "host" || opts.group_by === "workflow_revision" || opts.group_by === "observed_model")) {
+    throw new SeriesRefusal("unsupported_capability", `task outcomes carry no ${opts.group_by} binding to group by`);
+  }
   const scope = selectScope(facts, q, OUTCOME_METRICS.has(effective.id));
   const semantics = usageSemanticsOf(effective, scope);
   if (q.versions.usage_semantics !== semantics) throw new SeriesRefusal("invalid_request", `query pins usage semantics ${q.versions.usage_semantics}; the scope observes ${semantics}`);
@@ -852,7 +885,9 @@ export function computeMetricSeries(facts: FactSet, q: QueryIdentity, opts: { gr
       drilldown: { query_hash: hash, cursor: rs.length && opts.cursor ? opts.cursor(key, 0, rs.length) : null },
     });
   }
-  const whole = computeCalc(effective, scope, facts, q.grain, ctx).coverage;
+  // Under a record-level grouping the whole-series coverage reads the same attribution limits as its points.
+  const by = opts.group_by ?? "all";
+  const whole = computeCalc(effective, by === "all" || by === "source" || by === "run" ? scope : { ...scope, recordScoped: true }, facts, q.grain, ctx).coverage;
   const unit = effective.unit as string;
   const derived = points.some((p) => p.cost_basis === "derived_estimate");
   return {

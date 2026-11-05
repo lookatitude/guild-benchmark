@@ -1,0 +1,836 @@
+{
+  "atomic_descriptions": [
+    {
+      "id": "M01.run_count",
+      "family_name": "Run/execution/task/goal counts and status distribution",
+      "formula": "distinct source+run",
+      "family_formula": "Count distinct identities at selected grain; goals union contributions, runs dedup repeated initiative links.",
+      "availability": "Unknown source coverage keeps counts partial; absence in preview is not zero.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M01.execution_count",
+      "family_name": "Run/execution/task/goal counts and status distribution",
+      "formula": "distinct source+run+execution",
+      "family_formula": "Count distinct identities at selected grain; goals union contributions, runs dedup repeated initiative links.",
+      "availability": "Unknown source coverage keeps counts partial; absence in preview is not zero.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M01.task_count",
+      "family_name": "Run/execution/task/goal counts and status distribution",
+      "formula": "distinct source+logical task",
+      "family_formula": "Count distinct identities at selected grain; goals union contributions, runs dedup repeated initiative links.",
+      "availability": "Unknown source coverage keeps counts partial; absence in preview is not zero.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M01.goal_count",
+      "family_name": "Run/execution/task/goal counts and status distribution",
+      "formula": "distinct source+goal contribution union",
+      "family_formula": "Count distinct identities at selected grain; goals union contributions, runs dedup repeated initiative links.",
+      "availability": "Unknown source coverage keeps counts partial; absence in preview is not zero.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M01.status_count",
+      "family_name": "Run/execution/task/goal counts and status distribution",
+      "formula": "count by independent lifecycle/outcome/acceptance/observability axis",
+      "family_formula": "Count distinct identities at selected grain; goals union contributions, runs dedup repeated initiative links.",
+      "availability": "Unknown source coverage keeps counts partial; absence in preview is not zero.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M02.elapsed_ms",
+      "family_name": "Elapsed wall time / elapsed so far",
+      "formula": "qualified terminal-start or as_of-start",
+      "family_formula": "Terminal controller end-start; active run as_of-start; never sum nested span durations.",
+      "availability": "Missing bounds/unsafe cross-host clock arithmetic unavailable or qualified partial.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M03.active_union_ms",
+      "family_name": "Active union and agent work time",
+      "formula": "union comparable active intervals",
+      "family_formula": "Active=union intervals in one clock domain; agent work=sum disjoint per-agent active intervals, may exceed elapsed.",
+      "availability": "Incomplete interval instrumentation gives partial known total; incomparable clocks disallow global union.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M03.agent_work_ms",
+      "family_name": "Active union and agent work time",
+      "formula": "sum per-agent disjoint active intervals",
+      "family_formula": "Active=union intervals in one clock domain; agent work=sum disjoint per-agent active intervals, may exceed elapsed.",
+      "availability": "Incomplete interval instrumentation gives partial known total; incomparable clocks disallow global union.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M04.raw_wait_ms",
+      "family_name": "Waiting / queue / review / operator / handoff time",
+      "formula": "union explicit intervals by reason",
+      "family_formula": "Union by reason; raw waiting separate from exclusive waiting outside active union; intersect [from,to).",
+      "availability": "No inferred wait from gaps; missing interval boundaries partial; reasons need not sum if overlap disclosed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M04.exclusive_wait_ms",
+      "family_name": "Waiting / queue / review / operator / handoff time",
+      "formula": "wait union minus active union in comparable clock domain",
+      "family_formula": "Union by reason; raw waiting separate from exclusive waiting outside active union; intersect [from,to).",
+      "availability": "No inferred wait from gaps; missing interval boundaries partial; reasons need not sum if overlap disclosed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M04.queue_wait_ms",
+      "family_name": "Waiting / queue / review / operator / handoff time",
+      "formula": "admitted-start minus queued controller timestamp",
+      "family_formula": "Union by reason; raw waiting separate from exclusive waiting outside active union; intersect [from,to).",
+      "availability": "No inferred wait from gaps; missing interval boundaries partial; reasons need not sum if overlap disclosed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M04.operator_wait_ms",
+      "family_name": "Waiting / queue / review / operator / handoff time",
+      "formula": "union explicit operator wait intervals",
+      "family_formula": "Union by reason; raw waiting separate from exclusive waiting outside active union; intersect [from,to).",
+      "availability": "No inferred wait from gaps; missing interval boundaries partial; reasons need not sum if overlap disclosed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M04.handoff_wait_ms",
+      "family_name": "Waiting / queue / review / operator / handoff time",
+      "formula": "union explicit handoff wait intervals",
+      "family_formula": "Union by reason; raw waiting separate from exclusive waiting outside active union; intersect [from,to).",
+      "availability": "No inferred wait from gaps; missing interval boundaries partial; reasons need not sum if overlap disclosed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M05.latency_p50_ms",
+      "family_name": "Phase/component/attempt latency distributions",
+      "formula": "nearest_rank(0.50, completed covered latencies)",
+      "family_formula": "Per declared grain p50/p95 nearest-rank over covered completed samples; expose n/outliers; active samples right-censored separately.",
+      "availability": "Open/missing spans excluded with reason; n0 unavailable, no fabricated latency.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M05.latency_p95_ms",
+      "family_name": "Phase/component/attempt latency distributions",
+      "formula": "nearest_rank(0.95, completed covered latencies)",
+      "family_formula": "Per declared grain p50/p95 nearest-rank over covered completed samples; expose n/outliers; active samples right-censored separately.",
+      "availability": "Open/missing spans excluded with reason; n0 unavailable, no fabricated latency.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M05.sample_count",
+      "family_name": "Phase/component/attempt latency distributions",
+      "formula": "covered completed latency samples",
+      "family_formula": "Per declared grain p50/p95 nearest-rank over covered completed samples; expose n/outliers; active samples right-censored separately.",
+      "availability": "Open/missing spans excluded with reason; n0 unavailable, no fabricated latency.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M06.input_tokens",
+      "family_name": "Input tokens",
+      "formula": "sum final leaf inclusive input",
+      "family_formula": "Sum unique final leaf input counters across selected request set.",
+      "availability": "Missing request usage exact total=null; known subtotal and covered/eligible shown.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M07.output_tokens",
+      "family_name": "Output tokens",
+      "formula": "sum final leaf output",
+      "family_formula": "Sum unique final leaf outputs; retries counted as distinct requests.",
+      "availability": "Missing output not0.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M08.cache_read_tokens",
+      "family_name": "Cached read/write tokens and cache ratio",
+      "formula": "sum declared cache-read subset",
+      "family_formula": "Cache tokens subset of inclusive input; cache-hit ratio=covered cache-read/input for compatible requests, not added to total. Cache-write displayed separately by adapter semantics.",
+      "availability": "Provider unsupported/unknown inclusion stays unavailable; denominator0 unavailable.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M08.cache_write_tokens",
+      "family_name": "Cached read/write tokens and cache ratio",
+      "formula": "sum compatible declared cache-write counters",
+      "family_formula": "Cache tokens subset of inclusive input; cache-hit ratio=covered cache-read/input for compatible requests, not added to total. Cache-write displayed separately by adapter semantics.",
+      "availability": "Provider unsupported/unknown inclusion stays unavailable; denominator0 unavailable.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M08.cache_hit_ratio",
+      "family_name": "Cached read/write tokens and cache ratio",
+      "formula": "covered compatible cache-read / inclusive input; null when denominator0",
+      "family_formula": "Cache tokens subset of inclusive input; cache-hit ratio=covered cache-read/input for compatible requests, not added to total. Cache-write displayed separately by adapter semantics.",
+      "availability": "Provider unsupported/unknown inclusion stays unavailable; denominator0 unavailable.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M09.total_tokens",
+      "family_name": "Total billable tokens",
+      "formula": "input+output, cached not additive",
+      "family_formula": "input+output; exclude mirrored and parent inclusive totals, do not add cached again.",
+      "availability": "Exact total null if any eligible leaf unknown; known subtotal exposed.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M10.measured_spend_usd",
+      "family_name": "Measured spend and derived cost estimate",
+      "formula": "sum unique measured provider request spend",
+      "family_formula": "Separate measured and estimated series; marginal input excludes cache subset at uncached price; per-request sum with scope dedup. No guessed FX.",
+      "availability": "Unknown cost not free; mixed currency refuses aggregate until explicit conversion contract. Native estimate never measured.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M10.derived_estimate_usd",
+      "family_name": "Measured spend and derived cost estimate",
+      "formula": "sum per-request ((inclusive input-cache subset)*uncached price+cache subset*cache price+output*output price), adapter-specific cache-write rules versioned",
+      "family_formula": "Separate measured and estimated series; marginal input excludes cache subset at uncached price; per-request sum with scope dedup. No guessed FX.",
+      "availability": "Unknown cost not free; mixed currency refuses aggregate until explicit conversion contract. Native estimate never measured.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M10.native_estimate_usd",
+      "family_name": "Measured spend and derived cost estimate",
+      "formula": "non-overlapping cumulative native session delta, explicitly estimated",
+      "family_formula": "Separate measured and estimated series; marginal input excludes cache subset at uncached price; per-request sum with scope dedup. No guessed FX.",
+      "availability": "Unknown cost not free; mixed currency refuses aggregate until explicit conversion contract. Native estimate never measured.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M11.threshold_usd",
+      "family_name": "Budget threshold, remaining estimate and overshoot",
+      "formula": "approved native spend threshold",
+      "family_formula": "Native threshold overshoot=max(0,known session estimate-threshold); remaining=max(0,threshold-known estimate) labelled estimate; deadline uses supervisor clock.",
+      "availability": "Unknown spend remaining/overshoot unavailable; threshold is not strict ceiling; cumulative sessions use baseline delta.",
+      "dimensions": "source/run/execution/attempt/native session/budget policy"
+    },
+    {
+      "id": "M11.remaining_estimate_usd",
+      "family_name": "Budget threshold, remaining estimate and overshoot",
+      "formula": "max(0, threshold-estimate); unknown when estimate unknown",
+      "family_formula": "Native threshold overshoot=max(0,known session estimate-threshold); remaining=max(0,threshold-known estimate) labelled estimate; deadline uses supervisor clock.",
+      "availability": "Unknown spend remaining/overshoot unavailable; threshold is not strict ceiling; cumulative sessions use baseline delta.",
+      "dimensions": "source/run/execution/attempt/native session/budget policy"
+    },
+    {
+      "id": "M11.overshoot_estimate_usd",
+      "family_name": "Budget threshold, remaining estimate and overshoot",
+      "formula": "max(0, estimate-threshold)",
+      "family_formula": "Native threshold overshoot=max(0,known session estimate-threshold); remaining=max(0,threshold-known estimate) labelled estimate; deadline uses supervisor clock.",
+      "availability": "Unknown spend remaining/overshoot unavailable; threshold is not strict ceiling; cumulative sessions use baseline delta.",
+      "dimensions": "source/run/execution/attempt/native session/budget policy"
+    },
+    {
+      "id": "M11.remaining_duration_ms",
+      "family_name": "Budget threshold, remaining estimate and overshoot",
+      "formula": "max(0, supervisor deadline-as_of) in supervisor clock",
+      "family_formula": "Native threshold overshoot=max(0,known session estimate-threshold); remaining=max(0,threshold-known estimate) labelled estimate; deadline uses supervisor clock.",
+      "availability": "Unknown spend remaining/overshoot unavailable; threshold is not strict ceiling; cumulative sessions use baseline delta.",
+      "dimensions": "source/run/execution/attempt/native session/budget policy"
+    },
+    {
+      "id": "M12.coverage_ratio",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "field covered / known eligible",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M12.covered_count",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "eligible samples with field evidence",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M12.eligible_count",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "known admitted eligible samples, null if enumeration incomplete",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M12.dropped_count",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "explicit dropped telemetry counter",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M12.invalid_count",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "explicit invalid input count",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M12.duplicate_count",
+      "family_name": "Usage and cost coverage / telemetry loss",
+      "formula": "explicit suppressed identity repeats",
+      "family_formula": "covered/eligible per field plus dropped/duplicate/invalid counts; completeness independent from measurement basis.",
+      "availability": "Unknown eligible denominator => coverage unknown; enumerated expected request count is not billable completion proof.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M13.allocated_tokens",
+      "family_name": "Task/agent/host/model allocation and residual",
+      "formula": "sum known tokens with exact requested dimension binding",
+      "family_formula": "Group unique leaves by exact provenance; sum allocated + unallocated equals known scope ledger.",
+      "availability": "Ambiguous allocation stays unallocated, never evenly split; requested model not observed model.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M13.unallocated_tokens",
+      "family_name": "Task/agent/host/model allocation and residual",
+      "formula": "known total minus exact allocated total",
+      "family_formula": "Group unique leaves by exact provenance; sum allocated + unallocated equals known scope ledger.",
+      "availability": "Ambiguous allocation stays unallocated, never evenly split; requested model not observed model.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M13.allocated_usd",
+      "family_name": "Task/agent/host/model allocation and residual",
+      "formula": "sum compatible known cost with exact dimension binding; basis retained",
+      "family_formula": "Group unique leaves by exact provenance; sum allocated + unallocated equals known scope ledger.",
+      "availability": "Ambiguous allocation stays unallocated, never evenly split; requested model not observed model.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M13.unallocated_usd",
+      "family_name": "Task/agent/host/model allocation and residual",
+      "formula": "compatible known cost residual; basis retained",
+      "family_formula": "Group unique leaves by exact provenance; sum allocated + unallocated equals known scope ledger.",
+      "availability": "Ambiguous allocation stays unallocated, never evenly split; requested model not observed model.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M14.outcome_count",
+      "family_name": "Verified success / failed / cancelled / partial outcomes",
+      "formula": "distinct eligible tasks/runs by accepted outcome",
+      "family_formula": "verified success/eligible completed; show each non-success class; acceptance unknown excluded with reason.",
+      "availability": "Closed/exited0 not automatic success; no-verdict not accepted.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M14.success_ratio",
+      "family_name": "Verified success / failed / cancelled / partial outcomes",
+      "formula": "verified successful / eligible completed, denominator0 unavailable",
+      "family_formula": "verified success/eligible completed; show each non-success class; acceptance unknown excluded with reason.",
+      "availability": "Closed/exited0 not automatic success; no-verdict not accepted.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M15.first_attempt_success_ratio",
+      "family_name": "First-attempt success / retry / rework rate",
+      "formula": "eligible completed logical tasks accepted on attempt1 / eligible completed logical tasks",
+      "family_formula": "First accepted success on ordinal1 / eligible completed tasks; retries=sum(max(0,attempts-1)); repair work separate.",
+      "availability": "Pending tasks excluded with denominators; rework needs reason instrumentation.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M15.retry_count",
+      "family_name": "First-attempt success / retry / rework rate",
+      "formula": "sum max(0, attempt_count-1)",
+      "family_formula": "First accepted success on ordinal1 / eligible completed tasks; retries=sum(max(0,attempts-1)); repair work separate.",
+      "availability": "Pending tasks excluded with denominators; rework needs reason instrumentation.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M15.rework_count",
+      "family_name": "First-attempt success / retry / rework rate",
+      "formula": "distinct explicit repair/rework operations",
+      "family_formula": "First accepted success on ordinal1 / eligible completed tasks; retries=sum(max(0,attempts-1)); repair work separate.",
+      "availability": "Pending tasks excluded with denominators; rework needs reason instrumentation.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M16.review_round_count",
+      "family_name": "Review rounds, findings and verdict distribution",
+      "formula": "distinct obligation+invocation+round",
+      "family_formula": "Count distinct rounds/findings/verdicts; count unresolved by severity and final-subject acceptance.",
+      "availability": "Do not infer reviewer from specialist name; no_verdict/forcepass shown separately.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M16.finding_count",
+      "family_name": "Review rounds, findings and verdict distribution",
+      "formula": "distinct finding identity by severity/disposition",
+      "family_formula": "Count distinct rounds/findings/verdicts; count unresolved by severity and final-subject acceptance.",
+      "availability": "Do not infer reviewer from specialist name; no_verdict/forcepass shown separately.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M16.verdict_count",
+      "family_name": "Review rounds, findings and verdict distribution",
+      "formula": "explicit satisfied/issues/no_verdict/forcepass by independence strength",
+      "family_formula": "Count distinct rounds/findings/verdicts; count unresolved by severity and final-subject acceptance.",
+      "availability": "Do not infer reviewer from specialist name; no_verdict/forcepass shown separately.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M17.assurance_ratio",
+      "family_name": "Assurance completion and stale evidence",
+      "formula": "accepted final-subject required obligations / applicable required obligations",
+      "family_formula": "Accepted current obligations / required applicable obligations; stale counts by invalidation cause.",
+      "availability": "Unknown subject/effects block complete assurance; missing evidence not waived.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M17.stale_evidence_count",
+      "family_name": "Assurance completion and stale evidence",
+      "formula": "distinct invalidated assurance result ids",
+      "family_formula": "Accepted current obligations / required applicable obligations; stale counts by invalidation cause.",
+      "availability": "Unknown subject/effects block complete assurance; missing evidence not waived.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M18.loop_round_count",
+      "family_name": "Workflow loops, cap hits and blockers",
+      "formula": "distinct component invocation+round",
+      "family_formula": "Distinct rounds and cap hits by component/policy; blocked reason counts.",
+      "availability": "Uninstrumented legacy loops unavailable; exhaustion not completion.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M18.cap_hit_count",
+      "family_name": "Workflow loops, cap hits and blockers",
+      "formula": "distinct bounded exhaustion events",
+      "family_formula": "Distinct rounds and cap hits by component/policy; blocked reason counts.",
+      "availability": "Uninstrumented legacy loops unavailable; exhaustion not completion.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M18.unresolved_question_count",
+      "family_name": "Workflow loops, cap hits and blockers",
+      "formula": "distinct unresolved question identities at snapshot",
+      "family_formula": "Distinct rounds and cap hits by component/policy; blocked reason counts.",
+      "availability": "Uninstrumented legacy loops unavailable; exhaustion not completion.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M18.blocker_count",
+      "family_name": "Workflow loops, cap hits and blockers",
+      "formula": "distinct current blocker reason/work identities",
+      "family_formula": "Distinct rounds and cap hits by component/policy; blocked reason counts.",
+      "availability": "Uninstrumented legacy loops unavailable; exhaustion not completion.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M19.tool_call_count",
+      "family_name": "Tool calls, failure, latency and retries",
+      "formula": "distinct completed tool operation ids",
+      "family_formula": "Dedup operations; failed/completed with reason; covered latency p50/p95, retry count.",
+      "availability": "Instrumentation gap unavailable; preserve secret redaction; do not classify n/a as failure.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M19.tool_failure_ratio",
+      "family_name": "Tool calls, failure, latency and retries",
+      "formula": "failed/completed applicable tool operations",
+      "family_formula": "Dedup operations; failed/completed with reason; covered latency p50/p95, retry count.",
+      "availability": "Instrumentation gap unavailable; preserve secret redaction; do not classify n/a as failure.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M19.tool_latency_p50_ms",
+      "family_name": "Tool calls, failure, latency and retries",
+      "formula": "nearest_rank(.50, covered tool latencies)",
+      "family_formula": "Dedup operations; failed/completed with reason; covered latency p50/p95, retry count.",
+      "availability": "Instrumentation gap unavailable; preserve secret redaction; do not classify n/a as failure.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M19.tool_latency_p95_ms",
+      "family_name": "Tool calls, failure, latency and retries",
+      "formula": "nearest_rank(.95, covered tool latencies)",
+      "family_formula": "Dedup operations; failed/completed with reason; covered latency p50/p95, retry count.",
+      "availability": "Instrumentation gap unavailable; preserve secret redaction; do not classify n/a as failure.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M19.tool_retry_count",
+      "family_name": "Tool calls, failure, latency and retries",
+      "formula": "distinct retries bound to logical tool operation",
+      "family_formula": "Dedup operations; failed/completed with reason; covered latency p50/p95, retry count.",
+      "availability": "Instrumentation gap unavailable; preserve secret redaction; do not classify n/a as failure.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M20.handoff_count",
+      "family_name": "Handoffs, dispatch and startup recovery",
+      "formula": "distinct execution handoff operation ids",
+      "family_formula": "Distinct handoffs; accepted-to-start lag, seal-to-accept lag, loss/orphan counts; no duplicate operation/receipt.",
+      "availability": "Dispatch acceptance differs from host started and verified completion; unknown clock intervals stay unknown.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M20.startup_latency_ms",
+      "family_name": "Handoffs, dispatch and startup recovery",
+      "formula": "qualified host start minus controller dispatch acceptance",
+      "family_formula": "Distinct handoffs; accepted-to-start lag, seal-to-accept lag, loss/orphan counts; no duplicate operation/receipt.",
+      "availability": "Dispatch acceptance differs from host started and verified completion; unknown clock intervals stay unknown.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M20.orphan_attempt_count",
+      "family_name": "Handoffs, dispatch and startup recovery",
+      "formula": "unreconciled admitted attempts at snapshot",
+      "family_formula": "Distinct handoffs; accepted-to-start lag, seal-to-accept lag, loss/orphan counts; no duplicate operation/receipt.",
+      "availability": "Dispatch acceptance differs from host started and verified completion; unknown clock intervals stay unknown.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M20.recovery_count",
+      "family_name": "Handoffs, dispatch and startup recovery",
+      "formula": "distinct operation reconciliation attempts",
+      "family_formula": "Distinct handoffs; accepted-to-start lag, seal-to-accept lag, loss/orphan counts; no duplicate operation/receipt.",
+      "availability": "Dispatch acceptance differs from host started and verified completion; unknown clock intervals stay unknown.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M21.transfer_count",
+      "family_name": "Follow-up transfer progress and age",
+      "formula": "distinct exclusive source-disposition transfer ids by state",
+      "family_formula": "Counts by transfer state; unacked age=as_of-commit where controller comparable.",
+      "availability": "Cross-root uncertainty visible; target prepared never executable.",
+      "dimensions": "source/work revision/transfer/destination/run/initiative"
+    },
+    {
+      "id": "M21.unacked_age_ms",
+      "family_name": "Follow-up transfer progress and age",
+      "formula": "as_of-source commit while target ack absent",
+      "family_formula": "Counts by transfer state; unacked age=as_of-commit where controller comparable.",
+      "availability": "Cross-root uncertainty visible; target prepared never executable.",
+      "dimensions": "source/work revision/transfer/destination/run/initiative"
+    },
+    {
+      "id": "M22.cost_per_success_usd",
+      "family_name": "Cost and elapsed per verified outcome",
+      "formula": "all eligible attempt known spend / verified successful outcomes; partial basis explicit",
+      "family_formula": "Covered cost of all eligible attempts / verified successful outcomes; time denominator matches selected cohort.",
+      "availability": "Denominator0 unavailable; partial numerator labelled partial; failures remain in cost numerator.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M22.elapsed_per_success_ms",
+      "family_name": "Cost and elapsed per verified outcome",
+      "formula": "declared compatible task/run elapsed numerator / verified successful outcomes; overlaps follow selected grain, not pooled wall-clock",
+      "family_formula": "Covered cost of all eligible attempts / verified successful outcomes; time denominator matches selected cohort.",
+      "availability": "Denominator0 unavailable; partial numerator labelled partial; failures remain in cost numerator.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M23.channel_state_count",
+      "family_name": "Knowledge freshness by channel and basis",
+      "formula": "count current_for_basis/pending/stale/unknown by source channel generation",
+      "family_formula": "Count current_for_basis/pending/stale/unknown per graph/recall/wiki/memory; lag since observed change, not truth age.",
+      "availability": "Ages are age-of-check; cached marker cannot imply current bytes; offline root unknown.",
+      "dimensions": "source worktree/owner/publication scope/channel/generation"
+    },
+    {
+      "id": "M23.freshness_coverage_ratio",
+      "family_name": "Knowledge freshness by channel and basis",
+      "formula": "verified channels / eligible channels at declared basis",
+      "family_formula": "Count current_for_basis/pending/stale/unknown per graph/recall/wiki/memory; lag since observed change, not truth age.",
+      "availability": "Ages are age-of-check; cached marker cannot imply current bytes; offline root unknown.",
+      "dimensions": "source worktree/owner/publication scope/channel/generation"
+    },
+    {
+      "id": "M23.observed_invalidation_lag_ms",
+      "family_name": "Knowledge freshness by channel and basis",
+      "formula": "as_of-observed change until verified publication; age of observation only",
+      "family_formula": "Count current_for_basis/pending/stale/unknown per graph/recall/wiki/memory; lag since observed change, not truth age.",
+      "availability": "Ages are age-of-check; cached marker cannot imply current bytes; offline root unknown.",
+      "dimensions": "source worktree/owner/publication scope/channel/generation"
+    },
+    {
+      "id": "M24.refresh_job_count",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "distinct refresh jobs by state",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M24.refresh_latency_p50_ms",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "nearest_rank(.50, covered completed refresh durations)",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M24.refresh_latency_p95_ms",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "nearest_rank(.95, covered completed refresh durations)",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M24.refresh_queue_count",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "queued not yet admitted refresh jobs",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M24.cas_rejection_count",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "distinct failed source/destination CAS attempts",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M24.equivalence_failure_count",
+      "family_name": "Refresh work, latency and CAS conflicts",
+      "formula": "distinct clean-rebuild differential failures",
+      "family_formula": "Complete job latency distribution; invalidations, queue length, retry/CAS-rejection and clean-equivalence failures.",
+      "availability": "Partial job logs give partial results; job success distinct from published-current.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M25.graph_node_count",
+      "family_name": "Graph/index inventory and resolution coverage",
+      "formula": "nodes in pinned generation",
+      "family_formula": "Counts at one generation, resolved/eligible references with declared resolver version; deleted derivations removed.",
+      "availability": "Counts do not demonstrate knowledge usefulness; unknown dependencies disable selective freshness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M25.graph_edge_count",
+      "family_name": "Graph/index inventory and resolution coverage",
+      "formula": "edges in same generation",
+      "family_formula": "Counts at one generation, resolved/eligible references with declared resolver version; deleted derivations removed.",
+      "availability": "Counts do not demonstrate knowledge usefulness; unknown dependencies disable selective freshness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M25.indexed_file_count",
+      "family_name": "Graph/index inventory and resolution coverage",
+      "formula": "included files in generation inventory",
+      "family_formula": "Counts at one generation, resolved/eligible references with declared resolver version; deleted derivations removed.",
+      "availability": "Counts do not demonstrate knowledge usefulness; unknown dependencies disable selective freshness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M25.resolution_ratio",
+      "family_name": "Graph/index inventory and resolution coverage",
+      "formula": "resolved references / eligible references under versioned resolver",
+      "family_formula": "Counts at one generation, resolved/eligible references with declared resolver version; deleted derivations removed.",
+      "availability": "Counts do not demonstrate knowledge usefulness; unknown dependencies disable selective freshness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.query_count",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "distinct completed query ids",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.retrieval_hit_ratio",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "covered queries with result_count>0 / covered completed queries",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.retrieval_latency_mean_ms",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "sum covered durations / covered completed queries",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.retrieval_latency_p50_ms",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "nearest_rank(.50, covered query durations)",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.retrieval_latency_p95_ms",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "nearest_rank(.95, covered query durations)",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M26.retrieval_use_ratio",
+      "family_name": "Retrieval latency, hit and citation/use rates",
+      "formula": "queries with explicit downstream use / eligible queries with supported complete use instrumentation; unavailable if unsupported",
+      "family_formula": "Hit=queries with results/covered completed queries; citation use=queries with explicit downstream use/eligible covered queries; latency p50/p95.",
+      "availability": "Use signals optional/unavailable; result presence or promotion count not causal usefulness.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M27.candidate_count",
+      "family_name": "Candidates, decisions, propagation and replan queue",
+      "formula": "distinct candidates by disposition",
+      "family_formula": "Distinct candidates/status, decision supersessions, stale dependent count and pending replan age.",
+      "availability": "Proposed decision not accepted; no cross-root auto-promotion or copied wiki authority.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M27.decision_supersession_count",
+      "family_name": "Candidates, decisions, propagation and replan queue",
+      "formula": "accepted decision supersession events",
+      "family_formula": "Distinct candidates/status, decision supersessions, stale dependent count and pending replan age.",
+      "availability": "Proposed decision not accepted; no cross-root auto-promotion or copied wiki authority.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M27.replan_required_count",
+      "family_name": "Candidates, decisions, propagation and replan queue",
+      "formula": "dependent pinned plans requiring replan",
+      "family_formula": "Distinct candidates/status, decision supersessions, stale dependent count and pending replan age.",
+      "availability": "Proposed decision not accepted; no cross-root auto-promotion or copied wiki authority.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M27.replan_age_ms",
+      "family_name": "Candidates, decisions, propagation and replan queue",
+      "formula": "as_of-accepted invalidating decision until replan accepted",
+      "family_formula": "Distinct candidates/status, decision supersessions, stale dependent count and pending replan age.",
+      "availability": "Proposed decision not accepted; no cross-root auto-promotion or copied wiki authority.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M28.evaluation_score",
+      "family_name": "Evolution/benchmark quality and paired deltas",
+      "formula": "scorer-defined value and unit, never pooled across incompatible scorer scales",
+      "family_formula": "Case-defined score; paired per-case baseline/candidate deltas with declared aggregation, n/pairs, uncertainty and quality floor.",
+      "availability": "Incompatible/unpaired observational cohorts cannot imply causal improvement; metric-specific score unit declared.",
+      "dimensions": "source/evaluation/case/scorer/pair/applied revision/model/config"
+    },
+    {
+      "id": "M28.paired_score_delta",
+      "family_name": "Evolution/benchmark quality and paired deltas",
+      "formula": "declared paired candidate-baseline score statistic",
+      "family_formula": "Case-defined score; paired per-case baseline/candidate deltas with declared aggregation, n/pairs, uncertainty and quality floor.",
+      "availability": "Incompatible/unpaired observational cohorts cannot imply causal improvement; metric-specific score unit declared.",
+      "dimensions": "source/evaluation/case/scorer/pair/applied revision/model/config"
+    },
+    {
+      "id": "M28.paired_cost_delta_usd",
+      "family_name": "Evolution/benchmark quality and paired deltas",
+      "formula": "declared paired candidate-baseline known cost statistic",
+      "family_formula": "Case-defined score; paired per-case baseline/candidate deltas with declared aggregation, n/pairs, uncertainty and quality floor.",
+      "availability": "Incompatible/unpaired observational cohorts cannot imply causal improvement; metric-specific score unit declared.",
+      "dimensions": "source/evaluation/case/scorer/pair/applied revision/model/config"
+    },
+    {
+      "id": "M28.paired_latency_delta_ms",
+      "family_name": "Evolution/benchmark quality and paired deltas",
+      "formula": "declared paired candidate-baseline latency statistic",
+      "family_formula": "Case-defined score; paired per-case baseline/candidate deltas with declared aggregation, n/pairs, uncertainty and quality floor.",
+      "availability": "Incompatible/unpaired observational cohorts cannot imply causal improvement; metric-specific score unit declared.",
+      "dimensions": "source/evaluation/case/scorer/pair/applied revision/model/config"
+    },
+    {
+      "id": "M28.pair_count",
+      "family_name": "Evolution/benchmark quality and paired deltas",
+      "formula": "eligible completed matched baseline/candidate pairs",
+      "family_formula": "Case-defined score; paired per-case baseline/candidate deltas with declared aggregation, n/pairs, uncertainty and quality floor.",
+      "availability": "Incompatible/unpaired observational cohorts cannot imply causal improvement; metric-specific score unit declared.",
+      "dimensions": "source/evaluation/case/scorer/pair/applied revision/model/config"
+    },
+    {
+      "id": "M29.series_value",
+      "family_name": "Time-series trends and outliers",
+      "formula": "underlying scalar metric formula per compatible bucket, never mixed units",
+      "family_formula": "UTC half-open windows, display timezone only; pooled numerator/denominator, nearest-rank quantiles, declared outlier policy; compare compatible formula/semantics versions.",
+      "availability": "No average-of-averages, silent outlier drop or active-run censoring as0.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M29.excluded_count",
+      "family_name": "Time-series trends and outliers",
+      "formula": "explicit excluded entities by reason",
+      "family_formula": "UTC half-open windows, display timezone only; pooled numerator/denominator, nearest-rank quantiles, declared outlier policy; compare compatible formula/semantics versions.",
+      "availability": "No average-of-averages, silent outlier drop or active-run censoring as0.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M29.outlier_count",
+      "family_name": "Time-series trends and outliers",
+      "formula": "declared flagged samples retained unless explicit exclusion policy",
+      "family_formula": "UTC half-open windows, display timezone only; pooled numerator/denominator, nearest-rank quantiles, declared outlier policy; compare compatible formula/semantics versions.",
+      "availability": "No average-of-averages, silent outlier drop or active-run censoring as0.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M30.context_estimate_tokens",
+      "family_name": "Projected context load and recall pressure",
+      "formula": "versioned bundle estimator; estimated basis",
+      "family_formula": "Show bundle token estimate separately from measured request input; utilization only with known compatible limit; cap hit count explicit.",
+      "availability": "Provider context limit or actual token usage unavailable => ratio unavailable; estimate never billed tokens.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M30.context_utilization_ratio",
+      "family_name": "Projected context load and recall pressure",
+      "formula": "compatible observed or explicitly estimated context / declared context limit",
+      "family_formula": "Show bundle token estimate separately from measured request input; utilization only with known compatible limit; cap hit count explicit.",
+      "availability": "Provider context limit or actual token usage unavailable => ratio unavailable; estimate never billed tokens.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M30.context_cap_hit_count",
+      "family_name": "Projected context load and recall pressure",
+      "formula": "distinct explicit context cap escalation events",
+      "family_formula": "Show bundle token estimate separately from measured request input; utilization only with known compatible limit; cap hit count explicit.",
+      "availability": "Provider context limit or actual token usage unavailable => ratio unavailable; estimate never billed tokens.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M31.prompt_count",
+      "family_name": "Prompt, user steering and handoff provenance",
+      "formula": "distinct observed initial/followup/system prompt refs by actor",
+      "family_formula": "Distinct observed prompt/handoff events by kind and actor; capture coverage and missing reason; safe sidecar drilldown with exact source/run/execution/task/agent/model correlation.",
+      "availability": "Unavailable originals are not reconstructed; prompt lengths/estimates are not billed token measurements.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M31.steering_count",
+      "family_name": "Prompt, user steering and handoff provenance",
+      "formula": "distinct observed user steering events bound to prompt refs",
+      "family_formula": "Distinct observed prompt/handoff events by kind and actor; capture coverage and missing reason; safe sidecar drilldown with exact source/run/execution/task/agent/model correlation.",
+      "availability": "Unavailable originals are not reconstructed; prompt lengths/estimates are not billed token measurements.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M31.handoff_count",
+      "family_name": "Prompt, user steering and handoff provenance",
+      "formula": "distinct handoff receipt identities",
+      "family_formula": "Distinct observed prompt/handoff events by kind and actor; capture coverage and missing reason; safe sidecar drilldown with exact source/run/execution/task/agent/model correlation.",
+      "availability": "Unavailable originals are not reconstructed; prompt lengths/estimates are not billed token measurements.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    },
+    {
+      "id": "M31.prompt_capture_ratio",
+      "family_name": "Prompt, user steering and handoff provenance",
+      "formula": "safe captured prompt refs / known expected prompt count; unknown denominator stays unknown",
+      "family_formula": "Distinct observed prompt/handoff events by kind and actor; capture coverage and missing reason; safe sidecar drilldown with exact source/run/execution/task/agent/model correlation.",
+      "availability": "Unavailable originals are not reconstructed; prompt lengths/estimates are not billed token measurements.",
+      "dimensions": "source/run/execution/phase/task/attempt/agent/host/model/workflow revision"
+    }
+  ]
+}

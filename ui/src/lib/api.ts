@@ -58,6 +58,11 @@ export const api = {
       .join("/")}${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`,
   projectInitiatives: () => `${API_BASE}/project/initiatives`,
   projectComparisonTargets: () => `${API_BASE}/project/comparison-targets`,
+  // U04 metrics: report export, drilldown, ranked analysis and cohort comparison (all POST).
+  projectMetricReport: () => `${API_BASE}/project/metrics/report`,
+  projectMetricDrilldown: () => `${API_BASE}/project/metrics/drilldown`,
+  projectMetricAnalysis: () => `${API_BASE}/project/metrics/analysis`,
+  projectMetricCompare: () => `${API_BASE}/project/metrics/compare`,
   projectComparison: (baseline: string, candidate: string) =>
     `${API_BASE}/project/comparisons?baseline=${encodeURIComponent(
       baseline,
