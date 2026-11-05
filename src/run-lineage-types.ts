@@ -125,6 +125,7 @@ export type AuthorityCheckCode =
   | "controller_epoch_mismatch"
   | "target_revision_stale"
   | "dependency_revision_stale"
+  | "preview_missing"
   | "approval_missing"
   | "approval_not_approved"
   | "approval_operation_mismatch"

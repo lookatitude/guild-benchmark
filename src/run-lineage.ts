@@ -642,73 +642,112 @@ export async function readProjectRunLineage(
     }
   }
 
-  // Operations (C4 preview / C5 approval / C6 receipt): runs/<run>/operations/<op>/{preview,approval,receipt}.json.
+  // Operations (C4 preview / C5 approval / C6 receipt) live project-wide at
+  // `.guild/artifacts/operations/<op>/{preview,approval,receipt}.json`. Only v2
+  // records that name this run, one of its executions, attempts or transfers are
+  // attributed here; anything else under that tree belongs to another subject.
   const operations: LineageOperation[] = [];
-  const opDirs = await rd.list("operations", true);
-  if (opDirs === "too_many") refused.push({ file: "operations", reason: "too_many_records" });
-  else {
-    const current: CurrentAuthority = {
-      source_id: sourceId,
-      controller_source_id: m.controller.source_id as string,
-      controller_epoch: m.controller.epoch as number,
-      revisions,
-      now,
-    };
-    for (const op of opDirs) {
-      const part = async (name: string, valid: Spec): Promise<Obj | null | "refused"> => {
-        const file = `operations/${op}/${name}.json`;
-        const got = await rd.read(file);
-        if (got === "absent") return null;
-        if (got === "unreadable" || !valid(got.json)) {
-          refused.push({ file, reason: got === "unreadable" ? "unreadable" : "invalid_record" });
-          return "refused";
-        }
-        const rec = got.json as Obj;
-        if (rec.operation_id !== op) {
-          refused.push({ file, reason: "misplaced" });
-          return "refused";
-        }
-        return rec;
+  const guildReal = guildDirOf(runReal);
+  if (guildReal) {
+    const gd = makeReader(guildReal, ".guild/");
+    const opDirs = await gd.list("artifacts/operations", true);
+    if (opDirs === "too_many") refused.push({ file: ".guild/artifacts/operations", reason: "too_many_records" });
+    else {
+      const current: CurrentAuthority = {
+        source_id: sourceId,
+        controller_source_id: m.controller.source_id as string,
+        controller_epoch: m.controller.epoch as number,
+        revisions,
+        now,
       };
-      const preview = await part("preview", (v) => isOperationPreview(v) && semanticOk("operation-preview", v as Obj));
-      const approval = await part("approval", (v) => isApprovalRecord(v) && semanticOk("approval-record", v as Obj));
-      const receipt = await part("receipt", (v) => isOperationReceipt(v) && semanticOk("operation-receipt", v as Obj));
-      if (preview === "refused" || approval === "refused" || receipt === "refused") continue;
-      if (!preview && !receipt) continue;
-      if (preview && preview.source_id !== sourceId) {
-        refused.push({ file: `operations/${op}/preview.json`, reason: "foreign_source" });
-        continue;
+      const mine = new Set<string>([
+        entityKey({ source_id: sourceId, kind: "run", id: runId }),
+        ...executions.map((e) => entityKey({ source_id: sourceId, kind: "execution", id: e.execution_id })),
+        ...attempts.map((a) => entityKey({ source_id: sourceId, kind: "task_attempt", id: a.attempt_id })),
+        ...transfers.map((t) => entityKey({ source_id: sourceId, kind: "transfer", id: t.operation_id })),
+      ]);
+      const names = (r: Obj | null): EntityRef[] =>
+        r === null
+          ? []
+          : r.schema_version === "guild.stack.operation-preview.v2"
+            ? [...(r.targets as EntityRef[]), ...(r.dependencies as EntityRef[]), ...(r.effects as { target: EntityRef }[]).map((e) => e.target)]
+            : (r.touched as EntityRef[]);
+      for (const op of opDirs) {
+        const raw: Record<string, { file: string; got: Awaited<ReturnType<Reader["read"]>> }> = {};
+        for (const name of ["preview", "approval", "receipt"]) {
+          const file = `artifacts/operations/${op}/${name}.json`;
+          raw[name] = { file, got: await gd.read(file) };
+        }
+        const v2 = (name: string, schema: string) => {
+          const g = raw[name].got;
+          return typeof g === "object" && isObj(g.json) && g.json.schema_version === schema ? (g.json as Obj) : null;
+        };
+        // Attribution only trusts records that pass the strict shape check.
+        const pv = v2("preview", "guild.stack.operation-preview.v2");
+        const rv = v2("receipt", "guild.stack.operation-receipt.v2");
+        const previewShape = pv && isOperationPreview(pv) ? pv : null;
+        const receiptShape = rv && isOperationReceipt(rv) ? rv : null;
+        const related = [...names(previewShape), ...names(receiptShape)].some((e) => mine.has(entityKey(e)));
+        const looselyRelated = [pv, rv].some((r) => r !== null && JSON.stringify(r).includes(JSON.stringify(runId)));
+        if (!related && !looselyRelated) continue;
+        let bad = false;
+        const part = (name: string, schema: string, valid: Spec): Obj | null => {
+          const { file, got } = raw[name];
+          if (got === "absent") return null;
+          if (got === "unreadable" || !isObj(got.json) || got.json.schema_version !== schema || !valid(got.json)) {
+            refused.push({ file: `.guild/${file}`, reason: got === "unreadable" ? "unreadable" : "invalid_record" });
+            bad = true;
+            return null;
+          }
+          const rec = got.json as Obj;
+          if (rec.operation_id !== op) {
+            refused.push({ file: `.guild/${file}`, reason: "misplaced" });
+            bad = true;
+            return null;
+          }
+          if (name !== "approval" && rec.source_id !== sourceId) {
+            refused.push({ file: `.guild/${file}`, reason: "foreign_source" });
+            bad = true;
+            return null;
+          }
+          return rec;
+        };
+        const preview = part("preview", "guild.stack.operation-preview.v2", (v) => isOperationPreview(v) && semanticOk("operation-preview", v as Obj));
+        const approval = part("approval", "guild.stack.approval-record.v2", (v) => isApprovalRecord(v) && semanticOk("approval-record", v as Obj));
+        const receipt = part("receipt", "guild.stack.operation-receipt.v2", (v) => isOperationReceipt(v) && semanticOk("operation-receipt", v as Obj));
+        if (bad || (!preview && !receipt)) continue;
+        const auth: AuthorityCheck = preview
+          ? checkOperationAuthority(preview, approval, current)
+          : { status: "stale", codes: ["preview_missing"] };
+        const pa = preview?.authority as { controller_epoch: number } | undefined;
+        operations.push({
+          operation_id: op,
+          operation: (preview?.operation as string) ?? null,
+          session_id: (preview?.session_id as string) ?? null,
+          preview_hash: (preview?.preview_hash as string) ?? null,
+          expires_at: (preview?.expires_at as string) ?? null,
+          controller_epoch: pa ? pa.controller_epoch : null,
+          targets: (preview?.targets as EntityRef[]) ?? [],
+          dependencies: (preview?.dependencies as EntityRef[]) ?? [],
+          effects: ((preview?.effects as Obj[]) ?? []).map((e) => ({ target: e.target as EntityRef, action: e.action as string })),
+          approval: approval
+            ? { decision: approval.decision as "approved" | "rejected" | "revise", at: approval.at as string, actor_label: approval.actor_label as string }
+            : null,
+          receipt: receipt
+            ? {
+                state: receipt.state as NonNullable<LineageOperation["receipt"]>["state"],
+                effect_kind: receipt.effect_kind as NonNullable<LineageOperation["receipt"]>["effect_kind"],
+                outcome: receipt.outcome as StateAxes | null,
+                recorded_at: receipt.recorded_at as string,
+                correlation:
+                  preview === null ? "absent" : receipt.preview_hash === preview.preview_hash && receipt.source_id === preview.source_id ? "correlated" : "uncorrelated",
+              }
+            : null,
+          authority: auth,
+        });
       }
-      const auth: AuthorityCheck = preview
-        ? checkOperationAuthority(preview, approval, current)
-        : { status: "stale", codes: ["approval_missing"] };
-      const pa = preview?.authority as { controller_epoch: number } | undefined;
-      operations.push({
-        operation_id: op,
-        operation: (preview?.operation as string) ?? null,
-        session_id: (preview?.session_id as string) ?? null,
-        preview_hash: (preview?.preview_hash as string) ?? null,
-        expires_at: (preview?.expires_at as string) ?? null,
-        controller_epoch: pa ? pa.controller_epoch : null,
-        targets: (preview?.targets as EntityRef[]) ?? [],
-        dependencies: (preview?.dependencies as EntityRef[]) ?? [],
-        effects: ((preview?.effects as Obj[]) ?? []).map((e) => ({ target: e.target as EntityRef, action: e.action as string })),
-        approval: approval
-          ? { decision: approval.decision as "approved" | "rejected" | "revise", at: approval.at as string, actor_label: approval.actor_label as string }
-          : null,
-        receipt: receipt
-          ? {
-              state: receipt.state as NonNullable<LineageOperation["receipt"]>["state"],
-              effect_kind: receipt.effect_kind as NonNullable<LineageOperation["receipt"]>["effect_kind"],
-              outcome: receipt.outcome as StateAxes | null,
-              recorded_at: receipt.recorded_at as string,
-              correlation:
-                preview && receipt.preview_hash === preview.preview_hash && receipt.source_id === preview.source_id ? "correlated" : "uncorrelated",
-            }
-          : null,
-        authority: auth,
-      });
     }
+    rd.inputs.push(...gd.inputs);
   }
 
   const usage = await readUsage(runReal, runId, sourceId, rd.inputs, refused);
@@ -749,11 +788,16 @@ export async function readProjectRunLineage(
   };
 }
 
+/** The `.guild` directory holding `<guild>/runs/<run>`, or null when the run sits elsewhere. */
+function guildDirOf(runReal: string): string | null {
+  const runsDir = dirname(runReal);
+  return basename(runsDir) === "runs" ? dirname(runsDir) : null;
+}
+
 /** T03 run analysis v2: `.guild/analysis/runs/<run>/current.v2.json` → versioned body. Absent stays missing, never zero. */
 async function readUsage(runReal: string, runId: string, sourceId: string, inputs: [string, string][], refused: RefusedRecord[]): Promise<UsageView> {
-  const runsDir = dirname(runReal);
-  if (basename(runsDir) !== "runs") return { status: "missing", reason: "run directory is not under a .guild/runs tree" };
-  const guildReal = dirname(runsDir);
+  const guildReal = guildDirOf(runReal);
+  if (!guildReal) return { status: "missing", reason: "run directory is not under a .guild/runs tree" };
   const rd = makeReader(guildReal, ".guild/");
   const ptrRel = `analysis/runs/${runId}/current.v2.json`;
   const ptr = await rd.read(ptrRel, 64 * 1024);
