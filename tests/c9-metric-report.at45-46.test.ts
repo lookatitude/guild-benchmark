@@ -157,6 +157,23 @@ describe("U04 · AT45 report ↔ chart parity", () => {
     expect(point(s, sid("a")).value).toBeCloseTo(12 / 50);
   });
 
+  it("source disclosures are never truncated: 300 diagnostics give 300 sources and 900 omission lines", () => {
+    fixture(false);
+    const snap = openProjectSnapshot([{ source_id: sid("a"), root: path.join(root, "a") }], { as_of: AS_OF });
+    // 300 exceeds the 100-source read limit on purpose: the report must not cap what it is given.
+    const diagnostics: SourceDiagnostics[] = Array.from({ length: 300 }, (_, i) => ({
+      source_id: `src-${i}`, state: "unavailable", reason: "offline", runs: 1, runs_without_trace: 1, invalid_events: 0,
+      pending_requests: null, duplicates: 0, run_errors: [{ run_id: "run-1", reason: "unreadable" }],
+    }));
+    const names = Object.fromEntries(diagnostics.map((d, i) => [d.source_id, [`offline-${i}`]]));
+    const rep = buildMetricReport({ ...snap, diagnostics }, names);
+    expect(rep.sources).toHaveLength(300);
+    expect(rep.omissions.filter((o) => /^source src-\d+ \(offline-\d+\) unavailable/.test(o))).toHaveLength(300);
+    expect(rep.omissions.filter((o) => /run\(s\) could not be read/.test(o))).toHaveLength(300);
+    expect(rep.omissions.filter((o) => /without a retained trace/.test(o))).toHaveLength(300);
+    expect(rep.omissions.some((o) => o.includes("(offline-299)"))).toBe(true);
+  });
+
   it("every served report entry equals the series endpoint; altered formula version, top-N or edited values fail", async () => {
     fixture();
     const a = app();
