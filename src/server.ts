@@ -26,6 +26,7 @@ import {
   readProjectRunArtifact,
   readProjectWikiPage,
 } from "./project-reader.js";
+import { readProjectRunWorkflow } from "./workflow-projection.js";
 import { randomBytes } from "node:crypto";
 import type { PackagedRuntime } from "./analysis-process.js";
 import {
@@ -674,6 +675,17 @@ export function createApp(opts: ServerOpts): Hono {
         c.req.query("guild"),
       );
       return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs/:run_id/workflow[?guild=<name>] → that run's C8
+  // WorkflowProjection v2, validated; missing is `unavailable`, invalid is `refused`.
+  app.get("/api/project/runs/:run_id/workflow", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      return c.json(await readProjectRunWorkflow(projectRoot, c.req.param("run_id"), c.req.query("guild")));
     } catch (err) {
       return projectErrorResponse(c, err);
     }

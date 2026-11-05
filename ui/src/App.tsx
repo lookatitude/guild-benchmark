@@ -3,6 +3,7 @@ import DashboardPage from "./routes/DashboardPage";
 import RunsListPage from "./routes/RunsListPage";
 import RunDetailPage from "./routes/RunDetailPage";
 import ProjectRunDetailPage from "./routes/ProjectRunDetailPage";
+import WorkflowInspectorPage from "./routes/WorkflowInspectorPage";
 import ComparePage from "./routes/ComparePage";
 import TriggerPanelPage from "./routes/TriggerPanelPage";
 import ImportAuditPage from "./routes/ImportAuditPage";
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/runs" element={<RunsListPage />} />
           <Route path="/runs/:run_id" element={<RunDetailPage />} />
           <Route path="/project-runs/:run_id" element={<ProjectRunDetailPage />} />
+          <Route path="/project-runs/:run_id/workflow" element={<WorkflowInspectorPage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/cases" element={<TriggerPanelPage />} />
           <Route path="/import" element={<ImportAuditPage />} />

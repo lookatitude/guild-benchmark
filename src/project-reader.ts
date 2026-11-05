@@ -598,6 +598,7 @@ export async function readProjectRunArtifact(
   runId: string,
   segments: readonly string[],
   guildName?: string,
+  maxBytes?: number,
 ): Promise<{ path: string; body: Buffer }> {
   if (!isSafeRunId(runId)) {
     throw new ProjectReadError("bad_request", "invalid run_id");
@@ -651,7 +652,18 @@ export async function readProjectRunArtifact(
     if (again !== targetReal || current.dev !== opened.dev || current.ino !== opened.ino) {
       throw new ProjectReadError("bad_request", "artifact path escapes the run directory");
     }
-    return { path: segments.join("/"), body: await handle.readFile() };
+    if (maxBytes === undefined) return { path: segments.join("/"), body: await handle.readFile() };
+    // Bounded read: never buffer more than maxBytes + 1, even if the file grows.
+    if (opened.size > maxBytes) throw new ProjectReadError("bad_request", "artifact too large");
+    const buf = Buffer.alloc(maxBytes + 1);
+    let used = 0;
+    while (used < buf.length) {
+      const { bytesRead } = await handle.read(buf, used, buf.length - used, used);
+      if (bytesRead === 0) break;
+      used += bytesRead;
+    }
+    if (used > maxBytes) throw new ProjectReadError("bad_request", "artifact too large");
+    return { path: segments.join("/"), body: buf.subarray(0, used) };
   } finally {
     await handle.close();
   }

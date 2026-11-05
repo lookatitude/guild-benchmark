@@ -1,0 +1,152 @@
+{
+  "schema_version": "guild.stack.workflow-projection.v2",
+  "workflow": {
+    "source_id": "source-a",
+    "kind": "workflow",
+    "id": "wf-1",
+    "revision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "class": "product",
+  "definition_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "compiler_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "policy_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expanded_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "components": [
+    {
+      "id": "component-d5",
+      "version": "1",
+      "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "d5",
+      "component_id": "component-d5",
+      "component_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effect": "gate",
+      "gate_role": "d5",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "qa",
+      "component_id": "component-qa",
+      "component_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effect": "gate",
+      "gate_role": "qa",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "ops",
+      "component_id": "component-ops",
+      "component_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effect": "gate",
+      "gate_role": "ops",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "d8",
+      "component_id": "component-d8",
+      "component_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effect": "gate",
+      "gate_role": "d8",
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    },
+    {
+      "id": "release",
+      "component_id": "component-release",
+      "component_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "effect": "release",
+      "gate_role": null,
+      "within_gate": null,
+      "role": "owner",
+      "capabilities": [],
+      "inputs": [],
+      "outputs": [],
+      "required": true
+    }
+  ],
+  "edges": [
+    {
+      "from": "d5",
+      "to": "qa",
+      "on": "pass"
+    },
+    {
+      "from": "qa",
+      "to": "ops",
+      "on": "pass"
+    },
+    {
+      "from": "ops",
+      "to": "d8",
+      "on": "pass"
+    },
+    {
+      "from": "d8",
+      "to": "release",
+      "on": "pass"
+    }
+  ],
+  "entry": "d5",
+  "protected_gates": [
+    "d5",
+    "qa",
+    "ops",
+    "d8"
+  ],
+  "obligations": [
+    {
+      "id": "ob-security-1",
+      "kind": "security",
+      "node_id": "qa",
+      "subject_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "invocation_id": "inv-qa-1",
+      "round": 1,
+      "status": "accepted",
+      "authority": "controller-a",
+      "evidence": [
+        {
+          "source_id": "source-a",
+          "path": "runs/run-20261026-000000-demo/evidence.json",
+          "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "schema_version": "guild.evidence.v1",
+          "observed_at": "2026-10-26T00:00:00Z",
+          "availability": "available",
+          "reason": null
+        }
+      ]
+    }
+  ],
+  "invocations": [
+    {
+      "id": "inv-qa-1",
+      "node_id": "qa",
+      "round": 1,
+      "max_rounds": 3,
+      "unresolved_questions": [],
+      "state": "accepted",
+      "definition_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "subject_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

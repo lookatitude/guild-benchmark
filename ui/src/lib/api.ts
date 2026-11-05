@@ -53,6 +53,11 @@ export const api = {
       .split("/")
       .map(encodeURIComponent)
       .join("/")}${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`,
+  // U02 — one live run's C8 WorkflowProjection v2 (read-only).
+  projectRunWorkflow: (runId: string, guild?: string) =>
+    `${API_BASE}/project/runs/${encodeURIComponent(runId)}/workflow${
+      guild ? `?guild=${encodeURIComponent(guild)}` : ""
+    }`,
   projectInitiatives: () => `${API_BASE}/project/initiatives`,
   projectComparisonTargets: () => `${API_BASE}/project/comparison-targets`,
   projectComparison: (baseline: string, candidate: string) =>
