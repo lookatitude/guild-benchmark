@@ -1,0 +1,27 @@
+/* U01 run lineage. Theme tokens only (tokens.css); both themes follow [data-theme]. */
+.ln-page { min-width: 0; }
+.ln-region { margin-bottom: 1.25rem; min-width: 0; }
+.ln-region h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+.ln-k { color: var(--color-fg-muted); }
+.ln-missing { color: var(--color-fg-muted); font-style: italic; }
+.ln-warn { color: var(--color-warning-fg); }
+.ln-hash, .ln-text { overflow-wrap: anywhere; word-break: break-all; font-family: var(--font-data); color: var(--color-fg); }
+.ln-text { white-space: pre-wrap; }
+.ln-pins { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.3rem 1rem; margin: 0.5rem 0 0; }
+.ln-pins dt { color: var(--color-fg-muted); }
+.ln-pins dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ln-axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.5rem; margin: 0.25rem 0 0.5rem; }
+.ln-axis { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-fg); border-radius: var(--radius); padding: 0.35rem 0.6rem; }
+.ln-axis dt { color: var(--color-fg-muted); font-size: 0.8rem; }
+.ln-axis dd { margin: 0; font-weight: 600; }
+.ln-axis[data-value="unknown"] dd, .ln-axis[data-value="unavailable"] dd { color: var(--color-fg-muted); font-style: italic; }
+.ln-cards, .ln-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.ln-card { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-fg); border-radius: var(--radius); padding: 0.6rem 0.8rem; min-width: 0; overflow-wrap: anywhere; }
+.ln-card h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+.ln-card p { margin: 0.2rem 0; }
+.ln-card[data-state="recovery_needed"] { border-color: var(--color-danger-border); }
+.ln-badge { background: var(--color-bg-subtle); color: var(--color-fg); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 0 0.35rem; font-size: 0.8rem; }
+.ln-scroll { overflow-x: auto; max-width: 100%; }
+.ln-table { border-collapse: collapse; min-width: 100%; }
+.ln-table th, .ln-table td { border-bottom: 1px solid var(--color-border); padding: 0.3rem 0.5rem; text-align: left; }
+.ln-table caption { text-align: left; }
