@@ -4,8 +4,9 @@ name: ci
 
 on:
   pull_request:
+    branches: [next, main]
   push:
-    branches: [main]
+    branches: [next, main]
   workflow_dispatch:
 
 permissions:
@@ -14,14 +15,19 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - run: node --test scripts/release/channel.test.mjs
       - run: npm run typecheck
       - run: npx vitest run
       - name: Vendored design tokens unchanged
@@ -32,3 +38,18 @@ jobs:
         working-directory: ui
       - run: npm run build
         working-directory: ui
+      - name: Package the tested next console
+        if: github.event_name == 'push' && github.ref == 'refs/heads/next'
+        run: |
+          mkdir -p release
+          git archive --format=tar.gz -o release/source.tar.gz HEAD
+          tar -czf release/console.tar.gz -C ui/dist .
+          node scripts/release/channel.mjs metadata release
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/next'
+        with:
+          name: candidate-${{ github.sha }}
+          path: release/
+          retention-days: 30
+          overwrite: true
+          if-no-files-found: error

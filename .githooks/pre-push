@@ -1,0 +1,10 @@
+#!/bin/sh
+# Branch protection is the server-side guard; install this hook per clone.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/next)
+      echo "Direct pushes to main and next are blocked. Push a feature branch and open a PR into next." >&2
+      exit 1
+      ;;
+  esac
+done

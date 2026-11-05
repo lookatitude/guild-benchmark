@@ -24,5 +24,11 @@ standard layout. Read umbrella + sibling knowledge through workspace federation;
   standard shareable `.guild/` subsets are tracked when intentionally added.
 
 ## Discipline
-- Branch + PR; no direct commits to `main` (v2 work lands on `release/v2.0.0`).
+- Create feature branches from `next`; all feature, fix, docs and sync PRs target `next`.
+- `main` accepts only the same-repository `next` release PR, using **Create a merge commit**.
+- The root package version is the release identity; keep its lockfile in sync.
+- `next` carries a prerelease version; a version-only PR removes the suffix before promotion.
+- Release publishes the tested source and console bundles on GitHub; it does not publish to npm.
+- Install the direct-push guard per clone: `git config core.hooksPath .githooks`.
+- Full gates and release steps: workspace `docs/release-workflow.html`.
 - Use absolute paths for `.guild/` writes.

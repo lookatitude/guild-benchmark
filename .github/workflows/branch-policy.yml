@@ -1,0 +1,30 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches: [next, main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  branch-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: node --test scripts/release/channel.test.mjs
+      - run: node scripts/release/channel.mjs policy
+      - name: Require the successful build of the exact next candidate
+        if: github.base_ref == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/channel.mjs candidate-run ci.yml
