@@ -49,7 +49,17 @@ export default function ProjectRunDetailPage() {
             Run <code>{runId}</code>
           </h1>
         </div>
-        <Link to="/runs">All runs</Link>
+        <div>
+          {runId ? (
+            <Link
+              to={`/project-runs/${encodeURIComponent(runId)}/lineage${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`}
+              data-testid="run-lineage-link"
+            >
+              Lineage
+            </Link>
+          ) : null}{" "}
+          <Link to="/runs">All runs</Link>
+        </div>
       </header>
 
       {status === "loading" ? <div className="loading">Loading run...</div> : null}

@@ -48,6 +48,9 @@ export const api = {
       guild ? `?guild=${encodeURIComponent(guild)}` : ""
     }`,
   // One file under a live run's directory; each path segment is encoded.
+  // U01 — one live run's P05 lineage (read-only).
+  projectRunLineage: (runId: string, guild?: string) =>
+    `${API_BASE}/project/runs/${encodeURIComponent(runId)}/lineage${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`,
   projectRunArtifact: (runId: string, path: string, guild?: string) =>
     `${API_BASE}/project/runs/${encodeURIComponent(runId)}/artifacts/${path
       .split("/")
