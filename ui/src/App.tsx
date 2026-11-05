@@ -3,6 +3,7 @@ import DashboardPage from "./routes/DashboardPage";
 import RunsListPage from "./routes/RunsListPage";
 import RunDetailPage from "./routes/RunDetailPage";
 import ProjectRunDetailPage from "./routes/ProjectRunDetailPage";
+import RunLineagePage from "./routes/RunLineagePage";
 import ComparePage from "./routes/ComparePage";
 import TriggerPanelPage from "./routes/TriggerPanelPage";
 import ImportAuditPage from "./routes/ImportAuditPage";
@@ -13,6 +14,7 @@ import InitiativesPage from "./routes/InitiativesPage";
 import ComponentsPage from "./routes/ComponentsPage";
 import MemoryPage from "./routes/MemoryPage";
 import MetricsPage from "./routes/MetricsPage";
+import FreshnessPage from "./routes/FreshnessPage";
 
 // Grouped by what an operator is exploring.
 const NAV: { group: string; items: { to: string; label: string; end?: boolean }[] }[] = [
@@ -37,6 +39,7 @@ const NAV: { group: string; items: { to: string; label: string; end?: boolean }[
       { to: "/wiki", label: "Wiki" },
       { to: "/components", label: "Components" },
       { to: "/memory", label: "Memory" },
+      { to: "/freshness", label: "Freshness" },
     ],
   },
   {
@@ -92,6 +95,7 @@ export default function App() {
           <Route path="/runs" element={<RunsListPage />} />
           <Route path="/runs/:run_id" element={<RunDetailPage />} />
           <Route path="/project-runs/:run_id" element={<ProjectRunDetailPage />} />
+          <Route path="/project-runs/:run_id/lineage" element={<RunLineagePage />} />
           <Route path="/compare" element={<ComparePage />} />
           <Route path="/cases" element={<TriggerPanelPage />} />
           <Route path="/import" element={<ImportAuditPage />} />
@@ -101,6 +105,7 @@ export default function App() {
           <Route path="/wiki" element={<WikiPage />} />
           <Route path="/components" element={<ComponentsPage />} />
           <Route path="/memory" element={<MemoryPage />} />
+          <Route path="/freshness" element={<FreshnessPage />} />
           <Route
             path="*"
             element={

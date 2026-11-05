@@ -48,6 +48,9 @@ export const api = {
       guild ? `?guild=${encodeURIComponent(guild)}` : ""
     }`,
   // One file under a live run's directory; each path segment is encoded.
+  // U01 — one live run's P05 lineage (read-only).
+  projectRunLineage: (runId: string, guild?: string) =>
+    `${API_BASE}/project/runs/${encodeURIComponent(runId)}/lineage${guild ? `?guild=${encodeURIComponent(guild)}` : ""}`,
   projectRunArtifact: (runId: string, path: string, guild?: string) =>
     `${API_BASE}/project/runs/${encodeURIComponent(runId)}/artifacts/${path
       .split("/")
@@ -68,6 +71,11 @@ export const api = {
   projectWiki: () => `${API_BASE}/project/wiki`,
   projectComponents: () => `${API_BASE}/project/components`,
   projectMemory: () => `${API_BASE}/project/memory`,
+  projectKnowledgeGenerations: () => `${API_BASE}/project/knowledge-generations`,
+  projectKnowledgeLayer: (guild: string, generation: string, channel: string) =>
+    `${API_BASE}/project/knowledge-generations/layer?guild=${encodeURIComponent(guild)}&generation=${encodeURIComponent(
+      generation,
+    )}&channel=${encodeURIComponent(channel)}`,
   projectWikiPage: (path: string, guild?: string) =>
     `${API_BASE}/project/wiki/page?path=${encodeURIComponent(path)}${
       guild ? `&guild=${encodeURIComponent(guild)}` : ""

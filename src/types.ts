@@ -1009,3 +1009,102 @@ export interface LifecycleImportResponse {
   run_type: RunTypeKind;
   benchmark_eligible: boolean;
 }
+
+// ---- P07 knowledge generations (C13 knowledge-publication v1, read-only) ----
+
+export type KnowledgeChannelName = "structural_graph" | "semantic_graph" | "recall" | "wiki" | "project_memory";
+export type KnowledgeChannelState = "current_for_basis" | "pending" | "stale" | "unknown";
+
+export interface KnowledgeEntityRef {
+  source_id: string;
+  kind: string;
+  id: string;
+  revision: string;
+}
+
+export interface KnowledgeChannelView {
+  channel: KnowledgeChannelName;
+  state: KnowledgeChannelState;
+  /** The producer's recorded cause; null when none was recorded. */
+  reason: string | null;
+  basis_hash: string;
+  layer_hash: string;
+  /** basis_hash equals the generation's source_basis_hash. */
+  basis_matches: boolean;
+  /** output.observed_at; null when the channel has no output. */
+  observed_at: string | null;
+  output_path: string | null;
+  output_sha256: string | null;
+  output_availability: string | null;
+}
+
+export interface KnowledgeGenerationView {
+  generation: string;
+  /** verified: record hash matches its pointer and shape is C13; otherwise channels are withheld. */
+  status: "verified" | "unreadable" | "refused";
+  reason: string | null;
+  previous_generation: string | null;
+  source_id: string | null;
+  source_worktree_id: string | null;
+  durable_owner_source_id: string | null;
+  publication_scope_source_id: string | null;
+  basis_commit: string | null;
+  basis_tree: string | null;
+  source_basis_hash: string | null;
+  basis_verified_at: string | null;
+  channels: KnowledgeChannelView[];
+  /** Channels the record does not carry. */
+  unpublished_channels: KnowledgeChannelName[];
+  decision_refs: KnowledgeEntityRef[];
+  replan_required: KnowledgeEntityRef[];
+}
+
+export interface KnowledgeCandidateView {
+  path: string;
+  state: string;
+  decision_id: string | null;
+  candidate_id: string;
+  candidate_revision: string;
+  conflict_count: number;
+}
+
+export interface KnowledgeCandidatesView {
+  status: "read" | "unreadable";
+  reason: string | null;
+  owner_source_id: string | null;
+  autopromote: boolean | null;
+  generated_at: string | null;
+  entries: KnowledgeCandidateView[];
+}
+
+export interface KnowledgeGenerationSource {
+  source_guild: string;
+  status: "published" | "none" | "unreadable";
+  reason: string | null;
+  tip: string | null;
+  /** Tip first, then predecessors, bounded. */
+  generations: KnowledgeGenerationView[];
+  history_truncated: boolean;
+  /** null when the source has no candidate manifest. */
+  candidates: KnowledgeCandidatesView | null;
+}
+
+export interface KnowledgeGenerationsResponse {
+  sources: KnowledgeGenerationSource[];
+}
+
+export interface KnowledgeLayerResponse {
+  source_guild: string;
+  generation: string;
+  channel: KnowledgeChannelName;
+  status: "verified" | "unreadable" | "not_in_generation";
+  reason: string | null;
+  artifact: string | null;
+  bytes: number | null;
+  sha256: string | null;
+  layer_hash: string | null;
+  basis_hash: string | null;
+  unknown_reason: string | null;
+  /** Top-level keys of the artifact; length only for arrays. */
+  top_level: Array<{ key: string; kind: "array" | "object" | "string" | "number" | "boolean" | "null"; length: number | null }>;
+}
