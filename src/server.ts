@@ -40,6 +40,7 @@ import {
   readProjectAnalysisArtifact,
   resolveGuildSources,
 } from "./project-reader.js";
+import { projectMetricDrilldown, projectMetricQuery, projectMetricSeries, type C9Response } from "./project-reader.js";
 import { loadCase } from "./case-loader.js";
 import { compareSets } from "./compare.js";
 import { planRun, runBenchmark } from "./runner.js";
@@ -643,6 +644,60 @@ export function createApp(opts: ServerOpts): Hono {
     const message = err instanceof Error ? err.message : String(err);
     return c.json({ error: `project read failed: ${message}` }, 500);
   };
+
+  // C9 metric series (T04). Read-only POSTs: the body carries a pinned query or a
+  // guild.stack.read-request.v2. Each call re-reads every retained run of every
+  // configured source; a request against another snapshot is refused (409).
+  const C9_BODY_MAX_BYTES = 262144;
+  const readC9Body = async (c: Context): Promise<unknown | Response> => {
+    const declared = Number.parseInt(c.req.header("content-length") ?? "", 10);
+    if (Number.isInteger(declared) && declared > C9_BODY_MAX_BYTES) {
+      return c.json({ error: `request body exceeds ${C9_BODY_MAX_BYTES} bytes` }, 413);
+    }
+    const stream = c.req.raw.body;
+    let text = "";
+    if (stream) {
+      const reader = stream.getReader();
+      const decoder = new TextDecoder();
+      let bytes = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > C9_BODY_MAX_BYTES) {
+          await reader.cancel();
+          return c.json({ error: `request body exceeds ${C9_BODY_MAX_BYTES} bytes` }, 413);
+        }
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+    }
+    try {
+      return JSON.parse(text) as unknown;
+    } catch {
+      return c.json({ error: "request body must be valid JSON" }, 400);
+    }
+  };
+  const c9Route = (fn: (root: string, body: unknown) => Promise<C9Response>) => async (c: Context) => {
+    if (!projectRoot) return noProjectRoot(c);
+    // Read-only, so no action token; still loopback-only like the analysis routes.
+    const violation = loopbackViolation(c);
+    if (violation) return c.json({ error: violation }, 403);
+    const body = await readC9Body(c);
+    if (body instanceof Response) return body;
+    try {
+      const out = await fn(projectRoot, body);
+      return c.json(out.body as object, out.status);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  };
+  // POST /api/project/metrics/query → pinned C9 query + snapshot diagnostics.
+  app.post("/api/project/metrics/query", c9Route((root, body) => projectMetricQuery(root, body)));
+  // POST /api/project/metrics/series → guild.stack.metric-series.v2 or refusal.
+  app.post("/api/project/metrics/series", c9Route(projectMetricSeries));
+  // POST /api/project/metrics/drilldown → guild.stack.metric-drilldown.v2 page or refusal.
+  app.post("/api/project/metrics/drilldown", c9Route(projectMetricDrilldown));
 
   // GET /api/project/overview → workspace/project source summary.
   app.get("/api/project/overview", async (c) => {

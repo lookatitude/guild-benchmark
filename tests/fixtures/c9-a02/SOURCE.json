@@ -1,0 +1,13 @@
+{
+  "golden-gf3-gf5.json": {
+    "copied_from": "contracts/guild-stack/v2/fixtures/golden.json#/fixtures[GF3,GF5] {id,inputs,documents,bindings,refusals}",
+    "source_file_sha256": "sha256:ae61c5e89e8a2ae104a99871edc13f64229152f020ff4bc4ed7bc9f29ba6020d"
+  },
+  "metric-catalog-subset.json": {
+    "copied_from": "contracts/guild-stack/v2/metric-catalog.json#/atomic_measurements {id,unit,formula_version,producer_package} + schemas/metric-series.schema.json#/properties/metric_id/enum",
+    "source_file_sha256": {
+      "metric-catalog.json": "sha256:08a3f43bf735d4a29b5fb4a00556a50a4a66a6ddc52d18b2b9407e9241e452cb",
+      "schemas/metric-series.schema.json": "sha256:58ce3e2fefda0b768595b54184e8534ad5ea380cb4d4a2e8cfe0fcefb8c5cf77"
+    }
+  }
+}

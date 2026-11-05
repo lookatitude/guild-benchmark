@@ -318,3 +318,8 @@ export function extractLifecycleMetrics(opts: ExtractMetricsOpts): LifecycleMetr
 
   return metrics;
 }
+
+// C9 (T04): the one formula engine for metric series and drilldown. Views and
+// reports compute C9 metrics through it, never through a second formula.
+export { ATOMIC_METRICS, type AtomicMetric } from "./c9/metric-catalog.js";
+export { computeMetricSeries, validateMetricSeriesV2, validateMetricDrilldownV2 } from "./c9/metric-series.js";
