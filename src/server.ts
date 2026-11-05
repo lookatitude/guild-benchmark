@@ -27,6 +27,7 @@ import {
   readProjectRunArtifact,
   readProjectWikiPage,
 } from "./project-reader.js";
+import { readProjectRunLineage } from "./run-lineage.js";
 import { randomBytes } from "node:crypto";
 import type { PackagedRuntime } from "./analysis-process.js";
 import {
@@ -675,6 +676,17 @@ export function createApp(opts: ServerOpts): Hono {
         c.req.query("guild"),
       );
       return c.json(body);
+    } catch (err) {
+      return projectErrorResponse(c, err);
+    }
+  });
+
+  // GET /api/project/runs/:run_id/lineage[?guild=<name>] → the run's P05 lineage
+  // (logical run, executions, attempts, transfers, operations, usage). Read-only.
+  app.get("/api/project/runs/:run_id/lineage", async (c) => {
+    if (!projectRoot) return noProjectRoot(c);
+    try {
+      return c.json(await readProjectRunLineage(projectRoot, c.req.param("run_id"), c.req.query("guild")));
     } catch (err) {
       return projectErrorResponse(c, err);
     }
